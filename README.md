@@ -16,9 +16,17 @@ Next.js app on Vercel with private Vercel Blob storage.
 
 Existing anonymous workspaces can be imported after signing in using the banner shown on their original browser, or by opening the original private teacher link. The first account that imports a legacy workspace owns it. Old bearer keys no longer authorize teacher API access.
 
+## Shared teaching and student changes
+
+Open a class and choose **Teacher access**. The class owner can add an existing teacher account by username or remove its access. Shared teachers see only the shared class and all its attendance sessions; they can take attendance, close sessions, export records, and edit the saved roster. Only the owner manages teacher access. A teacher may need to refresh their workspace after being added or when another teacher creates a session.
+
+Choose **Edit students** to add students, change names or student IDs, and remove students. Changes apply to the next session started with **Take attendance again**. Existing sessions keep their original roster and attendance. Simultaneous roster/access edits detect revision conflicts instead of silently replacing another teacher’s changes.
+
+`main` is the repository default and Vercel production branch. Merges to `main` deploy the live site at https://nosa.dev/attend.
+
 ## Security and limitations
 
-Passwords use salted scrypt hashes. Sessions use random opaque tokens, hashed at rest, and 30-day HttpOnly/SameSite cookies (Secure over HTTPS). Logout revokes the server session. Teacher read/write routes enforce ownership server-side. Authentication attempts are throttled by username and IP in 15-minute windows; counters use Blob listing and are not transactional under simultaneous requests. No email verification, password recovery, invitations, or shared accounts are provided.
+Passwords use salted scrypt hashes. Sessions use random opaque tokens, hashed at rest, and 30-day HttpOnly/SameSite cookies (Secure over HTTPS). Logout revokes the server session. Teacher read/write routes enforce ownership server-side. Authentication attempts are throttled by username and IP in 15-minute windows; counters use Blob listing and are not transactional under simultaneous requests. No email verification or password recovery is provided. Each teacher uses their own account; class owners can grant or revoke class-specific access by username.
 
 Student check-in is self-reported: the QR link plus a roster name/ID is sufficient. It does not verify identity or physical presence. The public endpoint does not expose the roster. Attendance sessions and check-ins are immutable separate objects, avoiding shared-record overwrite races. A check-in already in progress when the teacher closes a session may finish.
 

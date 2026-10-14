@@ -1,5 +1,6 @@
 import { read, write, all } from "../../../lib/storage";
-import { account, canAccess, sameOrigin, HttpError } from "../../../lib/auth";
+import { account, sameOrigin, HttpError } from "../../../lib/auth";
+import { classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
 import { parseRoster, matchStudent } from "../../../lib/roster.mjs";
 export const runtime = "nodejs";
@@ -52,15 +53,35 @@ export async function GET(req: Request) {
         )
       ).flat();
       const sessions = await Promise.all(refs.map((b) => read(b.pathname)));
+      const shared = await all(`shared/${who}/`);
+      for (const item of shared) {
+        const ref = await read(item.pathname);
+        if (!ref) continue;
+        try {
+          const root = await load(ref.id);
+          await classContext(root, who);
+          const classRefs = await all(`owners/${root.owner}/`);
+          const candidates = await Promise.all(
+            classRefs.map((b) => read(b.pathname)),
+          );
+          sessions.push(
+            ...candidates.filter((s) => s && (s.classId || s.id) === root.id),
+          );
+        } catch (e) {
+          if (!(e instanceof HttpError && [403, 404].includes(e.status)))
+            throw e;
+        }
+      }
       return response({
         sessions: sessions
-          .filter(Boolean)
+          .filter(
+            (s, i, arr) => s && arr.findIndex((x) => x?.id === s.id) === i,
+          )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       });
     }
     const session = await load(sessionId(id));
-    if (!(await canAccess(who, session.owner)))
-      return response({ error: "Access denied." }, 403);
+    await classContext(session, who);
     const checks = await all(`checks/${id}/`);
     const attendance = Object.fromEntries(
       checks.map((b) => [
@@ -120,8 +141,7 @@ export async function POST(req: Request) {
     if (body.action === "create" || body.action === "repeat") {
       const source =
         body.action === "repeat" ? await load(sessionId(body.id)) : null;
-      if (source && !(await canAccess(who, source.owner)))
-        return response({ error: "Access denied." }, 403);
+      const context = source ? await classContext(source, who) : null;
       const title = String(source?.title || body.title || "").trim();
       if (!title || title.length > 100)
         throw new Error("Enter a session name (up to 100 characters).");
@@ -130,18 +150,18 @@ export async function POST(req: Request) {
         (typeof body.csv !== "string" || body.csv.length > 500_000)
       )
         throw new Error("Choose a CSV smaller than 500 KB.");
-      const students = source ? source.students : parseRoster(body.csv);
+      const students = context ? context.state.students : parseRoster(body.csv);
       const id = randomBytes(16).toString("hex");
       const session: Session = {
         id,
         classId: source ? source.classId || source.id : id,
-        owner: who,
+        owner: context ? context.root.owner : who,
         title,
         createdAt: new Date().toISOString(),
         students,
       };
       await write(`sessions/${session.id}.json`, session);
-      await write(`owners/${who}/${session.id}.json`, {
+      await write(`owners/${session.owner}/${session.id}.json`, {
         id: session.id,
         classId: session.classId,
         title,
@@ -153,8 +173,7 @@ export async function POST(req: Request) {
     if (body.action === "close") {
       const id = sessionId(body.id),
         session = await load(id);
-      if (!(await canAccess(who, session.owner)))
-        return response({ error: "Access denied." }, 403);
+      await classContext(session, who);
       if (!(await closed(id)))
         await write(`closed/${id}.json`, { at: new Date().toISOString() });
       return response({ ok: true });

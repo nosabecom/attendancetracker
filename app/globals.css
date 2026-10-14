@@ -1356,3 +1356,133 @@ footer {
     padding-bottom: 70px;
   }
 }
+.class-toolbar {
+  flex-wrap: wrap;
+}
+.class-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.class-buttons .secondary {
+  font-size: 13px;
+}
+.class-manager {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  color: var(--ink);
+  padding: 30px;
+  width: min(760px, calc(100vw - 30px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+.class-manager::backdrop {
+  background: #14213c88;
+  backdrop-filter: blur(4px);
+}
+.class-manager h2 {
+  font-size: 25px;
+  margin: 18px 0 5px;
+}
+.manager-subtitle {
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.manager-help {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 15px 0;
+}
+.roster-editor {
+  max-height: 45vh;
+  overflow: auto;
+  margin: 20px 0;
+}
+.editor-row,
+.editor-head {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 32px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.editor-head {
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-row input {
+  width: 100%;
+  font-size: 14px;
+}
+.editor-row button {
+  color: #bc5260;
+  display: grid;
+  place-items: center;
+  padding: 7px;
+}
+.manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.manager-actions > span {
+  font-size: 13px;
+  color: var(--muted);
+  margin-right: auto;
+}
+.teacher-owner,
+.teacher-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.teacher-owner span,
+.teacher-row > span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.share-form {
+  display: flex;
+  gap: 10px;
+}
+.share-form input {
+  flex: 1;
+}
+.class-manager .error {
+  margin-top: 15px;
+}
+html[data-theme="dark"] .class-manager {
+  background: #1b2536;
+}
+@media (max-width: 650px) {
+  .class-buttons {
+    flex-direction: column;
+  }
+  .class-manager {
+    padding: 22px 17px;
+  }
+  .editor-row,
+  .editor-head {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 28px;
+    gap: 6px;
+  }
+  .editor-row input {
+    padding: 10px 7px;
+    font-size: 16px;
+  }
+  .share-form {
+    flex-direction: column;
+  }
+  .manager-actions {
+    gap: 9px;
+  }
+  .manager-actions .primary {
+    width: 100%;
+  }
+}

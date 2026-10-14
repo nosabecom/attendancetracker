@@ -18,6 +18,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import QRCode from "qrcode";
+import ClassManager from "./class-manager";
 import Papa from "papaparse";
 import { parseRoster } from "../lib/roster.mjs";
 type SessionRef = {
@@ -59,6 +60,7 @@ export default function Home() {
   const [loginName, setLoginName] = useState(""),
     [password, setPassword] = useState("");
   const [legacyKey, setLegacyKey] = useState("");
+  const [manager, setManager] = useState<"roster" | "teachers" | null>(null);
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -126,6 +128,7 @@ export default function Home() {
       setSelected("");
       setError("");
       setModal(false);
+      setManager(null);
       setNotice("");
     } catch (e) {
       setError((e as Error).message);
@@ -200,7 +203,11 @@ export default function Home() {
           if (live) setActive(s);
         })
         .catch((e) => {
-          if (live) setError(e.message);
+          if (live) {
+            setError(e.message);
+            setActive(null);
+            setManager(null);
+          }
         });
     update();
     const timer = setInterval(update, 15000);
@@ -510,6 +517,17 @@ export default function Home() {
     );
   return (
     <div className="app">
+      {manager && active && (
+        <ClassManager
+          key={`${active.id}-${manager}`}
+          id={active.id}
+          mode={manager}
+          onClose={() => setManager(null)}
+          onSaved={() => {
+            loadList().catch((e) => setError(e.message));
+          }}
+        />
+      )}
       <aside className="sidebar">
         <Brand />
         <div className="workspace-label">TEACHER WORKSPACE</div>
@@ -651,9 +669,23 @@ export default function Home() {
                     ))}
                 </select>
               </div>
-              <button className="secondary" disabled={busy} onClick={repeat}>
-                <Plus size={17} /> Take attendance again
-              </button>
+              <div className="class-buttons">
+                <button
+                  className="secondary"
+                  onClick={() => setManager("roster")}
+                >
+                  Edit students
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => setManager("teachers")}
+                >
+                  Teacher access
+                </button>
+                <button className="secondary" disabled={busy} onClick={repeat}>
+                  <Plus size={17} /> Take attendance again
+                </button>
+              </div>
             </div>
           )}
           <div className="stats">
