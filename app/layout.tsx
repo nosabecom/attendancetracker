@@ -1,5 +1,6 @@
 import "./globals.css";
 import ThemeToggle from "./theme-toggle";
+import SiteInsights from "./site-insights";
 export const metadata = {
   title: "Rollcall · Attendance, made simple",
   description:
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body>
         {children}
         <ThemeToggle />
+        <SiteInsights />
       </body>
     </html>
   );
