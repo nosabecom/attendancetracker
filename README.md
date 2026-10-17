@@ -30,6 +30,10 @@ Passwords use salted scrypt hashes. Sessions use random opaque tokens, hashed at
 
 Student check-in is self-reported: the QR link plus a roster name/ID is sufficient. It does not verify identity or physical presence. The public endpoint does not expose the roster. Attendance sessions and check-ins are immutable separate objects, avoiding shared-record overwrite races. A check-in already in progress when the teacher closes a session may finish.
 
+## Analytics and performance
+
+Vercel Web Analytics and Speed Insights are mounted in the root layout for all pages. Both are enabled on the Vercel project. URL query strings and fragments are removed before sending measurements, keeping check-in tokens and legacy teacher links out of collected page URLs. No custom events or student names/IDs are sent by the app. View traffic and performance in the project’s Web Analytics and Speed Insights dashboards.
+
 ## Development and validation
 
 ```sh
