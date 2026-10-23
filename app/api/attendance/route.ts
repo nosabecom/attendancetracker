@@ -1,6 +1,6 @@
 import { read, write, all } from "../../../lib/storage";
 import { account, sameOrigin, HttpError } from "../../../lib/auth";
-import { classContext } from "../../../lib/classes";
+import { authorizeSession, classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
 import { parseRoster, matchStudent } from "../../../lib/roster.mjs";
 import { readJson } from "../../../lib/http.mjs";
@@ -82,7 +82,7 @@ export async function GET(req: Request) {
       });
     }
     const session = await load(sessionId(id));
-    await classContext(session, who);
+    await authorizeSession(session, who);
     const checks = await all(`checks/${id}/`);
     const attendance = Object.fromEntries(
       checks.map((b) => [
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
     if (body.action === "close") {
       const id = sessionId(body.id),
         session = await load(id);
-      await classContext(session, who);
+      await authorizeSession(session, who);
       if (!(await closed(id)))
         await write(`closed/${id}.json`, { at: new Date().toISOString() });
       return response({ ok: true });

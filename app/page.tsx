@@ -21,6 +21,7 @@ import QRCode from "qrcode";
 import ClassManager from "./class-manager";
 import Papa from "papaparse";
 import { parseRoster } from "../lib/roster.mjs";
+import { startAttendancePolling } from "../lib/attendance-polling.mjs";
 type SessionRef = {
   id: string;
   title: string;
@@ -167,13 +168,14 @@ export default function Home() {
       setBusy(false);
     }
   }
-  async function api(path = "", body?: unknown) {
+  async function api(path = "", body?: unknown, signal?: AbortSignal) {
     const res = await fetch("/api/attendance" + path, {
       method: body ? "POST" : "GET",
       headers: {
         "Content-Type": "application/json",
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      signal,
     });
     const data = await res.json();
     if (res.status === 401) {
@@ -183,7 +185,10 @@ export default function Home() {
       setSelected("");
     }
     if (!res.ok)
-      throw new Error(data.error || "Something went wrong. Please try again.");
+      throw Object.assign(
+        new Error(data.error || "Something went wrong. Please try again."),
+        { status: res.status },
+      );
     return data;
   }
   async function loadList() {
@@ -194,28 +199,22 @@ export default function Home() {
   useEffect(() => {
     if (username) loadList().catch((e) => setError(e.message));
   }, [username]);
+  const selectedClosed = active?.id === selected && active.closed;
   useEffect(() => {
-    if (!username || !selected) return;
-    let live = true;
-    const update = () =>
-      api(`?id=${selected}`)
-        .then((s) => {
-          if (live) setActive(s);
-        })
-        .catch((e) => {
-          if (live) {
-            setError(e.message);
-            setActive(null);
-            setManager(null);
-          }
-        });
-    update();
-    const timer = setInterval(update, 15000);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [username, selected]);
+    if (!username || !selected || selectedClosed) return;
+    return startAttendancePolling({
+      load: (signal: AbortSignal) => api(`?id=${selected}`, undefined, signal),
+      onData: (session: Session) => {
+        setActive(session);
+        setError("");
+      },
+      onError: (e: Error) => {
+        setError(e.message);
+        setActive(null);
+        setManager(null);
+      },
+    });
+  }, [username, selected, selectedClosed]);
   useEffect(() => {
     if (join)
       api(`?public=1&id=${encodeURIComponent(join)}`)
@@ -315,7 +314,7 @@ export default function Home() {
     setBusy(true);
     try {
       await api("", { action: "close", id: active.id });
-      setActive({ ...active, closed: true });
+      setActive(await api(`?id=${active.id}`));
       setNotice("Check-in is now closed.");
     } catch (e) {
       setError((e as Error).message);
@@ -835,7 +834,9 @@ export default function Home() {
                   </div>
                   <div className="table-footer">
                     {filtered.length} students{" "}
-                    <span>Updates every 15 seconds</span>
+                    <span>
+                      {active.closed ? "Session closed" : "Updates every 30 seconds"}
+                    </span>
                   </div>
                 </>
               ) : (
