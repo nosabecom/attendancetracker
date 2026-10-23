@@ -5,6 +5,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { read, write, all, del } from "./storage";
+import { HttpError } from "./http.mjs";
+export { HttpError } from "./http.mjs";
 const scrypt = (password: string, salt: string) =>
   new Promise<Buffer>((resolve, reject) =>
     scryptCallback(
@@ -17,14 +19,6 @@ const scrypt = (password: string, salt: string) =>
   );
 export const COOKIE = "rollcall_session";
 export const hash = (s: string) => createHash("sha256").update(s).digest("hex");
-export class HttpError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
 export type Account = {
   owner: string;
   username: string;

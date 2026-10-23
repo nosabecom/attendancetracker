@@ -3,6 +3,7 @@ import { account, sameOrigin, HttpError } from "../../../lib/auth";
 import { classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
 import { parseRoster, matchStudent } from "../../../lib/roster.mjs";
+import { readJson } from "../../../lib/http.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Student = { id: string; name: string; code: string };
@@ -16,12 +17,12 @@ type Session = {
 };
 function sessionId(value: unknown) {
   if (typeof value !== "string" || !/^[a-f0-9]{32}$/.test(value))
-    throw new Error("Invalid attendance link.");
+    throw new HttpError("Invalid attendance link.");
   return value;
 }
 async function load(id: string) {
   const session = (await read(`sessions/${id}.json`)) as Session | null;
-  if (!session) throw new Error("This session could not be found.");
+  if (!session) throw new HttpError("This session could not be found.", 404);
   return session;
 }
 async function closed(id: string) {
@@ -97,17 +98,15 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     return response(
-      { error: e instanceof Error ? e.message : "Unable to load attendance." },
-      e instanceof HttpError ? e.status : 400,
+      { error: e instanceof HttpError ? e.message : "Unable to load attendance." },
+      e instanceof HttpError ? e.status : 500,
     );
   }
 }
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    if (Number(req.headers.get("content-length")) > 1_000_000)
-      return response({ error: "File is too large." }, 413);
-    const body = await req.json();
+    const body = await readJson(req, 1_000_000);
     if (body.action === "checkin") {
       const id = sessionId(body.id),
         session = await load(id);
@@ -117,7 +116,7 @@ export async function POST(req: Request) {
           409,
         );
       if (typeof body.identity !== "string" || body.identity.length > 160)
-        throw new Error("Enter your full name or student ID.");
+        throw new HttpError("Enter your full name or student ID.");
       const student = matchStudent(session.students, body.identity);
       if (!student)
         return response(
@@ -144,13 +143,18 @@ export async function POST(req: Request) {
       const context = source ? await classContext(source, who) : null;
       const title = String(source?.title || body.title || "").trim();
       if (!title || title.length > 100)
-        throw new Error("Enter a session name (up to 100 characters).");
+        throw new HttpError("Enter a session name (up to 100 characters).");
       if (
         !source &&
         (typeof body.csv !== "string" || body.csv.length > 500_000)
       )
-        throw new Error("Choose a CSV smaller than 500 KB.");
-      const students = context ? context.state.students : parseRoster(body.csv);
+        throw new HttpError("Choose a CSV smaller than 500 KB.");
+      let students: Student[];
+      if (context) students = context.state.students;
+      else {
+        try { students = parseRoster(body.csv); }
+        catch (error) { throw new HttpError(error instanceof Error ? error.message : "Invalid roster."); }
+      }
       const id = randomBytes(16).toString("hex");
       const session: Session = {
         id,
@@ -178,12 +182,12 @@ export async function POST(req: Request) {
         await write(`closed/${id}.json`, { at: new Date().toISOString() });
       return response({ ok: true });
     }
-    throw new Error("Unknown action.");
+    throw new HttpError("Unknown action.");
   } catch (e) {
-    console.error(e);
+    console.error(e instanceof HttpError ? e.message : "Attendance storage failure");
     return response(
-      { error: e instanceof Error ? e.message : "Unable to save attendance." },
-      e instanceof HttpError ? e.status : 400,
+      { error: e instanceof HttpError ? e.message : "Unable to save attendance." },
+      e instanceof HttpError ? e.status : 500,
     );
   }
 }

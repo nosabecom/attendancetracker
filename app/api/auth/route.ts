@@ -14,6 +14,7 @@ import {
   type Account,
 } from "../../../lib/auth";
 import { read, write } from "../../../lib/storage";
+import { readJson } from "../../../lib/http.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 function json(data: unknown, status = 200, sessionCookie?: string) {
@@ -47,9 +48,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    const raw = await req.text();
-    if (raw.length > 4096) throw new HttpError("Request too large.", 413);
-    const b = JSON.parse(raw);
+    const b = await readJson(req, 4096);
     if (b.action === "logout") {
       await logout(req);
       return json({ ok: true }, 200, cookie("", req, 0));
