@@ -8,7 +8,7 @@ const suffix=randomBytes(6).toString('hex'),names=[`qa_a_${suffix}`,`qa_b_${suff
 const sessionIds=[],owners=[],cookies=[];
 const legacyKey=randomBytes(32).toString('hex'),legacyOwner=digest(legacyKey),legacyId=randomBytes(16).toString('hex');
 async function jsonBlob(path){const r=await get(path,{access:'private',useCache:false});return r?.statusCode===200?JSON.parse(await new Response(r.stream).text()):null;}
-async function request(route,cookie='',body,headers={}){const r=await fetch(base+'/api/'+route,{method:body?'POST':'GET',headers:{'content-type':'application/json',origin:base,cookie,...headers},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0],headers:r.headers};}
+async function request(route,cookie='',body,headers={}){const r=await fetch(base+'/api/'+route,{method:body?'POST':'GET',headers:{'content-type':'application/json','X-Dashboard-Token':digest('integration-tab').slice(0,32),origin:base,cookie,...headers},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0],headers:r.headers};}
 async function blobs(prefix){const result=[];let cursor;do{const p=await list({prefix,cursor});result.push(...p.blobs.map(b=>b.url));cursor=p.hasMore?p.cursor:undefined;}while(cursor);return result;}
 async function write(path,value){return put(path,JSON.stringify(value),{access:'private',addRandomSuffix:false});}
 try{
@@ -70,7 +70,7 @@ try{
 }finally{
  const paths=names.map(n=>`auth/accounts/${digest(n)}.json`);
  for(const cookie of cookies)if(cookie)paths.push(`auth/sessions/${digest(cookie.split('=')[1])}.json`);
- for(const id of sessionIds){paths.push(`sessions/${id}.json`,`closed/${id}.json`);paths.push(...await blobs(`checks/${id}/`),...await blobs(`classes/${id}/`));}
+ for(const id of sessionIds){paths.push(`sessions/${id}.json`,`closed/${id}.json`,`dashboard-leases/${id}.json`);paths.push(...await blobs(`checks/${id}/`),...await blobs(`classes/${id}/`));}
  for(const who of [...owners,legacyOwner]){paths.push(...await blobs(`owners/${who}/`));paths.push(...await blobs(`auth/imports/${who}/`),...await blobs(`shared/${who}/`));}
  paths.push(`auth/claims/${legacyOwner}.json`);await del(paths);
 }

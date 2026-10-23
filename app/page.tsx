@@ -22,6 +22,7 @@ import ClassManager from "./class-manager";
 import Papa from "papaparse";
 import { parseRoster } from "../lib/roster.mjs";
 import { startAttendancePolling } from "../lib/attendance-polling.mjs";
+import { DASHBOARD_HEADER, dashboardRestrictionActive } from "../lib/dashboard-policy.mjs";
 type SessionRef = {
   id: string;
   title: string;
@@ -62,6 +63,10 @@ export default function Home() {
     [password, setPassword] = useState("");
   const [legacyKey, setLegacyKey] = useState("");
   const [manager, setManager] = useState<"roster" | "teachers" | null>(null);
+  const [dashboardBlocked, setDashboardBlocked] = useState(false),
+    [dashboardAttempt, setDashboardAttempt] = useState(0);
+  const dashboardToken = useRef("");
+  const dashboardRelease = useRef<Promise<void>>(Promise.resolve());
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -168,11 +173,12 @@ export default function Home() {
       setBusy(false);
     }
   }
-  async function api(path = "", body?: unknown, signal?: AbortSignal) {
+  async function api(path = "", body?: unknown, signal?: AbortSignal, tabToken = dashboardToken.current) {
     const res = await fetch("/api/attendance" + path, {
       method: body ? "POST" : "GET",
       headers: {
         "Content-Type": "application/json",
+        ...(tabToken ? { [DASHBOARD_HEADER]: tabToken } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
       signal,
@@ -202,19 +208,41 @@ export default function Home() {
   const selectedClosed = active?.id === selected && active.closed;
   useEffect(() => {
     if (!username || !selected || selectedClosed) return;
+    setDashboardBlocked(false);
     return startAttendancePolling({
-      load: (signal: AbortSignal) => api(`?id=${selected}`, undefined, signal),
+      load: async (signal: AbortSignal, tabToken: string) => {
+        await dashboardRelease.current;
+        dashboardToken.current = tabToken;
+        return api(`?id=${selected}`, undefined, signal, tabToken);
+      },
+      release: async (tabToken: string) => {
+        if (dashboardToken.current === tabToken) dashboardToken.current = "";
+        if (!dashboardRestrictionActive()) return;
+        const pending = fetch("/api/attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", [DASHBOARD_HEADER]: tabToken },
+          body: JSON.stringify({ action: "release-dashboard", id: selected }),
+          keepalive: true,
+        }).then(() => {}, () => {});
+        dashboardRelease.current = pending;
+        await pending;
+      },
+      onPause: () => {
+        setActive(null);
+        setManager(null);
+      },
       onData: (session: Session) => {
         setActive(session);
         setError("");
       },
-      onError: (e: Error) => {
+      onError: (e: Error & { status?: number }) => {
+        setDashboardBlocked(e.status === 423);
         setError(e.message);
         setActive(null);
         setManager(null);
       },
     });
-  }, [username, selected, selectedClosed]);
+  }, [username, selected, selectedClosed, dashboardAttempt]);
   useEffect(() => {
     if (join)
       api(`?public=1&id=${encodeURIComponent(join)}`)
@@ -341,6 +369,7 @@ export default function Home() {
   }
   const present = active ? Object.keys(active.attendance).length : 0,
     total = active?.students.length || 0;
+  const selectedSession = sessions.find((session) => session.id === selected);
   const filtered =
     active?.students.filter((s) =>
       `${s.name} ${s.code}`.toLowerCase().includes(query.toLowerCase()),
@@ -516,10 +545,10 @@ export default function Home() {
     );
   return (
     <div className="app">
-      {manager && active && (
+      {manager && selectedSession && (
         <ClassManager
-          key={`${active.id}-${manager}`}
-          id={active.id}
+          key={`${selectedSession.id}-${manager}`}
+          id={selectedSession.id}
           mode={manager}
           onClose={() => setManager(null)}
           onSaved={() => {
@@ -641,7 +670,18 @@ export default function Home() {
               </button>
             </div>
           )}
-          {active && (
+          {dashboardBlocked && (
+            <div className="notice" role="status">
+              <Lock size={17} />
+              <span>Only one tab can show this class’s live dashboard through Wednesday, October 28.</span>
+              <button className="secondary compact" onClick={() => {
+                setError("");
+                setDashboardBlocked(false);
+                setDashboardAttempt((value) => value + 1);
+              }}>Try opening dashboard</button>
+            </div>
+          )}
+          {selectedSession && (
             <div className="class-toolbar">
               <div>
                 <label htmlFor="session-history">Attendance history</label>
@@ -656,7 +696,7 @@ export default function Home() {
                   {sessions
                     .filter(
                       (s) =>
-                        (s.classId || s.id) === (active.classId || active.id),
+                        (s.classId || s.id) === (selectedSession.classId || selectedSession.id),
                     )
                     .map((s) => (
                       <option value={s.id} key={s.id}>
@@ -681,7 +721,7 @@ export default function Home() {
                 >
                   Teacher access
                 </button>
-                <button className="secondary" disabled={busy} onClick={repeat}>
+                <button className="secondary" disabled={busy || !active} onClick={repeat}>
                   <Plus size={17} /> Take attendance again
                 </button>
               </div>
@@ -695,7 +735,7 @@ export default function Home() {
               <div>
                 <span>Students on roster</span>
                 <strong>
-                  {total}
+                  {selected && !active ? "—" : total}
                   <small>in this session</small>
                 </strong>
               </div>
@@ -707,9 +747,9 @@ export default function Home() {
               <div>
                 <span>Checked in</span>
                 <strong>
-                  {present}
+                  {selected && !active ? "—" : present}
                   <small>
-                    {total
+                    {selected && !active ? "Open the dashboard to view attendance" : total
                       ? `${Math.round((present / total) * 100)}% attendance`
                       : "Ready when you are"}
                   </small>
@@ -723,7 +763,7 @@ export default function Home() {
               <div>
                 <span>Not yet checked in</span>
                 <strong>
-                  {total - present}
+                  {selected && !active ? "—" : total - present}
                   <small>
                     {active?.closed ? "Session ended" : "Awaiting arrival"}
                   </small>
@@ -735,11 +775,11 @@ export default function Home() {
             <section className="panel roster-panel">
               <div className="panel-heading">
                 <div>
-                  <h2>{active?.title || "Your class roster"}</h2>
+                  <h2>{active?.title || selectedSession?.title || "Your class roster"}</h2>
                   <p>
                     {active
                       ? `${new Date(active.createdAt).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}`
-                      : "Start with your students. We’ll take it from there."}
+                      : selected ? "Open this dashboard in one teacher tab." : "Start with your students. We’ll take it from there."}
                   </p>
                 </div>
                 {active && (
@@ -847,23 +887,22 @@ export default function Home() {
                       <Plus size={15} />
                     </span>
                   </div>
-                  <h3>A fresh start for your next class</h3>
+                  <h3>{selected ? "Your classroom dashboard" : "A fresh start for your next class"}</h3>
                   <p>
-                    Import a CSV of student names to create your first
-                    attendance session.
+                    {selected ? (dashboardBlocked ? "Close or hide the other tab, then try opening the dashboard here." : "Loading attendance when this tab is visible…") : "Import a CSV of student names to create your first attendance session."}
                   </p>
-                  <button className="primary" onClick={() => setModal(true)}>
+                  {!selected && <><button className="primary" onClick={() => setModal(true)}>
                     <Upload size={17} /> Import student CSV
                   </button>
                   <a href="/sample-roster.csv" download>
                     <Download size={14} /> Download 20 fake students
-                  </a>
-                  <div className="csv-hint">
+                  </a></>}
+                  {!selected && <div className="csv-hint">
                     <span>name</span>
                     <span>
                       student_id <small>(optional)</small>
                     </span>
-                  </div>
+                  </div>}
                 </div>
               )}
             </section>
@@ -897,7 +936,7 @@ export default function Home() {
                     ? active.closed
                       ? "This session is closed. Start a new session for your next class."
                       : "Display this QR code so students can scan and sign themselves in."
-                    : "Create a session to get a unique QR code for your class."}
+                    : selected ? "Open the live dashboard to display this class’s QR code." : "Create a session to get a unique QR code for your class."}
                 </p>
                 {active ? (
                   <div className="qr-actions">
@@ -931,7 +970,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="qr-wait">
-                    <Lock size={14} /> Available after CSV import
+                    <Lock size={14} /> {selected ? "Available in the active dashboard tab" : "Available after CSV import"}
                   </div>
                 )}
               </section>

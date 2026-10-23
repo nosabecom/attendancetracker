@@ -4,6 +4,8 @@ import { authorizeSession, classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
 import { parseRoster, matchStudent } from "../../../lib/roster.mjs";
 import { readJson } from "../../../lib/http.mjs";
+import { claimDashboard, releaseDashboard } from "../../../lib/dashboard-lease";
+import { DASHBOARD_HEADER } from "../../../lib/dashboard-policy.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Student = { id: string; name: string; code: string };
@@ -83,6 +85,10 @@ export async function GET(req: Request) {
     }
     const session = await load(sessionId(id));
     await authorizeSession(session, who);
+    const isClosed = await closed(id);
+    const leaseExpiresAt = isClosed ? undefined : await claimDashboard(
+      session.classId || session.id, who, req.headers.get(DASHBOARD_HEADER),
+    );
     const checks = await all(`checks/${id}/`);
     const attendance = Object.fromEntries(
       checks.map((b) => [
@@ -93,7 +99,8 @@ export async function GET(req: Request) {
     return response({
       ...session,
       owner: undefined,
-      closed: await closed(id),
+      closed: isClosed,
+      dashboardLeaseMs: leaseExpiresAt === undefined ? undefined : Math.max(0, leaseExpiresAt - Date.now()),
       attendance,
     });
   } catch (e) {
@@ -137,6 +144,12 @@ export async function POST(req: Request) {
       return response({ name: student.name });
     }
     const who = (await account(req)).owner;
+    if (body.action === "release-dashboard") {
+      const session = await load(sessionId(body.id));
+      // A revoked teacher may relinquish their own lease without accessing data.
+      await releaseDashboard(session.classId || session.id, who, req.headers.get(DASHBOARD_HEADER));
+      return response({ ok: true });
+    }
     if (body.action === "create" || body.action === "repeat") {
       const source =
         body.action === "repeat" ? await load(sessionId(body.id)) : null;

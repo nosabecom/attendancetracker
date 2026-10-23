@@ -4,6 +4,22 @@ export async function read(path: string) {
   if (!result || result.statusCode !== 200) return null;
   return JSON.parse(await new Response(result.stream).text());
 }
+export async function readVersioned(path: string) {
+  const result = await get(path, { access: "private", useCache: false });
+  if (!result || result.statusCode !== 200) return null;
+  return {
+    value: JSON.parse(await new Response(result.stream).text()),
+    etag: result.blob.etag,
+  };
+}
+export async function compareAndWrite(path: string, value: unknown, etag?: string) {
+  return put(path, JSON.stringify(value), {
+    access: "private",
+    addRandomSuffix: false,
+    contentType: "application/json",
+    ...(etag ? { ifMatch: etag } : { allowOverwrite: false }),
+  });
+}
 export async function write(path: string, value: unknown) {
   return put(path, JSON.stringify(value), {
     access: "private",

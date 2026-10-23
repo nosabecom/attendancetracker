@@ -20,6 +20,10 @@ Existing anonymous workspaces can be imported after signing in using the banner 
 
 Open a class and choose **Teacher access**. The class owner can add an existing teacher account by username or remove its access. Shared teachers see only the shared class and all its attendance sessions; they can take attendance, close sessions, export records, and edit the saved roster. Only the owner manages teacher access. A teacher may need to refresh their workspace after being added or when another teacher creates a session.
 
+Through Wednesday, October 28, 2026, each class permits only one live dashboard tab across all teachers and devices. The first visible tab claims it; other tabs show a notice and stop polling until **Try opening dashboard** is clicked. Hiding/closing the active tab or switching classes releases its claim; a lost connection recovers within three minutes. Each activation gets a fresh tab token, including duplicated tabs. Closed attendance history, class settings, and student check-in remain available without the live dashboard claim.
+
+This restriction automatically ends at **00:00 on Thursday, October 29, 2026, America/Regina** (`2026-10-29T06:00:00Z`). After that, ordinary multi-teacher dashboard access resumes without a deployment or manual permission restoration. Teacher memberships and existing attendance records are unchanged.
+
 Choose **Edit students** to add students, change names or student IDs, and remove students. Changes apply to the next session started with **Take attendance again**. Existing sessions keep their original roster and attendance. Simultaneous roster/access edits detect revision conflicts instead of silently replacing another teacher’s changes.
 
 `main` is the repository default and Vercel production branch. Merges to `main` deploy the live site at https://nosa.dev/attend.
@@ -37,6 +41,8 @@ Attendance polling pauses in hidden tabs and refreshes immediately when an open 
 Owner attendance reads and closing check-in use the immutable session owner instead of listing editable class versions. Shared teachers still load current membership on every request; authentication, permissions, and closure state remain uncached, and API responses use `Cache-Control: no-store`.
 
 For a continuously visible owner session, recurring requests fall from roughly 240 to 120 per hour. Each attendance read now lists only check-ins, reducing recurring Blob list calls from roughly 480 to 120 per hour (before pagination). Hidden and already closed sessions make no recurring requests. These are code-path estimates, not measured billing savings.
+
+During the temporary one-tab restriction, each live read also makes one uncached lease read, and renewals add roughly 30 Blob writes per hour, piggybacked on existing attendance requests. Lease release uses a conditional delete (free under current Blob pricing). An owner dashboard with 56 student check-ins should use roughly 220–240 advanced operations over an hour including setup; a two-hour session may exceed the current roughly 400-operation headroom. No lease reads or renewals are needed once the restriction ends.
 
 Automatic Vercel previews are disabled for `dependabot/**` branches. GitHub's security/build workflow still validates dependency PRs, and merging to `main` still deploys production. A dependency preview can be created manually when needed. Other branches retain automatic previews.
 
