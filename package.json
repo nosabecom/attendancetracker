@@ -6,7 +6,7 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node --version && next build",
     "start": "next start --hostname 0.0.0.0",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --experimental-test-module-mocks --test tests/*.test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

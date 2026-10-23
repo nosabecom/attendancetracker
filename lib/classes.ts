@@ -45,6 +45,13 @@ export async function classContext(session: AttendanceSession, who: string) {
     throw new HttpError("You no longer have access to this class.", 403);
   return { root, state, isOwner };
 }
+export async function authorizeSession(session: AttendanceSession, who: string) {
+  // Session ownership and its roster snapshot are immutable. Owners don't need
+  // the editable class state just to view attendance or close check-in.
+  if (await canAccess(who, session.owner)) return;
+  // Shared teachers still read the latest membership on every request.
+  await classContext(session, who);
+}
 export async function saveClass(
   id: string,
   state: ClassState,
