@@ -40,6 +40,8 @@ For a continuously visible owner session, recurring requests fall from roughly 2
 
 Automatic Vercel previews are disabled for `dependabot/**` branches. GitHub's security/build workflow still validates dependency PRs, and merging to `main` still deploys production. A dependency preview can be created manually when needed. Other branches retain automatic previews.
 
+Dependabot PRs from this repository automatically squash-merge after the required `verify` check passes (installation, dependency audit, tests, and production build). The auto-merge workflow never checks out PR code. Node type definitions stay on major 24 to match the pinned runtime; update the runtime and types together when upgrading Node.
+
 The Oct 22, 2026 dashboard audit for the Sep 22–Oct 22 cycle showed approximately 1.6K Blob advanced operations, 4K simple operations, 1.3K function invocations, 27.72 MB fast data transfer, and 26 minutes of build CPU for this project. Account-wide build CPU was 8h 14m, so most of that build usage belongs to other projects. Recheck project-filtered Usage after deployment; detailed CLI metrics require Observability Plus, which was not enabled during this audit. See [Vercel Blob usage and pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing) for the current quotas and operation definitions.
 
 ## Analytics and performance
