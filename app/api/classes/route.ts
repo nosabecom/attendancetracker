@@ -6,6 +6,7 @@ import {
   sameOrigin,
 } from "../../../lib/auth";
 import { read, write } from "../../../lib/storage";
+import { readJson } from "../../../lib/http.mjs";
 import {
   classContext,
   loadSession,
@@ -53,9 +54,7 @@ export async function POST(req: Request) {
   try {
     sameOrigin(req);
     const who = (await account(req)).owner;
-    const raw = await req.text();
-    if (raw.length > 500000) throw new HttpError("Roster is too large.", 413);
-    const body = JSON.parse(raw);
+    const body = await readJson(req, 500000);
     const { root, state, isOwner } = await classContext(
       await loadSession(body.id),
       who,
