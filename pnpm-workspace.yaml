@@ -1,0 +1,3 @@
+# @vercel/cli-config pins Zod 4.1.11; require the fix for GHSA-mrhx-c7xc-m3w5.
+overrides:
+  zod@<4.6.6: ^4.6.6
