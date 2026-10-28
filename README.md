@@ -11,6 +11,7 @@ Next.js app on Vercel with private Vercel Blob storage.
 3. Try the downloadable **20 fake students** sample: [sample-roster.csv](public/sample-roster.csv). All names are fictional. For example, use `DEMO001` to check in Avery Brooks.
 4. Display or download the QR code, or copy the student check-in link. Students do not need accounts.
 5. View check-ins (refreshes every 30 seconds while the tab is visible and check-in is open), export a CSV, and close check-in.
+   Use **Mark excused** beside a student to excuse them for that session, or **Undo excused** to remove it. This also works after check-in closes. Excused students have a separate count and export as **Excused**. An excuse takes priority over a check-in until a teacher removes it; the original check-in time is preserved.
 6. Return to the same class after signing in on any device. **Take attendance again** reuses the roster with a fresh QR and empty attendance record. **Attendance history** retains previous sessions.
 7. Use the light/dark toggle on any page. The initial theme follows your device; your choice is saved in the browser.
 
@@ -18,7 +19,7 @@ Existing anonymous workspaces can be imported after signing in using the banner 
 
 ## Shared teaching and student changes
 
-Open a class and choose **Teacher access**. The class owner can add an existing teacher account by username or remove its access. Shared teachers see only the shared class and all its attendance sessions; they can take attendance, close sessions, export records, and edit the saved roster. Only the owner manages teacher access. A teacher may need to refresh their workspace after being added or when another teacher creates a session.
+Open a class and choose **Teacher access**. The class owner can add an existing teacher account by username or remove its access. Shared teachers see only the shared class and all its attendance sessions; they can take attendance, mark or undo excuses, close sessions, export records, and edit the saved roster. Only the owner manages teacher access. A teacher may need to refresh their workspace after being added or when another teacher creates a session.
 
 Choose **Edit students** to add students, change names or student IDs, and remove students. Changes apply to the next session started with **Take attendance again**. Existing sessions keep their original roster and attendance. Simultaneous roster/access edits detect revision conflicts instead of silently replacing another teacher’s changes.
 
@@ -28,13 +29,13 @@ Choose **Edit students** to add students, change names or student IDs, and remov
 
 Passwords use salted scrypt hashes. Sessions use random opaque tokens, hashed at rest, and 30-day HttpOnly/SameSite cookies (Secure over HTTPS). Logout revokes the server session. Teacher read/write routes enforce ownership server-side. Authentication attempts are throttled by username and IP in 15-minute windows; counters use Blob listing and are not transactional under simultaneous requests. No email verification or password recovery is provided. Each teacher uses their own account; class owners can grant or revoke class-specific access by username.
 
-Student check-in is self-reported: the QR link plus a roster name/ID is sufficient. It does not verify identity or physical presence. The public endpoint does not expose the roster. Attendance sessions and check-ins are immutable separate objects, avoiding shared-record overwrite races. A check-in already in progress when the teacher closes a session may finish.
+Student check-in is self-reported: the QR link plus a roster name/ID is sufficient. It does not verify identity or physical presence. The public endpoint does not expose the roster. Attendance sessions and check-ins are immutable separate objects, avoiding shared-record overwrite races. Teacher excuses are separate per-student objects that can be removed without changing check-ins. A check-in already in progress when the teacher closes a session may finish.
 
 ## Vercel usage
 
 Attendance polling pauses in hidden tabs and refreshes immediately when an open session's tab becomes visible again. Requests run sequentially, retry temporary failures with a delay of up to five minutes, and stop for closed sessions or expired/removed access. Closing check-in fetches attendance once more before polling stops. Reload the page to refresh a closed session, including any check-in that finished after the final read.
 
-Owner attendance reads and closing check-in use the immutable session owner instead of listing editable class versions. Shared teachers still load current membership on every request; authentication, permissions, and closure state remain uncached, and API responses use `Cache-Control: no-store`.
+Owner attendance reads, excuse changes, and closing check-in use the immutable session owner instead of listing editable class versions. Shared teachers still load current membership on every request; authentication, permissions, and closure state remain uncached, and API responses use `Cache-Control: no-store`. Check-ins and excuses share one Blob prefix, so each attendance read still needs only one list operation (before pagination).
 
 For a continuously visible owner session, recurring requests fall from roughly 240 to 120 per hour. Each attendance read now lists only check-ins, reducing recurring Blob list calls from roughly 480 to 120 per hour (before pagination). Hidden and already closed sessions make no recurring requests. These are code-path estimates, not measured billing savings.
 

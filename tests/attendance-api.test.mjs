@@ -16,9 +16,12 @@ mock.module('../lib/storage.ts', { exports: {
   read: async path => { reads.push(path); return records.get(path) ?? null; },
   all: async prefix => {
     lists.push(prefix);
-    return [...records.keys()].filter(path => path.startsWith(prefix)).map(pathname => ({ pathname, uploadedAt: '2026-10-22T12:00:00Z' }));
+    return [...records.keys()].filter(path => path.startsWith(prefix)).map(pathname => ({ pathname, uploadedAt: new Date('2026-10-22T12:00:00Z') }));
   },
-  write: async (path, value) => { records.set(path, value); },
+  write: async (path, value) => {
+    if (records.has(path)) throw new Error('Blob already exists');
+    records.set(path, value);
+  },
   del: async path => { records.delete(path); },
 } });
 const { GET, POST } = await import('../app/api/attendance/route.ts');
@@ -89,4 +92,105 @@ test('taking attendance again still uses the latest edited class roster', async 
   assert.ok(reads.includes(version));
   assert.equal(records.get(`sessions/${id}.json`).students[0].name, 'Updated roster');
   assert.equal(records.get(`sessions/${repeatId}.json`).students[0].name, 'Avery');
+});
+
+const excuse = (excused = true, studentId = 'student', id = repeatId) => ({ action: 'excuse', id, studentId, excused });
+const excusePath = `checks/${repeatId}/excused/student.json`;
+
+test('owners can excuse a student, undo it, and excuse them again without losing check-in history', async () => {
+  fixture();
+  const checkin = records.get(`checks/${repeatId}/student.json`);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  const saved = records.get(excusePath);
+  assert.equal(saved.by, owner);
+  assert.ok(saved.at);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  assert.deepEqual(records.get(excusePath), saved);
+  const data = await (await GET(request())).json();
+  assert.deepEqual(Object.keys(data.excused), ['student']);
+  assert.deepEqual(Object.keys(data.attendance), ['student']);
+  assert.equal(data.excused.student, '2026-10-22T12:00:00.000Z');
+  assert.equal((await POST(request(excuse(false)))).status, 200);
+  assert.deepEqual((await (await GET(request())).json()).excused, {});
+  assert.equal((await POST(request(excuse(false)))).status, 200);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  assert.deepEqual(records.get(`checks/${repeatId}/student.json`), checkin);
+  assert.equal(reads.includes(version), false);
+  assert.ok(lists.every(prefix => prefix === `checks/${repeatId}/`));
+});
+
+test('excusing an absent student keeps them separate from present students', async () => {
+  fixture();
+  records.delete(`checks/${repeatId}/student.json`);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  const data = await (await GET(request())).json();
+  assert.deepEqual(data.attendance, {});
+  assert.deepEqual(Object.keys(data.excused), ['student']);
+});
+
+test('shared teachers can excuse and undo in closed sessions using the original roster', async () => {
+  fixture(teacher);
+  records.set(`closed/${repeatId}.json`, { at: new Date().toISOString() });
+  assert.equal((await POST(request(excuse()))).status, 200);
+  assert.ok(reads.includes(version));
+  const data = await (await GET(request())).json();
+  assert.equal(data.closed, true);
+  assert.deepEqual(Object.keys(data.excused), ['student']);
+  assert.equal((await POST(request(excuse(false)))).status, 200);
+  assert.equal(records.has(excusePath), false);
+});
+
+test('excusing requires a signed-in authorized teacher and rejects cross-origin requests', async () => {
+  fixture('unrelated-account');
+  assert.equal((await POST(request(excuse()))).status, 403);
+  fixture(teacher);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  records.set(version, { revision: 1, students: [], teachers: [] });
+  assert.equal((await POST(request(excuse(false)))).status, 403);
+  assert.equal((await POST(request(excuse()))).status, 403);
+  assert.equal(records.has(excusePath), true);
+  fixture();
+  const crossOrigin = request(excuse());
+  crossOrigin.headers.set('origin', 'https://other.test');
+  assert.equal((await POST(crossOrigin)).status, 403);
+  records.delete(`auth/sessions/${digest(token)}.json`);
+  assert.equal((await POST(request(excuse()))).status, 401);
+  assert.equal(records.has(excusePath), false);
+});
+
+test('excusing validates the session, roster member, and explicit boolean before writing', async () => {
+  fixture();
+  for (const body of [
+    excuse(true, 'missing'), excuse(true, '../student'), excuse(true, null),
+    excuse(true, 'student', 'invalid'), excuse('true'),
+    { action: 'excuse', id: repeatId, studentId: 'student' },
+  ]) {
+    assert.equal((await POST(request(body))).status, 400);
+  }
+  assert.equal(records.has(excusePath), false);
+});
+
+test('student check-in preserves a teacher excuse and the public endpoint exposes no excuse data', async () => {
+  fixture();
+  records.delete(`checks/${repeatId}/student.json`);
+  assert.equal((await POST(request(excuse()))).status, 200);
+  const checkin = request({ action: 'checkin', id: repeatId, identity: 'S1' });
+  checkin.headers.delete('cookie');
+  assert.equal((await POST(checkin)).status, 200);
+  const data = await (await GET(request())).json();
+  assert.deepEqual(Object.keys(data.excused), ['student']);
+  assert.deepEqual(Object.keys(data.attendance), ['student']);
+  const publicData = await (await GET(new Request(`https://example.test/api/attendance?public=1&id=${repeatId}`))).json();
+  assert.deepEqual(Object.keys(publicData).sort(), ['closed', 'title']);
+});
+
+test('excuses belong only to their session and are not copied when taking attendance again', async () => {
+  fixture();
+  assert.equal((await POST(request(excuse()))).status, 200);
+  records.set(version, { revision: 1, students: records.get(`sessions/${repeatId}.json`).students, teachers: [] });
+  const { id } = await (await POST(request({ action: 'repeat', id: repeatId }))).json();
+  const fresh = await (await GET(new Request(`https://example.test/api/attendance?id=${id}`, { headers: { cookie: `rollcall_session=${token}` } }))).json();
+  assert.deepEqual(fresh.excused, {});
+  assert.deepEqual(fresh.attendance, {});
+  assert.deepEqual(Object.keys((await (await GET(request())).json()).excused), ['student']);
 });

@@ -16,6 +16,7 @@ import {
   Lock,
   Loader2,
   CalendarDays,
+  ShieldCheck,
 } from "lucide-react";
 import QRCode from "qrcode";
 import ClassManager from "./class-manager";
@@ -32,6 +33,7 @@ type SessionRef = {
 type Session = SessionRef & {
   students: { id: string; name: string; code: string }[];
   attendance: Record<string, string>;
+  excused: Record<string, string>;
   closed: boolean;
 };
 export default function Home() {
@@ -62,6 +64,7 @@ export default function Home() {
     [password, setPassword] = useState("");
   const [legacyKey, setLegacyKey] = useState("");
   const [manager, setManager] = useState<"roster" | "teachers" | null>(null);
+  const [excusing, setExcusing] = useState("");
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -201,7 +204,7 @@ export default function Home() {
   }, [username]);
   const selectedClosed = active?.id === selected && active.closed;
   useEffect(() => {
-    if (!username || !selected || selectedClosed) return;
+    if (!username || !selected || selectedClosed || excusing) return;
     return startAttendancePolling({
       load: (signal: AbortSignal) => api(`?id=${selected}`, undefined, signal),
       onData: (session: Session) => {
@@ -214,7 +217,7 @@ export default function Home() {
         setManager(null);
       },
     });
-  }, [username, selected, selectedClosed]);
+  }, [username, selected, selectedClosed, excusing]);
   useEffect(() => {
     if (join)
       api(`?public=1&id=${encodeURIComponent(join)}`)
@@ -288,7 +291,11 @@ export default function Home() {
       active.students.map((s) => ({
         Name: s.name,
         "Student ID": s.code,
-        Status: active.attendance[s.id] ? "Present" : "Absent",
+        Status: active.excused[s.id]
+          ? "Excused"
+          : active.attendance[s.id]
+            ? "Present"
+            : "Absent",
         "Check-in time": active.attendance[s.id] || "",
         Session: active.title,
       })),
@@ -322,6 +329,29 @@ export default function Home() {
       setBusy(false);
     }
   }
+  async function setExcused(student: Session["students"][number]) {
+    if (!active || busy) return;
+    const id = active.id,
+      excused = !active.excused[student.id];
+    setBusy(true);
+    setExcusing(student.id);
+    setError("");
+    try {
+      await api("", { action: "excuse", id, studentId: student.id, excused });
+      const updated = await api(`?id=${id}`);
+      setActive((current) => (current?.id === id ? updated : current));
+      setNotice(
+        excused
+          ? `${student.name} is marked as excused.`
+          : `Excused status removed for ${student.name}.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExcusing("");
+      setBusy(false);
+    }
+  }
   async function checkin(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -339,7 +369,14 @@ export default function Home() {
       setBusy(false);
     }
   }
-  const present = active ? Object.keys(active.attendance).length : 0,
+  const present = active
+      ? active.students.filter(
+          (s) => active.attendance[s.id] && !active.excused[s.id],
+        ).length
+      : 0,
+    excused = active
+      ? active.students.filter((s) => active.excused[s.id]).length
+      : 0,
     total = active?.students.length || 0;
   const filtered =
     active?.students.filter((s) =>
@@ -705,7 +742,7 @@ export default function Home() {
                 <CheckCheck size={21} />
               </span>
               <div>
-                <span>Checked in</span>
+                <span>Present</span>
                 <strong>
                   {present}
                   <small>
@@ -721,12 +758,24 @@ export default function Home() {
                 <ClipboardList size={21} />
               </span>
               <div>
-                <span>Not yet checked in</span>
+                <span>{active?.closed ? "Absent" : "Not yet checked in"}</span>
                 <strong>
-                  {total - present}
+                  {total - present - excused}
                   <small>
                     {active?.closed ? "Session ended" : "Awaiting arrival"}
                   </small>
+                </strong>
+              </div>
+            </div>
+            <div className="stat">
+              <span className="stat-icon excused">
+                <ShieldCheck size={21} />
+              </span>
+              <div>
+                <span>Excused</span>
+                <strong>
+                  {excused}
+                  <small>marked by a teacher</small>
                 </strong>
               </div>
             </div>
@@ -773,6 +822,7 @@ export default function Home() {
                           <th>STUDENT</th>
                           <th>STATUS</th>
                           <th>CHECK-IN TIME</th>
+                          <th>ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -797,19 +847,25 @@ export default function Home() {
                             <td>
                               <span
                                 className={
-                                  active.attendance[s.id]
-                                    ? "status present"
-                                    : "status"
+                                  active.excused[s.id]
+                                    ? "status excused"
+                                    : active.attendance[s.id]
+                                      ? "status present"
+                                      : "status"
                                 }
                               >
-                                {active.attendance[s.id] ? (
+                                {active.excused[s.id] ? (
+                                  <ShieldCheck size={13} />
+                                ) : active.attendance[s.id] ? (
                                   <Check size={13} />
                                 ) : null}
-                                {active.attendance[s.id]
-                                  ? "Present"
-                                  : active.closed
-                                    ? "Absent"
-                                    : "Waiting"}
+                                {active.excused[s.id]
+                                  ? "Excused"
+                                  : active.attendance[s.id]
+                                    ? "Present"
+                                    : active.closed
+                                      ? "Absent"
+                                      : "Waiting"}
                               </span>
                             </td>
                             <td>
@@ -821,6 +877,25 @@ export default function Home() {
                                     minute: "2-digit",
                                   })
                                 : "—"}
+                            </td>
+                            <td>
+                              <button
+                                className="secondary compact excuse-action"
+                                disabled={busy}
+                                onClick={() => setExcused(s)}
+                                aria-label={
+                                  active.excused[s.id]
+                                    ? `Undo excused status for ${s.name}`
+                                    : `Mark ${s.name} as excused`
+                                }
+                              >
+                                {excusing === s.id ? (
+                                  <Loader2 size={14} className="spin" />
+                                ) : null}
+                                {active.excused[s.id]
+                                  ? "Undo excused"
+                                  : "Mark excused"}
+                              </button>
                             </td>
                           </tr>
                         ))}
