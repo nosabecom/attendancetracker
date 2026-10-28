@@ -290,7 +290,7 @@ header {
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
   margin-bottom: 27px;
 }
@@ -662,6 +662,13 @@ td {
   background: #eaf8f2;
   color: #159473;
 }
+.excused {
+  background: #f1edff;
+  color: #7354b4;
+}
+.excuse-action {
+  font-size: 11px;
+}
 .table-footer {
   border-top: 1px solid var(--line);
   padding: 15px 23px;
@@ -897,6 +904,7 @@ form > input {
   }
   .stats {
     gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   th,
   td {
@@ -1284,6 +1292,10 @@ html[data-theme="dark"] :is(.avatar, .status, .neutral) {
 html[data-theme="dark"] :is(.green, .present, .success-icon) {
   background: #183c36;
   color: #72d7b6;
+}
+html[data-theme="dark"] .excused {
+  background: #352a4e;
+  color: #cbb0ff;
 }
 html[data-theme="dark"] .orange {
   background: #433424;

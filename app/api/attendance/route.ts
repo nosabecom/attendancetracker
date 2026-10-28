@@ -1,4 +1,4 @@
-import { read, write, all } from "../../../lib/storage";
+import { read, write, all, del } from "../../../lib/storage";
 import { account, sameOrigin, HttpError } from "../../../lib/auth";
 import { authorizeSession, classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
@@ -84,17 +84,22 @@ export async function GET(req: Request) {
     const session = await load(sessionId(id));
     await authorizeSession(session, who);
     const checks = await all(`checks/${id}/`);
-    const attendance = Object.fromEntries(
-      checks.map((b) => [
-        b.pathname.split("/").pop()!.replace(".json", ""),
-        b.uploadedAt,
-      ]),
-    );
+    const attendance: Record<string, string> = {},
+      excused: Record<string, string> = {};
+    for (const blob of checks) {
+      const studentId = blob.pathname.split("/").pop()!.replace(".json", "");
+      // Keep excuses under the same prefix so polling still uses one Blob list.
+      const target = blob.pathname.startsWith(`checks/${id}/excused/`)
+        ? excused
+        : attendance;
+      target[studentId] = blob.uploadedAt.toISOString();
+    }
     return response({
       ...session,
       owner: undefined,
       closed: await closed(id),
       attendance,
+      excused,
     });
   } catch (e) {
     return response(
@@ -137,6 +142,26 @@ export async function POST(req: Request) {
       return response({ name: student.name });
     }
     const who = (await account(req)).owner;
+    if (body.action === "excuse") {
+      const id = sessionId(body.id),
+        session = await load(id);
+      await authorizeSession(session, who);
+      if (typeof body.excused !== "boolean")
+        throw new HttpError("Choose whether this student is excused.");
+      const student = session.students.find((s) => s.id === body.studentId);
+      if (!student)
+        throw new HttpError("This student is not on this session's roster.");
+      const path = `checks/${id}/excused/${student.id}.json`;
+      if (!body.excused) await del(path);
+      else if (!(await read(path))) {
+        try {
+          await write(path, { at: new Date().toISOString(), by: who });
+        } catch (e) {
+          if (!(await read(path))) throw e;
+        }
+      }
+      return response({ ok: true });
+    }
     if (body.action === "create" || body.action === "repeat") {
       const source =
         body.action === "repeat" ? await load(sessionId(body.id)) : null;
