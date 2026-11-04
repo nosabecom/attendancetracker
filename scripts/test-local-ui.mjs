@@ -47,18 +47,28 @@ async function noDownload(page, action) {
   return count;
 }
 async function blockedDelayedExport(page, change, { allowReload = false } = {}) {
+  const attempt = randomBytes(8).toString('hex');
   let downloads = 0;
   let stage = 'start';
   const onDownload = () => downloads++;
   const before = await page.evaluate(() => window.__test.madeBlob);
   const documentEpoch = await page.evaluate(() => window.__test.documentEpoch);
+  const responsesBefore = await page.evaluate(() => window.__test.exportResponseCount || 0);
   page.on('download', onDownload);
   try {
-    await page.evaluate(() => { window.__test.holdExport = true; });
+    await page.evaluate(id => {
+      window.__test.delayedExport = undefined;
+      window.__test.activeExportAttempt = id;
+      window.__test.holdExport = id;
+    }, attempt);
     await page.getByRole('button', { name: 'Export', exact: true }).click();
-    await page.waitForFunction(() => window.__test.delayedExport?.ready, null, { timeout: 15000 });
+    await page.waitForFunction(id => window.__test.activeExportAttempt === id &&
+      window.__test.delayedExport?.attempt === id && window.__test.delayedExport.ready,
+    attempt, { timeout: 15000 });
     stage = 'snapshot held';
-    assert(await page.evaluate(() => window.__test.delayedExport.networkSuccess), 'Held export did not receive a real successful snapshot.');
+    assert(await page.evaluate(({ id, before }) => window.__test.delayedExport?.attempt === id &&
+      window.__test.delayedExport.networkSuccess && window.__test.exportResponseCount === before + 1,
+    { id: attempt, before: responsesBefore }), 'Held export did not receive its own real successful snapshot.');
     await change();
     stage = 'lifecycle changed';
     if (await page.evaluate(epoch => window.__test.documentEpoch !== epoch, documentEpoch)) {
@@ -71,8 +81,15 @@ async function blockedDelayedExport(page, change, { allowReload = false } = {}) 
       assert(downloads === 0 && await page.evaluate(() => window.__test.madeBlob === 0), 'Unexpected download after export document cancellation.');
       return 'document-cancelled';
     }
-    await page.evaluate(() => window.__test.delayedExport.release());
-    await page.waitForFunction(() => window.__test.delayedExport.settled, null, { timeout: 15000 });
+    await page.evaluate(id => {
+      const job = window.__test.delayedExport;
+      if (window.__test.activeExportAttempt !== id || job?.attempt !== id || !job.ready || job.settled || job.released)
+        throw new Error('Export response attempt mismatch.');
+      job.release();
+    }, attempt);
+    await page.waitForFunction(id => window.__test.activeExportAttempt === id &&
+      window.__test.delayedExport?.attempt === id && window.__test.delayedExport.settled,
+    attempt, { timeout: 15000 });
     stage = 'response consumed';
     // Observe through the SDK's response consumption and continuation, then the
     // browser download event. A fixed wait before releasing the response cannot
@@ -81,14 +98,20 @@ async function blockedDelayedExport(page, change, { allowReload = false } = {}) 
     assert(downloads === 0 && await page.evaluate(value => window.__test.madeBlob === value, before), 'Unexpected download after delayed response.');
     return 'response-consumed';
   } catch (error) {
-    console.error('Delayed export diagnostics:', { stage, downloads, ...(await page.evaluate(value => ({
+    console.error('Delayed export diagnostics:', { stage, downloads, ...(await page.evaluate(({ value, id }) => ({
       held: !!window.__test.delayedExport,
+      attemptMatches: window.__test.delayedExport?.attempt === id,
       settled: !!window.__test.delayedExport?.settled,
       newBlobs: window.__test.madeBlob - value,
-    }), before).catch(() => ({ pageUnavailable: true }))) });
+    }), { value: before, id: attempt }).catch(() => ({ pageUnavailable: true }))) });
     throw error;
   } finally {
-    await page.evaluate(() => { window.__test.holdExport = false; window.__test.delayedExport?.release?.(); }).catch(() => {});
+    await page.evaluate(id => {
+      if (window.__test.activeExportAttempt !== id) return;
+      window.__test.holdExport = null;
+      window.__test.activeExportAttempt = null;
+      if (window.__test.delayedExport?.attempt === id) window.__test.delayedExport.release?.();
+    }, attempt).catch(() => {});
     page.off('download', onDownload);
   }
 }
@@ -121,14 +144,17 @@ try {
       const url = new URL(typeof input === 'string' ? input : input.url || String(input), location.href);
       let path;
       try { path = JSON.parse(init?.body || '{}').path; } catch {}
-      if (!window.__test.holdExport || url.host !== convexHost || url.pathname !== '/api/query' || path !== 'attendance:exportSnapshot')
+      const attempt = window.__test.holdExport;
+      if (typeof attempt !== 'string' || window.__test.activeExportAttempt !== attempt || url.host !== convexHost || url.pathname !== '/api/query' || path !== 'attendance:exportSnapshot')
         return nativeFetch(input, init);
-      window.__test.holdExport = false;
+      window.__test.holdExport = null;
       const response = await nativeFetch(input, init);
       const bytes = await response.arrayBuffer();
-      const job = { ready: false, settled: false, networkSuccess: response.ok && JSON.parse(new TextDecoder().decode(bytes)).status === 'success' };
+      if (window.__test.activeExportAttempt !== attempt) throw new DOMException('Stale test export attempt.', 'AbortError');
+      const job = { attempt, ready: false, settled: false, released: false, networkSuccess: response.ok && JSON.parse(new TextDecoder().decode(bytes)).status === 'success' };
+      window.__test.exportResponseCount = (window.__test.exportResponseCount || 0) + 1;
       window.__test.delayedExport = job;
-      await new Promise(resolve => { job.release = resolve; job.ready = true; });
+      await new Promise(resolve => { job.release = () => { job.released = true; resolve(); }; job.ready = true; });
       // Deliver the real completed snapshot even if its signal was aborted while
       // held. This deliberately exercises post-response guards beyond transport
       // cancellation; no response value or application state is fabricated.
@@ -226,6 +252,8 @@ try {
     await blockedDelayedExport(page, () => page.evaluate(deadline => { window.__test.now = deadline + 1; }, claims.sessionExpiresAt));
   } finally { await page.evaluate(() => { window.__test.now = 0; }); }
   console.log('PASS: expiry after the snapshot response arrives blocks its delayed download.');
+  assert(await page.evaluate(() => window.__test.delayedExport?.ready && window.__test.delayedExport.settled),
+    'Missing previous settled-response regression control.');
   phase = 'visibility during export response';
   await blockedDelayedExport(page, async () => {
     await page.evaluate(() => { window.__test.hidden = true; document.dispatchEvent(new Event('visibilitychange')); });
@@ -233,6 +261,7 @@ try {
     assert(await page.getByText('Synthetic Alpha').count() === 0, 'Private roster remained visible while hidden.');
   });
   console.log('PASS: hiding during a delayed snapshot response blocks download after unmount.');
+  console.log('PASS: previous settled export cannot satisfy the next response attempt.');
   const nav = page.waitForEvent('framenavigated', { predicate: f => f === page.mainFrame() });
   const refreshBeforeResume = refreshRequests;
   await page.evaluate(() => { window.__test.hidden = false; document.dispatchEvent(new Event('visibilitychange')); }); await nav;

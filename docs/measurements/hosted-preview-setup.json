@@ -1,0 +1,25 @@
+{
+  "status": "verified",
+  "phase": "verified; configuration pending",
+  "explicitControlPlaneCalls": 9,
+  "cliPublicationRequests": 0,
+  "teamRemainingAllowance": "unknown",
+  "expectedCommit": "f0a43b4a7a2f53278beb231d74b7d8568f889c51",
+  "workloadsRun": false,
+  "deploymentName": "prestigious-jaguar-360",
+  "identifier": "attendance-validation-cc3fe969497c6852a6284ff5acde2a13",
+  "publication": "not started",
+  "managementIdentity": {
+    "kind": "cloud",
+    "id": 6790265,
+    "name": "prestigious-jaguar-360",
+    "deploymentType": "preview",
+    "projectId": 3365270,
+    "reference": "preview/attendance-validation-cc3fe969497c6852a6284ff5acde2a13",
+    "isDefault": false,
+    "deploymentUrl": "https://prestigious-jaguar-360.convex.cloud",
+    "expiresAt": 1794265784166
+  },
+  "adminCapabilityVerified": true,
+  "usageSeedStatus": "partial"
+}
