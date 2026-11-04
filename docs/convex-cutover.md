@@ -20,8 +20,9 @@ completed after the CLI-generated terms page had returned
 `Missing billingPlanId for installation-only plan integration`.
 
 The integration created a protected production `CONVEX_DEPLOY_KEY` in Vercel.
-Vercel refuses to pull that Secret into local commands. A preview deploy key must be supplied through the private credential card
-to create an isolated hosted validation deployment. The application still uses Blob; no cloud backend was published or
+Vercel refuses to pull that Secret into local commands. A preview deploy key was supplied through the private credential card and its
+encoded scope matches the installed project. Hosted validation uses a separate
+disposable preview; key usability and cloud tests remain unverified. The application still uses Blob; no cloud backend was published or
 activated by these inventory checks. Free installation does not authorize a paid
 upgrade.
 
