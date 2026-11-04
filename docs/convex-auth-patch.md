@@ -62,3 +62,7 @@ not serialize the screen's cached buckets. An abortable request and checks after
 the response prevent downloads after disconnect, expiry, hiding, unmount or a
 selection/account change. This adds bounded reads on explicit export clicks;
 it creates no polling or background export work.
+
+## Installation verification
+
+A fresh temporary directory containing only the package manifests, lockfile, workspace configuration, and patch completed `pnpm install --frozen-lockfile --ignore-scripts`. All six patched source/shipped JavaScript files matched the installed integration byte for byte. The check fetched the missing upstream package rather than relying on the existing application node_modules tree. This proves patch installation for the pinned package; it does not replace hosted auth tests or an upgrade review.

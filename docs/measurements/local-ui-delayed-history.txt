@@ -1,0 +1,137 @@
+Historical synthetic harness attempts, retained before the corrected complete run.
+
+local-ui-delayed-export.txt
+✓ Lockfile passes supply-chain policies (verified 42m ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 1s using pnpm v11.17.0
+$ node scripts/test-local-ui.mjs
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+FAIL: managed browser token refresh. See the documented test phase; raw error details suppressed.
+[ELIFECYCLE] Command failed with exit code 1.
+
+local-ui-delayed-export-recheck.txt
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+Delayed export diagnostics: {
+  stage: 'lifecycle changed',
+  downloads: 0,
+  held: false,
+  settled: false,
+  newBlobs: 0
+}
+FAIL: managed browser token refresh. See the documented test phase; raw error details suppressed.
+
+local-ui-delayed-export-final.txt
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+PASS: token refresh reload cancels the held export without a download.
+FAIL: offline revocation. See the documented test phase; raw error details suppressed.
+
+local-ui-delayed-export-verification.txt
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+PASS: token refresh reload cancels the held export without a download.
+Offline control logout HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: offline revocation prevents old private content on reconnect and reload.
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: logout clears cookies, revokes replay and permits account switching.
+Delayed export diagnostics: {
+  stage: 'snapshot held',
+  downloads: 0,
+  held: true,
+  settled: false,
+  newBlobs: 0
+}
+FAIL: selection during export response. See the documented test phase; raw error details suppressed.
+
+local-ui-delayed-selection-check.txt
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+PASS: token refresh reload cancels the held export without a download.
+Offline control logout HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: offline revocation prevents old private content on reconnect and reload.
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: logout clears cookies, revokes replay and permits account switching.
+Selection control diagnostics: { selectedExpectedSession: true, absentRows: 0, presentRows: 0 }
+Delayed export diagnostics: {
+  stage: 'snapshot held',
+  downloads: 0,
+  held: true,
+  settled: false,
+  newBlobs: 0
+}
+FAIL: selection during export response. See the documented test phase; raw error details suppressed.

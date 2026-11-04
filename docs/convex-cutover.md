@@ -13,11 +13,17 @@ access is not proof that the object bodies can be exported. Obtain supported
 export access before the final migration. A prepared, unsent access request is
 in [blob-export-access-request.md](./blob-export-access-request.md).
 
-Vercel's installer identified `CONVEX_BASE` as the Free plan and stopped with
-`integration_terms_acceptance_required`. The CLI-generated terms page returned `Missing billingPlanId for installation-only plan integration` in Nosa's browser. Complete installation through the normal
-[Convex Marketplace product page](https://vercel.com/marketplace/convex/convex), selecting the existing team and Free plan. The latest installation inventory still showed no marketplace installation; terms acceptance alone did not complete it.
-The attempted install used `--no-connect --no-env-pull`; it did not replace the
-application's environment. Accepting terms does not authorize a paid upgrade.
+On 2026-11-04, the installed marketplace resource `convex-cyan-garden` was
+verified available on billing plan `CONVEX_BASE` (Free), connected to
+`attendance-tracker` in the existing Vercel team. The normal Marketplace flow
+completed after the CLI-generated terms page had returned
+`Missing billingPlanId for installation-only plan integration`.
+
+The integration created a protected production `CONVEX_DEPLOY_KEY` in Vercel.
+Vercel refuses to pull that Secret into local commands. A preview deploy key must be supplied through the private credential card
+to create an isolated hosted validation deployment. The application still uses Blob; no cloud backend was published or
+activated by these inventory checks. Free installation does not authorize a paid
+upgrade.
 
 ## Evidence before freezing writers
 

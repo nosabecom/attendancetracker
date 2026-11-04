@@ -46,6 +46,52 @@ async function noDownload(page, action) {
   await action(); await wait(500); page.off('download', handler);
   return count;
 }
+async function blockedDelayedExport(page, change, { allowReload = false } = {}) {
+  let downloads = 0;
+  let stage = 'start';
+  const onDownload = () => downloads++;
+  const before = await page.evaluate(() => window.__test.madeBlob);
+  const documentEpoch = await page.evaluate(() => window.__test.documentEpoch);
+  page.on('download', onDownload);
+  try {
+    await page.evaluate(() => { window.__test.holdExport = true; });
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    await page.waitForFunction(() => window.__test.delayedExport?.ready, null, { timeout: 15000 });
+    stage = 'snapshot held';
+    assert(await page.evaluate(() => window.__test.delayedExport.networkSuccess), 'Held export did not receive a real successful snapshot.');
+    await change();
+    stage = 'lifecycle changed';
+    if (await page.evaluate(epoch => window.__test.documentEpoch !== epoch, documentEpoch)) {
+      // A forced SDK refresh can reconnect and trigger the product's deliberate
+      // reload. The original fetch already completed before ready=true; document
+      // destruction cancels its held JS continuation. It cannot be released in
+      // the new document. Keep the cross-navigation download observer attached.
+      assert(allowReload, 'Unexpected navigation during held response.');
+      await wait(500);
+      assert(downloads === 0 && await page.evaluate(() => window.__test.madeBlob === 0), 'Unexpected download after export document cancellation.');
+      return 'document-cancelled';
+    }
+    await page.evaluate(() => window.__test.delayedExport.release());
+    await page.waitForFunction(() => window.__test.delayedExport.settled, null, { timeout: 15000 });
+    stage = 'response consumed';
+    // Observe through the SDK's response consumption and continuation, then the
+    // browser download event. A fixed wait before releasing the response cannot
+    // establish this lifecycle race.
+    await wait(500);
+    assert(downloads === 0 && await page.evaluate(value => window.__test.madeBlob === value, before), 'Unexpected download after delayed response.');
+    return 'response-consumed';
+  } catch (error) {
+    console.error('Delayed export diagnostics:', { stage, downloads, ...(await page.evaluate(value => ({
+      held: !!window.__test.delayedExport,
+      settled: !!window.__test.delayedExport?.settled,
+      newBlobs: window.__test.madeBlob - value,
+    }), before).catch(() => ({ pageUnavailable: true }))) });
+    throw error;
+  } finally {
+    await page.evaluate(() => { window.__test.holdExport = false; window.__test.delayedExport?.release?.(); }).catch(() => {});
+    page.off('download', onDownload);
+  }
+}
 try {
   server = spawn(process.execPath, [join(root, 'node_modules/next/dist/bin/next'), 'dev', '--hostname', 'localhost', '--port', String(port)], { cwd: root, env: { ...process.env, NEXT_PUBLIC_ATTENDANCE_BACKEND: 'convex', NEXT_PUBLIC_CONVEX_URL: envValue('NEXT_PUBLIC_CONVEX_URL'), NEXT_PUBLIC_CONVEX_SITE_URL: envValue('NEXT_PUBLIC_CONVEX_SITE_URL'), ATTENDANCE_GATEWAY_KEY: envValue('ATTENDANCE_GATEWAY_KEY'), ATTENDANCE_GATEWAY_AUDIENCE: envValue('ATTENDANCE_GATEWAY_AUDIENCE') }, stdio: 'ignore' });
   for (let i = 0; i < 120; i++) {
@@ -68,8 +114,32 @@ try {
   // state, before React can commit. No product module or SDK state is replaced.
   await context.addInitScript(({ convexHost }) => {
     const Native = window.WebSocket;
-    window.__test = { sockets: [], staleClicked: false, madeBlob: 0, now: 0, hidden: false };
+    window.__test = { sockets: [], staleClicked: false, madeBlob: 0, now: 0, hidden: false, documentEpoch: crypto.randomUUID() };
     const realNow = Date.now; Date.now = () => window.__test.now || realNow();
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input.url || String(input), location.href);
+      let path;
+      try { path = JSON.parse(init?.body || '{}').path; } catch {}
+      if (!window.__test.holdExport || url.host !== convexHost || url.pathname !== '/api/query' || path !== 'attendance:exportSnapshot')
+        return nativeFetch(input, init);
+      window.__test.holdExport = false;
+      const response = await nativeFetch(input, init);
+      const bytes = await response.arrayBuffer();
+      const job = { ready: false, settled: false, networkSuccess: response.ok && JSON.parse(new TextDecoder().decode(bytes)).status === 'success' };
+      window.__test.delayedExport = job;
+      await new Promise(resolve => { job.release = resolve; job.ready = true; });
+      // Deliver the real completed snapshot even if its signal was aborted while
+      // held. This deliberately exercises post-response guards beyond transport
+      // cancellation; no response value or application state is fabricated.
+      const held = new Response(bytes, { status: response.status, headers: response.headers });
+      const json = held.json.bind(held);
+      held.json = async () => {
+        try { return await json(); }
+        finally { setTimeout(() => { job.settled = true; }, 0); }
+      };
+      return held;
+    };
     const create = URL.createObjectURL.bind(URL); URL.createObjectURL = blob => { window.__test.madeBlob++; return create(blob); };
     const hidden = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
     Object.defineProperty(document, 'hidden', { configurable: true, get() { return window.__test.hidden || hidden.get.call(document); } });
@@ -151,14 +221,25 @@ try {
   assert(expiryDownloads === 0, 'Unexpected download.');
   assert(await page.evaluate(before => window.__test.madeBlob === before, blobCount), 'Expired export created a blob.');
   console.log('PASS: synthetic clock past deadline blocks export before expiry timer runs.');
-  phase = 'visibility'; await page.evaluate(() => { window.__test.hidden = true; document.dispatchEvent(new Event('visibilitychange')); });
-  await visible(page.getByText('Opening Rollcall…')); assert(await page.getByText('Synthetic Alpha').count() === 0, 'Private roster remained visible while hidden.');
+  phase = 'expiry during export response';
+  try {
+    await blockedDelayedExport(page, () => page.evaluate(deadline => { window.__test.now = deadline + 1; }, claims.sessionExpiresAt));
+  } finally { await page.evaluate(() => { window.__test.now = 0; }); }
+  console.log('PASS: expiry after the snapshot response arrives blocks its delayed download.');
+  phase = 'visibility during export response';
+  await blockedDelayedExport(page, async () => {
+    await page.evaluate(() => { window.__test.hidden = true; document.dispatchEvent(new Event('visibilitychange')); });
+    await visible(page.getByText('Opening Rollcall…'));
+    assert(await page.getByText('Synthetic Alpha').count() === 0, 'Private roster remained visible while hidden.');
+  });
+  console.log('PASS: hiding during a delayed snapshot response blocks download after unmount.');
   const nav = page.waitForEvent('framenavigated', { predicate: f => f === page.mainFrame() });
   const refreshBeforeResume = refreshRequests;
   await page.evaluate(() => { window.__test.hidden = false; document.dispatchEvent(new Event('visibilitychange')); }); await nav;
   await visible(page.getByText('Synthetic Alpha')); console.log('PASS: synthetic visibility release hides content and resume reloads.');
   console.log('Auth refresh requests during visibility resume:', refreshRequests - refreshBeforeResume);
   phase = 'managed browser token refresh';
+  const refreshExportDisposition = await blockedDelayedExport(page, async () => {
   await wait(1100); // Ensure a newly issued managed JWT has a later issued-at second.
   const oldJwt = (await context.cookies(base)).find(c => c.name.endsWith('__convexAuthJWT'))?.value;
   const refreshBeforeControl = refreshRequests;
@@ -184,21 +265,61 @@ try {
     'Browser refresh did not preserve the fixed session.');
   assert(refreshRequests - refreshBeforeControl === 1, 'Browser refresh made unexpected repeated requests.');
   console.log('PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.');
-  phase = 'offline revocation'; blockSockets = true;
+  }, { allowReload: true });
+  console.log(refreshExportDisposition === 'document-cancelled'
+    ? 'PASS: token refresh reload cancels the held export without a download.'
+    : 'PASS: token replacement while an export response is held blocks its delayed download.');
+  phase = 'offline revocation: ready socket';
+  await page.bringToFront();
+  await page.waitForFunction(() => window.__test.sockets.some(s => s.readyState === WebSocket.OPEN));
+  blockSockets = true;
   const savedCookies = await context.cookies(base);
+  phase = 'offline revocation: disconnect';
   await page.evaluate(() => window.__test.sockets.findLast(s => s.readyState === WebSocket.OPEN).close()); await visible(page.getByText('Reconnecting…'));
+  phase = 'offline revocation: control page';
   const control = await browser.newContext(); await control.addCookies(savedCookies); const controlPage = await control.newPage(); await controlPage.goto(base);
   const reconnected = page.waitForEvent('framenavigated', { predicate: f => f === page.mainFrame(), timeout: 30000 });
+  phase = 'offline revocation: server signout';
   const logoutStatus = await controlPage.evaluate(async () => (await fetch('/api/convex-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'auth:signOut' }) })).status);
-  assert(logoutStatus === 200, 'Server revocation failed.'); await page.bringToFront(); blockSockets = false; await reconnected;
+  console.log('Offline control logout HTTP status:', logoutStatus);
+  assert(logoutStatus === 200, 'Server revocation failed.');
+  phase = 'offline revocation: reconnect';
+  blockSockets = false; await page.bringToFront(); await reconnected;
+  phase = 'offline revocation: no private content';
   await page.waitForFunction(() => !document.body.textContent.includes('Synthetic Alpha'), null, { timeout: 30000 });
   await wait(6000); assert(await page.getByText('Synthetic Alpha').count() === 0, 'Revoked content returned after reconnect.');
+  phase = 'offline revocation: sign-in form';
   await page.reload(); await visible(page.getByLabel('Username')); console.log('PASS: offline revocation prevents old private content on reconnect and reload.');
   phase = 'account switch and logout'; await login(page, second, true); assert(await page.getByText('Synthetic Alpha').count() === 0, 'Previous account content appeared.');
   const beforeLogout = await context.cookies(base); const logoutResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/convex-auth' && response.request().postDataJSON()?.action === 'auth:signOut'); await page.getByRole('button', { name: 'Sign out' }).click(); assert((await logoutResponse).status() === 200, 'Logout HTTP was not confirmed.'); await visible(page.getByLabel('Username'));
   assert(!(await context.cookies(base)).some(c => c.name.endsWith('__convexAuthJWT') || c.name.endsWith('__convexAuthRefreshToken')), 'Logout cookies remain.');
   const replay = await browser.newContext(); await replay.addCookies(beforeLogout); const replayPage = await replay.newPage(); await replayPage.goto(base); await visible(replayPage.getByLabel('Username'));
   await login(page, username); await visible(page.getByText('Synthetic Alpha')); console.log('PASS: logout clears cookies, revokes replay and permits account switching.');
+  phase = 'selection during export response';
+  const previousSession = await page.getByLabel('Attendance history').inputValue();
+  await page.getByRole('button', { name: 'Take attendance again' }).click();
+  await page.waitForFunction(value => {
+    const select = document.querySelector('#session-history');
+    return select && /^[a-f0-9]{32}$/.test(select.value) && select.value !== value && select.options.length === 2;
+  }, previousSession);
+  const nextSession = await page.getByLabel('Attendance history').inputValue();
+  assert(nextSession !== previousSession, 'Second attendance session was not created.');
+  await page.getByLabel('Attendance history').selectOption(previousSession);
+  await visible(page.getByRole('row').filter({ hasText: 'Synthetic Alpha' }).getByText('Present'));
+  await blockedDelayedExport(page, async () => {
+    await page.getByLabel('Attendance history').selectOption(nextSession);
+    try {
+      await visible(page.getByRole('row').filter({ hasText: 'Synthetic Alpha' }).getByText('Waiting', { exact: true }));
+    } catch (error) {
+      console.error('Selection control diagnostics:', {
+        selectedExpectedSession: await page.getByLabel('Attendance history').inputValue().then(value => value === nextSession).catch(() => false),
+        waitingRows: await page.getByRole('row').filter({ hasText: 'Synthetic Alpha' }).getByText('Waiting', { exact: true }).count(),
+        presentRows: await page.getByRole('row').filter({ hasText: 'Synthetic Alpha' }).getByText('Present', { exact: true }).count(),
+      });
+      throw error;
+    }
+  });
+  console.log('PASS: changing session while an export response is held blocks its delayed download.');
   if (failures) process.exitCode = 1;
   await studentContext.close(); await control.close(); await replay.close(); await context.close();
 } catch (error) {

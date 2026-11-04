@@ -624,6 +624,8 @@
     "sessions30": 200,
     "sessions1000": 4,
     "studentOperations": 10000,
+    "exports30": 0,
+    "exports1000": 0,
     "historyCount": 40,
     "teachers": 2,
     "resumesPerTeacherPerSession": 2,
@@ -637,6 +639,7 @@
     },
     "assumptions": [
       "No server cache reuse or burst coalescing assumed.",
+      "Explicit exports use exports30/exports1000 counts, both zero by default; sampled export facts populate only the first bucket and are not a maximum-facts cost bound.",
       "Each open/resume fetches all selected-session buckets and roster again.",
       "Student database check-in cost uses the 30-student sample; updates use the populated 100-student bucket sample.",
       "Owner authorization sampled; a shared teacher may need additional membership reads.",

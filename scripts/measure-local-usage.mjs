@@ -25,12 +25,16 @@ function options(argv) {
     sessions30: 200,
     sessions1000: 4,
     studentOperations: 10000,
+    exports30: 0,
+    exports1000: 0,
     historyCount: 40,
   };
   const names = {
     "monthly-sessions-30": "sessions30",
     "monthly-sessions-1000": "sessions1000",
     "monthly-student-operations": "studentOperations",
+    "monthly-exports-30": "exports30",
+    "monthly-exports-1000": "exports1000",
     "history-count": "historyCount",
   };
   const seen = new Set();
@@ -232,6 +236,8 @@ try {
     add(arithmetic, byName.admissionNew, workload.studentOperations);
     // Worst-case uncoalesced update assumption, using the measured dense bucket.
     add(arithmetic, byName["bucket-1000-0"], workload.studentOperations * 2);
+    add(arithmetic, byName["exportSnapshot-30"], workload.exports30);
+    add(arithmetic, byName["exportSnapshot-1000"], workload.exports1000);
   }
   phase = "cleanup";
   await cleanup();
@@ -252,6 +258,7 @@ try {
           arithmeticAssumingEveryQueryExecutes: arithmetic,
           assumptions: [
             "No server cache reuse or burst coalescing assumed.",
+            "Explicit exports use exports30/exports1000 counts, both zero by default; sampled export facts populate only the first bucket and are not a maximum-facts cost bound.",
             "Each open/resume fetches all selected-session buckets and roster again.",
             "Student database check-in cost uses the 30-student sample; updates use the populated 100-student bucket sample.",
             "Owner authorization sampled; a shared teacher may need additional membership reads.",

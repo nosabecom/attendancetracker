@@ -62,6 +62,8 @@ node scripts/measure-local-usage.mjs \
   --monthly-sessions-30=200 \
   --monthly-sessions-1000=4 \
   --monthly-student-operations=10000 \
+  --monthly-exports-30=0 \
+  --monthly-exports-1000=0 \
   --history-count=40
 ```
 
@@ -72,7 +74,10 @@ student check-in and an uncoalesced bucket update per teacher/check-in. It assum
 every query executes, without claiming server-cache reuse. It uses a populated
 100-student bucket for update costs and the 30-student sample for check-in costs.
 Shared teachers may need additional membership reads; the fixture samples owner
-access. The report labels these assumptions explicitly.
+access. Explicit export counts are configurable by roster size and default to
+zero; exported reads must be added when modeling actual usage. Export samples
+populate only the first attendance bucket and are not a maximum-facts cost bound.
+The report labels these assumptions explicitly.
 
 This is scenario arithmetic over measured operations, not a monthly cost forecast
 or a verified upper bound. It excludes authentication/password work and rotation,
@@ -86,3 +91,5 @@ Hosted validation must separately measure cache invalidation/executions, actual
 transport, security work and total team usage before selecting production
 warning or disable thresholds. User-visible idle attendance must not create
 polling, heartbeat or same-value attendance writes.
+
+Local native subscription execution and transport evidence is recorded separately in [local-subscription-verification.md](./local-subscription-verification.md). Its cache and coalescing observations do not replace the conservative arithmetic above or establish hosted quota headroom.

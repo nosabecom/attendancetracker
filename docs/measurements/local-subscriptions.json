@@ -1,0 +1,1116 @@
+{
+  "version": 1,
+  "localOnly": true,
+  "startedAt": "2026-11-04T22:37:28.755Z",
+  "bounds": {
+    "maxCalls": 300,
+    "maxFixtureWritesIncludingCleanup": 5000,
+    "maxCheckinsExcusesAndSharingChanges": 20,
+    "maxCleanupBatches": 70,
+    "requestTimeoutMs": 10000,
+    "totalTimeoutMs": 240000,
+    "logPageCap": 6,
+    "logEntryCap": 1000,
+    "maxLogResponseBytes": 4194304,
+    "burstConcurrency": 5,
+    "burstUpdates": 10,
+    "idleMs": 3000
+  },
+  "calls": {
+    "submitted": 226,
+    "settled": 226,
+    "subscriptions": 93,
+    "http": 100,
+    "logPages": 33
+  },
+  "setup": {
+    "managedTeachers": 2,
+    "rosterMembers": 1030,
+    "estimatedDomainAndManagedWrites": 1200,
+    "administrativeWrites": 2,
+    "measuredSeparately": true
+  },
+  "domainOperations": 20,
+  "windows": [
+    {
+      "label": "initial-30-and-1000-two-teachers",
+      "transport": {
+        "sentBytes": 6850,
+        "receivedBytes": 267498,
+        "sentMessages": 6,
+        "receivedMessages": 4
+      },
+      "callbacks": {
+        "owner.small.roster": 1,
+        "owner.small.session": 1,
+        "owner.small.history": 1,
+        "owner.small.bucket.0": 1,
+        "owner.large.roster": 1,
+        "owner.large.session": 1,
+        "owner.large.history": 1,
+        "owner.large.bucket.0": 1,
+        "owner.large.bucket.1": 1,
+        "owner.large.bucket.2": 1,
+        "owner.large.bucket.3": 1,
+        "owner.large.bucket.4": 1,
+        "owner.large.bucket.5": 1,
+        "owner.large.bucket.6": 1,
+        "owner.large.bucket.7": 1,
+        "owner.large.bucket.8": 1,
+        "owner.large.bucket.9": 1,
+        "owner.unrelated.session": 1,
+        "owner.unrelated.roster": 1,
+        "owner.unrelated.bucket.0": 1,
+        "teacher.small.roster": 1,
+        "teacher.small.session": 1,
+        "teacher.small.history": 1,
+        "teacher.small.bucket.0": 1,
+        "teacher.large.roster": 1,
+        "teacher.large.session": 1,
+        "teacher.large.history": 1,
+        "teacher.large.bucket.0": 1,
+        "teacher.large.bucket.1": 1,
+        "teacher.large.bucket.2": 1,
+        "teacher.large.bucket.3": 1,
+        "teacher.large.bucket.4": 1,
+        "teacher.large.bucket.5": 1,
+        "teacher.large.bucket.6": 1,
+        "teacher.large.bucket.7": 1,
+        "teacher.large.bucket.8": 1,
+        "teacher.large.bucket.9": 1,
+        "teacher.unrelated.session": 1,
+        "teacher.unrelated.roster": 1,
+        "teacher.unrelated.bucket.0": 1
+      },
+      "errors": {},
+      "initialSubscriptions": 40,
+      "elapsedMs": 1054,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 41,
+        "handlers": {
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 24,
+            "freshExecutions": 24,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 204,
+            "databaseReadBytes": 60268,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 48
+          },
+          "attendance:session": {
+            "udfType": "Query",
+            "completions": 6,
+            "freshExecutions": 6,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 51,
+            "databaseReadBytes": 15061,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 1664
+          },
+          "attendance:roster": {
+            "udfType": "Query",
+            "completions": 6,
+            "freshExecutions": 6,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 4117,
+            "databaseReadBytes": 1376497,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 259340
+          },
+          "attendance:history": {
+            "udfType": "Query",
+            "completions": 4,
+            "freshExecutions": 4,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 36,
+            "databaseReadBytes": 10950,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 1932
+          }
+        },
+        "queryFreshExecutions": 40,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "active-idle-three-seconds",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 0,
+        "sentMessages": 0,
+        "receivedMessages": 0
+      },
+      "callbacks": {},
+      "errors": {},
+      "elapsedMs": 3302,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 1,
+        "handlers": {},
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "one-hot-bucket-checkin",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 702,
+        "sentMessages": 0,
+        "receivedMessages": 2
+      },
+      "callbacks": {
+        "teacher.large.bucket.0": 1,
+        "owner.large.bucket.0": 1
+      },
+      "errors": {},
+      "elapsedMs": 412,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 6,
+        "handlers": {
+          "attendance:publicCheckin": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 6,
+            "databaseReadBytes": 2115,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 36
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 19,
+            "databaseReadBytes": 5549,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 120
+          }
+        },
+        "queryFreshExecutions": 2,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "fresh-proof-duplicate-checkin",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 0,
+        "sentMessages": 0,
+        "receivedMessages": 0
+      },
+      "callbacks": {},
+      "errors": {},
+      "elapsedMs": 354,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 4,
+        "handlers": {
+          "attendance:publicCheckin": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 7,
+            "databaseReadBytes": 2378,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 51
+          }
+        },
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "different-bucket-excuse",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 702,
+        "sentMessages": 0,
+        "receivedMessages": 2
+      },
+      "callbacks": {
+        "owner.large.bucket.1": 1,
+        "teacher.large.bucket.1": 1
+      },
+      "errors": {},
+      "elapsedMs": 384,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 4,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 10,
+            "databaseReadBytes": 3013,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 19,
+            "databaseReadBytes": 5641,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 120
+          }
+        },
+        "queryFreshExecutions": 2,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "no-op-excuse",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 0,
+        "sentMessages": 0,
+        "receivedMessages": 0
+      },
+      "callbacks": {},
+      "errors": {},
+      "elapsedMs": 317,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 2,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 11,
+            "databaseReadBytes": 3322,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          }
+        },
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "ten-excuses-concurrency-five",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 5050,
+        "sentMessages": 0,
+        "receivedMessages": 8
+      },
+      "callbacks": {
+        "owner.large.bucket.2": 4,
+        "teacher.large.bucket.2": 4
+      },
+      "errors": {},
+      "updates": 10,
+      "concurrency": 5,
+      "elapsedMs": 565,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 19,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 10,
+            "freshExecutions": 10,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 100,
+            "databaseReadBytes": 30130,
+            "databaseWriteDocuments": 10,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 110
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 8,
+            "freshExecutions": 8,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 114,
+            "databaseReadBytes": 34306,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 2722
+          }
+        },
+        "queryFreshExecutions": 8,
+        "totalRetryCount": "UNKNOWN"
+      },
+      "observedBucketFreshExecutions": 8,
+      "affectedCallbacks": 8
+    },
+    {
+      "label": "same-identity-second-client-cache",
+      "transport": {
+        "sentBytes": 3913,
+        "receivedBytes": 70338,
+        "sentMessages": 16,
+        "receivedMessages": 15
+      },
+      "callbacks": {
+        "sameIdentity.large.roster": 1,
+        "sameIdentity.large.session": 1,
+        "sameIdentity.large.history": 1,
+        "sameIdentity.large.bucket.0": 1,
+        "sameIdentity.large.bucket.1": 1,
+        "sameIdentity.large.bucket.2": 1,
+        "sameIdentity.large.bucket.3": 1,
+        "sameIdentity.large.bucket.4": 1,
+        "sameIdentity.large.bucket.5": 1,
+        "sameIdentity.large.bucket.6": 1,
+        "sameIdentity.large.bucket.7": 1,
+        "sameIdentity.large.bucket.8": 1,
+        "sameIdentity.large.bucket.9": 1
+      },
+      "errors": {},
+      "requestedQueries": 13,
+      "elapsedMs": 775,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 14,
+        "handlers": {
+          "attendance:roster": {
+            "udfType": "Query",
+            "completions": 1,
+            "freshExecutions": 0,
+            "cachedInvocations": 1,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 63894
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 10,
+            "freshExecutions": 0,
+            "cachedInvocations": 10,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 725
+          },
+          "attendance:session": {
+            "udfType": "Query",
+            "completions": 1,
+            "freshExecutions": 0,
+            "cachedInvocations": 1,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 279
+          },
+          "attendance:history": {
+            "udfType": "Query",
+            "completions": 1,
+            "freshExecutions": 0,
+            "cachedInvocations": 1,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 573
+          }
+        },
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "unsubscribe-all-acknowledged",
+      "transport": {
+        "sentBytes": 4226,
+        "receivedBytes": 10186,
+        "sentMessages": 40,
+        "receivedMessages": 40
+      },
+      "callbacks": {},
+      "errors": {},
+      "allQuerySetsAcknowledged": true,
+      "elapsedMs": 522,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 1,
+        "handlers": {},
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "inactive-owned-mutation-and-three-second-quiet",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 0,
+        "sentMessages": 0,
+        "receivedMessages": 0
+      },
+      "callbacks": {},
+      "errors": {},
+      "elapsedMs": 3344,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 2,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 10,
+            "databaseReadBytes": 3013,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          }
+        },
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "inactive-idle-no-domain-writes",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 0,
+        "sentMessages": 0,
+        "receivedMessages": 0
+      },
+      "callbacks": {},
+      "errors": {},
+      "elapsedMs": 3302,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 1,
+        "handlers": {},
+        "queryFreshExecutions": 0,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "reload-new-clients-current-facts",
+      "transport": {
+        "sentBytes": 6850,
+        "receivedBytes": 269024,
+        "sentMessages": 6,
+        "receivedMessages": 4
+      },
+      "callbacks": {
+        "teacher.small.roster": 1,
+        "teacher.small.session": 1,
+        "teacher.small.history": 1,
+        "teacher.small.bucket.0": 1,
+        "teacher.large.roster": 1,
+        "teacher.large.session": 1,
+        "teacher.large.history": 1,
+        "teacher.large.bucket.0": 1,
+        "teacher.large.bucket.1": 1,
+        "teacher.large.bucket.2": 1,
+        "teacher.large.bucket.3": 1,
+        "teacher.large.bucket.4": 1,
+        "teacher.large.bucket.5": 1,
+        "teacher.large.bucket.6": 1,
+        "teacher.large.bucket.7": 1,
+        "teacher.large.bucket.8": 1,
+        "teacher.large.bucket.9": 1,
+        "teacher.unrelated.session": 1,
+        "teacher.unrelated.roster": 1,
+        "teacher.unrelated.bucket.0": 1,
+        "owner.small.roster": 1,
+        "owner.small.session": 1,
+        "owner.small.history": 1,
+        "owner.small.bucket.0": 1,
+        "owner.large.roster": 1,
+        "owner.large.session": 1,
+        "owner.large.history": 1,
+        "owner.large.bucket.0": 1,
+        "owner.large.bucket.1": 1,
+        "owner.large.bucket.2": 1,
+        "owner.large.bucket.3": 1,
+        "owner.large.bucket.4": 1,
+        "owner.large.bucket.5": 1,
+        "owner.large.bucket.6": 1,
+        "owner.large.bucket.7": 1,
+        "owner.large.bucket.8": 1,
+        "owner.large.bucket.9": 1,
+        "owner.unrelated.session": 1,
+        "owner.unrelated.roster": 1,
+        "owner.unrelated.bucket.0": 1
+      },
+      "errors": {},
+      "newClients": 2,
+      "requestedQueries": 40,
+      "elapsedMs": 594,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 45,
+        "handlers": {
+          "attendance:roster": {
+            "udfType": "Query",
+            "completions": 6,
+            "freshExecutions": 0,
+            "cachedInvocations": 6,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 259340
+          },
+          "attendance:session": {
+            "udfType": "Query",
+            "completions": 6,
+            "freshExecutions": 0,
+            "cachedInvocations": 6,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 1664
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 24,
+            "freshExecutions": 2,
+            "cachedInvocations": 22,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 19,
+            "databaseReadBytes": 5641,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 1574
+          },
+          "attendance:history": {
+            "udfType": "Query",
+            "completions": 4,
+            "freshExecutions": 0,
+            "cachedInvocations": 4,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 0,
+            "databaseReadBytes": 0,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 1932
+          }
+        },
+        "queryFreshExecutions": 2,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "close-selected-session",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 1138,
+        "sentMessages": 0,
+        "receivedMessages": 2
+      },
+      "callbacks": {
+        "owner.large.session": 1,
+        "teacher.large.session": 1
+      },
+      "errors": {},
+      "elapsedMs": 357,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 4,
+        "handlers": {
+          "attendance:close": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 8,
+            "databaseReadBytes": 2375,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          },
+          "attendance:session": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 19,
+            "databaseReadBytes": 5461,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 556
+          }
+        },
+        "queryFreshExecutions": 2,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "closed-session-excuse",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 704,
+        "sentMessages": 0,
+        "receivedMessages": 2
+      },
+      "callbacks": {
+        "owner.large.bucket.4": 1,
+        "teacher.large.bucket.4": 1
+      },
+      "errors": {},
+      "elapsedMs": 387,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 4,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 11,
+            "databaseReadBytes": 3286,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 19,
+            "databaseReadBytes": 5641,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 120
+          }
+        },
+        "queryFreshExecutions": 2,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "sharing-revocation",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 8529,
+        "sentMessages": 0,
+        "receivedMessages": 1
+      },
+      "callbacks": {},
+      "errors": {
+        "teacher.large.roster": 1,
+        "teacher.large.session": 1,
+        "teacher.large.history": 1,
+        "teacher.large.bucket.0": 1,
+        "teacher.large.bucket.1": 1,
+        "teacher.large.bucket.2": 1,
+        "teacher.large.bucket.3": 1,
+        "teacher.large.bucket.4": 1,
+        "teacher.large.bucket.5": 1,
+        "teacher.large.bucket.6": 1,
+        "teacher.large.bucket.7": 1,
+        "teacher.large.bucket.8": 1,
+        "teacher.large.bucket.9": 1,
+        "teacher.unrelated.session": 1,
+        "teacher.unrelated.roster": 1,
+        "teacher.unrelated.bucket.0": 1
+      },
+      "elapsedMs": 442,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 18,
+        "handlers": {
+          "attendance:unshare": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 10,
+            "databaseReadBytes": 2737,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          },
+          "attendance:session": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 2,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 16,
+            "databaseReadBytes": 4754,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 0
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 11,
+            "freshExecutions": 11,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 11,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 88,
+            "databaseReadBytes": 26147,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 0
+          },
+          "attendance:roster": {
+            "udfType": "Query",
+            "completions": 2,
+            "freshExecutions": 2,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 2,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 16,
+            "databaseReadBytes": 4754,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 0
+          },
+          "attendance:history": {
+            "udfType": "Query",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 1,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 7,
+            "databaseReadBytes": 1999,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 0
+          }
+        },
+        "queryFreshExecutions": 16,
+        "totalRetryCount": "UNKNOWN"
+      }
+    },
+    {
+      "label": "post-revocation-owner-excuse",
+      "transport": {
+        "sentBytes": 0,
+        "receivedBytes": 352,
+        "sentMessages": 0,
+        "receivedMessages": 1
+      },
+      "callbacks": {
+        "owner.large.bucket.5": 1
+      },
+      "errors": {},
+      "elapsedMs": 404,
+      "logs": {
+        "complete": true,
+        "checkpointStartObserved": true,
+        "checkpointEndObserved": true,
+        "pages": 1,
+        "completionCount": 3,
+        "handlers": {
+          "attendance:excuse": {
+            "udfType": "Mutation",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 10,
+            "databaseReadBytes": 3013,
+            "databaseWriteDocuments": 1,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 11
+          },
+          "attendance:bucket": {
+            "udfType": "Query",
+            "completions": 1,
+            "freshExecutions": 1,
+            "cachedInvocations": 0,
+            "cacheMetadataUnknown": 0,
+            "errors": 0,
+            "explicitWillRetry": 0,
+            "explicitOccEntries": 0,
+            "maximumReportedOccRetryCount": null,
+            "databaseReadDocuments": 9,
+            "databaseReadBytes": 2684,
+            "databaseWriteDocuments": 0,
+            "usageMetadataUnknown": 0,
+            "returnBytes": 60
+          }
+        },
+        "queryFreshExecutions": 1,
+        "totalRetryCount": "UNKNOWN"
+      }
+    }
+  ],
+  "assertions": {
+    "managedOneHourJwt-owner": true,
+    "managedOneHourJwt-teacher": true,
+    "initialCheckpointCursorEstablished": true,
+    "initialData1": true,
+    "ownerExactRosterSizes": true,
+    "ownerExactSessionPolicy": true,
+    "ownerTenInitiallyEmptyBuckets": true,
+    "teacherExactRosterSizes": true,
+    "teacherExactSessionPolicy": true,
+    "teacherTenInitiallyEmptyBuckets": true,
+    "activeIdleNoAttendanceQueries": true,
+    "activeIdleNoDomainChanges": true,
+    "activeIdleNoApplicationPolling": true,
+    "firstCheckinFresh": true,
+    "hotBucketTwoExecutionsTwoCallbacksIsolation": true,
+    "duplicateAlready": true,
+    "duplicateNoQueryInvalidations": true,
+    "duplicateDomainDigestUnchanged": true,
+    "duplicateZeroDomainWriteDocuments": true,
+    "differentBucketTwoExecutionsTwoCallbacksIsolation": true,
+    "noopNoQueryInvalidations": true,
+    "noopDomainDigestUnchanged": true,
+    "noopZeroDomainWriteDocuments": true,
+    "burstBothTeachersReceivedAllTenFacts": true,
+    "initialData8": true,
+    "sameIdentityCurrentFacts": true,
+    "allPrivateSubscriptionsRemovedAndAcknowledged": true,
+    "inactiveZeroAttendanceQueryExecutionsAndCallbacks": true,
+    "inactiveNoApplicationPolling": true,
+    "inactiveQuietNoAttendanceQueries": true,
+    "inactiveQuietDomainDigestUnchanged": true,
+    "initialData12": true,
+    "reloadBothTeachersCurrentInactiveFact": true,
+    "closedSessionExcuseStillIsolated": true,
+    "revokedTeacherAllSixteenPrivateQueriesDenied": true,
+    "revocationOwnerAndOtherClassIsolated": true,
+    "noOldPrivateUpdatesAfterRevocation": true,
+    "postRevocationOnlyOwnerAffectedBucketExecuted": true,
+    "everyWindowHasCompleteCheckpointLogs": true,
+    "allConnectionsClosedBeforeCleanup": true,
+    "allCountedCallsSettled": true,
+    "boundedCallsAndDomainOperations": true
+  },
+  "cleanup": {
+    "done": true,
+    "writes": 1082,
+    "batches": 31,
+    "cancelledJobs": 2
+  },
+  "limitations": [
+    "Local completion logs and usage fields are diagnostic evidence, not billing or metering proof.",
+    "No argument-level bucket attribution exists in the sampled function log identifier.",
+    "No whole-run attempt/retry total is inferred from partial metadata.",
+    "Transport counts are UTF-8 application-message bytes and messages, excluding HTTP setup/admin/log traffic and TCP/TLS/compression overhead.",
+    "Server cache reuse depends on identity, arguments, retained cache entries, and current backend behavior.",
+    "Three-second idle windows do not cover SDK keepalive or one-hour auth rotation. Auth rotation is unmeasured here.",
+    "Hosted capacity, other-team usage, monthly charges, and free-quota eligibility remain unknown."
+  ],
+  "localFixturePublished": true,
+  "fixtureWriteUpperEstimateIncludingCleanup": 2284,
+  "finishedAt": "2026-11-04T22:37:52.383Z",
+  "elapsedMs": 23628,
+  "passed": true
+}

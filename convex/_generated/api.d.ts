@@ -19,6 +19,7 @@ import type * as legacy from "../legacy.js";
 import type * as localAuthStress from "../localAuthStress.js";
 import type * as localBurst from "../localBurst.js";
 import type * as localMetrics from "../localMetrics.js";
+import type * as localSubscriptions from "../localSubscriptions.js";
 import type * as localTest from "../localTest.js";
 import type * as migration from "../migration.js";
 import type * as operations from "../operations.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   localAuthStress: typeof localAuthStress;
   localBurst: typeof localBurst;
   localMetrics: typeof localMetrics;
+  localSubscriptions: typeof localSubscriptions;
   localTest: typeof localTest;
   migration: typeof migration;
   operations: typeof operations;
