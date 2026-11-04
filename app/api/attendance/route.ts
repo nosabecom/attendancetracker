@@ -4,6 +4,7 @@ import { authorizeSession, classContext } from "../../../lib/classes";
 import { randomBytes } from "node:crypto";
 import { parseRoster, matchStudent } from "../../../lib/roster.mjs";
 import { readJson } from "../../../lib/http.mjs";
+import { legacyRequestGate } from "../../../lib/backend-gate.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Student = { id: string; name: string; code: string };
@@ -35,6 +36,7 @@ function response(value: unknown, status = 200) {
   });
 }
 export async function GET(req: Request) {
+  const gate = legacyRequestGate(); if (gate) return gate;
   try {
     const url = new URL(req.url),
       id = url.searchParams.get("id");
@@ -109,6 +111,7 @@ export async function GET(req: Request) {
   }
 }
 export async function POST(req: Request) {
+  const gate = legacyRequestGate(true); if (gate) return gate;
   try {
     sameOrigin(req);
     const body = await readJson(req, 1_000_000);

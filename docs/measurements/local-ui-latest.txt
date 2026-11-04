@@ -1,0 +1,20 @@
+$ node scripts/test-local-ui.mjs
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+Auth gateway HTTP status: 200
+PASS: offline revocation prevents old private content on reconnect and reload.
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: logout clears cookies, revokes replay and permits account switching.

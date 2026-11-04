@@ -1,6 +1,8 @@
 node_modules
 .next
 .vercel
+.convex
+.migration-backups
 .env*
 !.env.example
 *.tsbuildinfo
