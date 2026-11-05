@@ -139,7 +139,7 @@ Both tools are executable but remain unexecuted against hosted services.
 The publisher has sixteen offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
-runner has twenty-two offline checks covering cumulative accounting, cookie
+runner has thirty offline checks covering cumulative accounting, cookie
 attributes, browser isolation, request policy, ephemeral counter comparison,
 cancellation, deadlines and prioritized cleanup. These fixtures do not establish
 real provider acceptance, browser cookies or trusted-header behavior.
@@ -149,3 +149,20 @@ environment acceptance, storage-independent reserved cleanup, alias binding
 evidence and immediate returned-ID retention. A combined pre-execution review
 of these corrections and the complete runner remains required. No Vercel
 deployment, shareable capability or new Next workload has been created.
+
+The combined recheck accepted those publisher corrections but found browser
+lifecycle defects in the runner: an unbounded launch/evaluation, Playwright's
+competing SIGINT exit handler and falsely successful teardown after initialization
+failure. Launch now receives workload-bounded timeout and all three Playwright
+signal handlers disabled; the runner owns SIGINT, SIGTERM and SIGHUP. Every initialization, locator and evaluation operation
+has a cancellation-aware bound; caller watchdogs also bound initialization,
+check-in and duplicate operations. Ordinary transports share that cancellation
+signal, while cleanup requests use independent deadlines.
+
+Teardown ownership is handed to the caller as soon as launch returns, before
+initialization. Late launch handles are closed too. A close promise is shared
+between failure and final cleanup, bounded independently to 2.5 seconds, and
+failed/unconfirmed closure remains uncertain. Caller cleanup allows at most three
+seconds before proceeding to the priority backend closure. Eight new regressions
+cover these paths without starting a real browser or service. These corrections
+require another pre-execution review.

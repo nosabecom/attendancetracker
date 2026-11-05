@@ -22,6 +22,15 @@ these checks; it does not identify the server-side reason for the 403. The
 [safe diagnostic](./measurements/blob-auth-diagnostic.json) made no object requests
 and retained no credential values.
 
+A subsequent [cached-read probe](./measurements/blob-cached-read-probe.json)
+used the supported private get with useCache enabled and the listed production
+URL. It also returned 403. The script made one metadata lookup and one get call,
+with no caller retry or saved body. This narrows the tested immediate options;
+it does not establish that every provider-side route is unavailable. The exporter
+can run under the owner's credentials once reads are restored. Contacting support
+is an optional request for earlier access, not a prerequisite to running the
+exporter. No support message or plan change has been made.
+
 Vercel's [Hobby usage policy](https://vercel.com/docs/vercel-blob/usage-and-pricing#hobby)
 states that exceeding the allowance prevents Blob access and requires waiting
 30 days before using it again. The precise restoration time for this store and

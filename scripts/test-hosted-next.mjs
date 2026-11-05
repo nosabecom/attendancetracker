@@ -196,9 +196,9 @@ export function compareIpObservations(snapshots) {
     retainedSensitiveObservations: false };
 }
 
-export async function boundedFetch(url, init, { fetchImpl = fetch, timeoutMs = 10000 } = {}) {
+export async function boundedFetch(url, init, { fetchImpl = fetch, timeoutMs = 10000, signal } = {}) {
   const response = await fetchImpl(url, { ...init, redirect: init.redirect === 'manual' ? 'manual' : 'error',
-    signal: AbortSignal.timeout(timeoutMs) });
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
   check(response.status >= 200 && response.status <= 599, 'http_status');
   const chunks = []; let size = 0;
   const reader = response.body?.getReader();
@@ -234,6 +234,21 @@ async function within(promise, timeoutMs) {
   try { return await Promise.race([promise, new Promise((_, reject) => {
     timer = setTimeout(() => reject(new GateError('operation_timeout')), timeoutMs);
   })]); } finally { clearTimeout(timer); }
+}
+
+export async function browserOperation(operation, timeoutMs, signal) {
+  check(Number.isFinite(timeoutMs) && timeoutMs > 0, 'browser_deadline');
+  let abort;
+  const cancelled = new Promise((_, reject) => {
+    abort = () => reject(new GateError('browser_cancelled'));
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+  try {
+    return await within(Promise.race([Promise.resolve().then(() => {
+      check(!signal?.aborted, 'browser_cancelled'); return operation();
+    }), cancelled]), timeoutMs);
+  } finally { signal?.removeEventListener('abort', abort); }
 }
 
 // Only the supported CLI system-query transport uses a socket. Each query owns
@@ -340,23 +355,48 @@ export function createBrowserPolicy({ origin, legacyId, deploymentId }) {
 }
 
 export async function createBrowserHarness({ origin, legacyId, deploymentId, cookies, send, timeout, fatal,
-  observation, launch } = {}) {
-  const browser = launch ? await launch() : await (await import('playwright')).chromium.launch({ headless: true });
+  observation, launch, signal, onOwned, stopWork } = {}) {
+  let browser, knownClosePromise, stopped = false;
+  observation.initializationAttempted = true; observation.closeConfirmed = false;
+  const closeKnownBrowser = value => {
+    if (!knownClosePromise) {
+      observation.closeAttempted = true;
+      knownClosePromise = within(Promise.resolve().then(() => value.close()), 2500)
+        .then(() => { observation.closeConfirmed = true; observation.closeUncertain = false; }, error => {
+          observation.closeUncertain = true; throw error;
+        });
+    }
+    return knownClosePromise;
+  };
+  const close = () => {
+    stopped = true; stopWork?.();
+    if (!browser) { observation.closeUncertain = true; return Promise.reject(new GateError('browser_handle_unavailable')); }
+    return closeKnownBrowser(browser);
+  };
+  const step = async operation => {
+    try { return await browserOperation(() => { check(!stopped, 'browser_stopped'); return operation(); }, timeout(), signal); }
+    catch (error) {
+      const expectedStop = stopped || signal?.aborted;
+      stopped = true; stopWork?.();
+      if (!expectedStop) fatal(error instanceof GateError ? error.code : 'browser_operation');
+      throw error;
+    }
+  };
   const contexts = [];
   const policy = createBrowserPolicy({ origin, legacyId, deploymentId });
-  let pending = new Set(), stopped = false;
+  const pending = new Set();
   async function context() {
-    const value = await browser.newContext({ serviceWorkers: 'block', acceptDownloads: false }); contexts.push(value);
-    await value.routeWebSocket('**/*', socket => {
+    const value = await step(() => browser.newContext({ serviceWorkers: 'block', acceptDownloads: false })); contexts.push(value);
+    await step(() => value.routeWebSocket('**/*', socket => {
       observation.blockedTeacherSockets++; fatal('student_teacher_websocket'); socket.close();
-    });
-    await value.route('**/*', route => {
+    }));
+    await step(() => value.route('**/*', route => {
       const task = (async () => {
         if (stopped) return route.abort();
         const req = route.request();
         try {
           check(!req.redirectedFrom(), 'browser_redirect');
-          const request = { url: req.url(), method: req.method(), body: req.postData(), headers: await req.allHeaders() };
+          const request = { url: req.url(), method: req.method(), body: req.postData(), headers: await step(() => req.allHeaders()) };
           const admitted = policy(request);
           if (admitted.stub) { observation.stubbedTelemetry++; return route.fulfill({ status: 200,
             contentType: 'application/javascript', body: '' }); }
@@ -365,52 +405,64 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
           const headers = Object.fromEntries(result.headers);
           delete headers['content-length']; delete headers['content-encoding']; delete headers['transfer-encoding'];
           await route.fulfill({ status: result.status, headers, body: result.bytes });
-        } catch (error) { fatal(error instanceof GateError ? error.code : 'browser_transport'); await route.abort().catch(() => {}); }
+        } catch (error) {
+          if (!stopped && !signal?.aborted) fatal(error instanceof GateError ? error.code : 'browser_transport');
+          await route.abort().catch(() => {});
+        }
       })();
       pending.add(task); task.finally(() => pending.delete(task)).catch(() => {}); return task;
-    });
+    }));
     return value;
   }
   try {
+    const launchOptions = { headless: true, timeout: timeout(), handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false };
+    observation.launchAttempted = true;
+    const launching = Promise.resolve().then(async () => {
+      const value = launch ? await launch(launchOptions) : await (await import('playwright')).chromium.launch(launchOptions);
+      browser = value;
+      // Retain teardown ownership before any initialization call can fail.
+      onOwned?.({ close });
+      if (stopped || signal?.aborted) {
+        // A late launch completion must not become an unowned browser.
+        closeKnownBrowser(value).catch(() => {});
+      }
+      return value;
+    });
+    await step(() => launching);
     // Teacher cookies only visit the JSON auth handler; no teacher UI is mounted.
     const teacher = await context();
-    await teacher.addCookies(AUTH_NAMES.slice(0, 2).map((name, i) => ({ name, value: i ? cookies.refresh : cookies.token,
-      url: origin, httpOnly: true, secure: true, sameSite: 'Lax' })));
-    const probe = await teacher.newPage();
-    await probe.goto(`${origin}/api/convex-auth`, { waitUntil: 'domcontentloaded', timeout: timeout() });
-    const visibleNames = await probe.evaluate(() => document.cookie.split(';').map(x => x.trim().split('=')[0]));
+    await step(() => teacher.addCookies(AUTH_NAMES.slice(0, 2).map((name, i) => ({ name, value: i ? cookies.refresh : cookies.token,
+      url: origin, httpOnly: true, secure: true, sameSite: 'Lax' }))));
+    const probe = await step(() => teacher.newPage());
+    await step(() => probe.goto(`${origin}/api/convex-auth`, { waitUntil: 'domcontentloaded', timeout: timeout() }));
+    const visibleNames = await step(() => probe.evaluate(() => document.cookie.split(';').map(x => x.trim().split('=')[0])));
     check(AUTH_NAMES.every(name => !visibleNames.includes(name)), 'http_only_javascript_visibility');
-    const stored = await teacher.cookies(origin);
+    const stored = await step(() => teacher.cookies(origin));
     check(AUTH_NAMES.slice(0, 2).every(name => stored.some(c => c.name === name && c.httpOnly && c.secure &&
       c.sameSite === 'Lax' && c.path === '/' && !c.domain.startsWith('.'))), 'browser_cookie_attributes');
-    await teacher.close(); contexts.splice(contexts.indexOf(teacher), 1);
-    const student = await context(), page = await student.newPage();
-    check(!(await student.cookies(origin)).some(c => AUTH_NAMES.includes(c.name)), 'student_teacher_cookie_isolation');
+    await step(() => teacher.close()); contexts.splice(contexts.indexOf(teacher), 1);
+    const student = await context(), page = await step(() => student.newPage());
+    check(!(await step(() => student.cookies(origin))).some(c => AUTH_NAMES.includes(c.name)), 'student_teacher_cookie_isolation');
     page.setDefaultTimeout(timeout());
-    await page.goto(`${origin}/?join=${legacyId}`, { waitUntil: 'domcontentloaded', timeout: timeout() });
-    await page.getByLabel('Full name or student ID').waitFor({ state: 'visible', timeout: timeout() });
+    await step(() => page.goto(`${origin}/?join=${legacyId}`, { waitUntil: 'domcontentloaded', timeout: timeout() }));
+    await step(() => page.getByLabel('Full name or student ID').waitFor({ state: 'visible', timeout: timeout() }));
     return {
       async firstCheckin() {
-        await page.getByLabel('Full name or student ID').fill('NXT01');
-        await page.getByRole('button', { name: 'Check me in' }).click();
-        await page.getByRole('heading', { name: 'You’re all set.' }).waitFor({ state: 'visible', timeout: timeout() });
+        await step(() => page.getByLabel('Full name or student ID').fill('NXT01', { timeout: timeout() }));
+        await step(() => page.getByRole('button', { name: 'Check me in' }).click({ timeout: timeout() }));
+        await step(() => page.getByRole('heading', { name: 'You’re all set.' }).waitFor({ state: 'visible', timeout: timeout() }));
       },
       async duplicate(headers) {
-        return page.evaluate(async ({ id, headers }) => {
+        return step(() => page.evaluate(async ({ id, headers }) => {
           const response = await fetch('/api/convex/public', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
             body: JSON.stringify({ action: 'checkin', id, identity: 'NXT01' }), redirect: 'error' });
           return { status: response.status, body: await response.json() };
-        }, { id: legacyId, headers });
+        }, { id: legacyId, headers }));
       },
-      async close() {
-        stopped = true;
-        try { await within(Promise.allSettled([...pending]), Math.min(timeout(), 1000)); } catch { /* close browser below */ }
-        try { await within(Promise.all(contexts.map(c => c.close())), Math.min(timeout(), 1000)); }
-        finally { await within(browser.close(), Math.min(timeout(), 2000)); }
-      },
+      close,
       cookiesVerified: true,
     };
-  } catch (error) { stopped = true; await within(browser.close(), 3000).catch(() => {}); throw error; }
+  } catch (error) { await close().catch(() => {}); throw error; }
 }
 
 async function exclusiveAttempt(recordValue) {
@@ -477,11 +529,13 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       'Free plan and team allowance rely on the fresh private dashboard review; provider usage may be provisional.',
     ] };
   let phase = 'live preflight', cleaning = false, cleanupTimeout = 10000, cancelled = false, fatalObservation, actor, browser;
+  const ordinaryAbort = new AbortController();
   let activationAttempted = false, identityVerified = false, adminSupported = true;
   const snapshots = [];
-  const signal = () => { cancelled = true; report.cancelled = true; report.passed = false; };
-  process.on('SIGINT', signal); process.on('SIGTERM', signal);
-  const fatal = code => { fatalObservation ??= code; };
+  const signal = () => { cancelled = true; report.cancelled = true; report.passed = false; ordinaryAbort.abort(); };
+  const workSignals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  for (const name of workSignals) process.on(name, signal);
+  const fatal = code => { fatalObservation ??= code; ordinaryAbort.abort(); };
   const remaining = (ceiling = cleaning ? cleanupTimeout : 10000) => {
     const left = (cleaning ? 180000 : 130000) - (deps.now() - started);
     check(left > 0 && (cleaning || (!cancelled && !fatalObservation)), 'runtime_stopped_or_timeout');
@@ -496,7 +550,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     onSend?.();
     if (target.origin === new URL(manifest.vercel.url).origin) report.physicalRequests.hosting++;
     else report.physicalRequests.convexHttp++;
-    return deps.transport(url, init, { timeoutMs });
+    return deps.transport(url, init, { timeoutMs, ...(!cleaning ? { signal: ordinaryAbort.signal } : {}) });
   };
   const rpcImpl = deps.rpc ?? createOneShotRpc({ cloudUrl: manifest.backend.cloudUrl, adminKey: backend.adminKey, transport });
   const rpc = async (kind, name, args = {}, { token, admin = false, writes = 0 } = {}) => {
@@ -647,7 +701,13 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     const roster = await rpc('query', 'attendance:roster', { legacyId }, { token: actor.token });
     assertion('FiveStudentRoster', Array.isArray(roster) && roster.length === 5 && new Set(roster.map(x => x.id)).size === 5);
     phase = 'isolated student browser';
-    browser = await deps.createBrowser({ origin, legacyId, deploymentId: expected.deploymentId, cookies,
+    report.browser.initializationAttempted = true;
+    browser = await browserOperation(() => deps.createBrowser({ origin, legacyId, deploymentId: expected.deploymentId, cookies,
+      signal: ordinaryAbort.signal, stopWork: () => ordinaryAbort.abort(),
+      onOwned: owner => {
+        check(owner && typeof owner.close === 'function', 'browser_owner'); browser = owner;
+        if (cleaning) owner.close().catch(() => { report.browser.closeUncertain = true; });
+      },
       timeout: remaining, fatal, observation: report.browser, send: async (request, admission) => {
         const url = new URL(request.url);
         const response = await hosting(url.pathname + url.search, { method: request.method, body: request.body,
@@ -666,17 +726,17 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
           check(response.status === 405, 'cookie_probe_status'); assertPublicResponse(jsonBody(response), { status: 405 });
         } else check(response.status === 200, 'browser_asset_status');
         return response;
-      } });
+      } }), remaining(30000), ordinaryAbort.signal);
     assertion('HttpOnlyCookieAndStudentIsolation', browser.cookiesVerified === true);
     await observeCounters(legacyId);
-    await browser.firstCheckin();
+    await browserOperation(() => browser.firstCheckin(), remaining(30000), ordinaryAbort.signal);
     await observeCounters(legacyId);
     const facts = await rpc('query', 'attendance:bucket', { legacyId, bucket: 0 }, { token: actor.token });
     check(facts?.length === 1 && facts[0].checkedInAt, 'first_fact');
     const originalAt = facts[0].checkedInAt;
     const duplicates = [{ 'x-forwarded-for': '198.51.100.71' }, { 'x-vercel-forwarded-for': '203.0.113.82' }];
     for (const headers of duplicates) {
-      const result = await browser.duplicate(headers);
+      const result = await browserOperation(() => browser.duplicate(headers), remaining(), ordinaryAbort.signal);
       check(result.status === 200 && result.body.already === true, 'planned_duplicate');
       assertPublicResponse(result.body, { status: 200, kind: 'checkin' });
       await observeCounters(legacyId);
@@ -700,11 +760,13 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     report.failureKind = error instanceof GateError ? error.code : 'transport_or_guard_failure';
   } finally {
     cleaning = true;
+    ordinaryAbort.abort();
     // Stop browser activity before closure, but keep provider cleanup behind
     // confirmed closure. Each cleanup action is attempted once, never retried.
-    if (browser) try { await browser.close(); report.cleanup.browserClosed = true; }
+    if (browser) try { await within(browser.close(), 3000); report.cleanup.browserClosed = true; }
     catch { report.cleanup.browserClosed = false; }
-    else report.cleanup.browserClosed = true;
+    else report.cleanup.browserClosed = !report.browser.initializationAttempted || report.browser.closeConfirmed === true;
+    if (!report.cleanup.browserClosed) report.cleanup.browserClosureUncertain = true;
     if (identityVerified) {
       if (activationAttempted) try {
         const closed = await rpc('mutation', 'operations:setAvailability', { fingerprint: FINGERPRINT,
@@ -741,7 +803,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       Object.values(report.assertions).every(Boolean);
     try { await deps.persist({ attemptPath, evidencePath, attemptRecord: { ...attempt, phase }, report,
       isCancelled: () => cancelled }); }
-    finally { process.removeListener('SIGINT', signal); process.removeListener('SIGTERM', signal); }
+    finally { for (const name of workSignals) process.removeListener(name, signal); }
   }
   return report;
 }

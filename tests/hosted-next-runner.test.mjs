@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { EventEmitter } from 'node:events';
 import { assertPublicResponse, boundedFetch, compareIpObservations, counterSnapshot, createAdminReader,
   createBrowserHarness, createBrowserPolicy, createBudget, createOneShotRpc, FINGERPRINT, inspectAuthCookies, parseArgs,
-  readAdminTable, runHostedNext, validateManifest, validatePriorEvidence } from '../scripts/test-hosted-next.mjs';
+  readAdminTable, runHostedNext, validateManifest, validatePriorEvidence, browserOperation } from '../scripts/test-hosted-next.mjs';
 import { persistHostedReports } from '../scripts/test-hosted-preview.mjs';
 
 const expected = { deploymentId: 'dpl_fixture', backendName: 'fixture-preview-123' };
@@ -284,14 +284,20 @@ test('browser allowlist admits only exact student requests and planned duplicate
 
 // An in-memory Playwright surface exercises the actual harness. It starts no
 // browser/server and all route responses are synthetic bounded byte buffers.
-function browserFixture({ leakHttpOnly = false } = {}) {
+function browserFixture({ leakHttpOnly = false, failContext = false, failClose = false, hangEvaluation = false } = {}) {
   const origin = 'https://fixture.vercel.app', legacyId = 'a'.repeat(32);
   const contexts = [], sends = [], fatals = [], fulfilled = [];
   const observation = { blockedTeacherSockets: 0, stubbedTelemetry: 0 };
+  const lifecycle = { launchOptions: null, closeCalls: 0 };
   const browser = {
     closed: false,
-    async close() { this.closed = true; },
+    async close() {
+      lifecycle.closeCalls++;
+      if (failClose) throw Error('fixture close failure');
+      this.closed = true; for (const context of contexts) context.closed = true;
+    },
     async newContext(options) {
+      if (failContext) throw Error('fixture context creation failure');
       assert.deepEqual(options, { serviceWorkers: 'block', acceptDownloads: false });
       const context = {
         jar: [], closed: false,
@@ -324,6 +330,7 @@ function browserFixture({ leakHttpOnly = false } = {}) {
               }
             },
             async evaluate(_fn, value) {
+              if (hangEvaluation) return new Promise(() => {});
               if (!value) return leakHttpOnly ? authNames : [];
               const result = await owner.issue(origin + '/api/convex/public', 'POST',
                 { 'Content-Type': 'application/json', ...value.headers },
@@ -349,7 +356,8 @@ function browserFixture({ leakHttpOnly = false } = {}) {
   };
   let checkins = 0;
   const config = { origin, legacyId, deploymentId: 'dpl_fixture', cookies: { token: jwt, refresh: 'synthetic-refresh' },
-    timeout: () => 1000, fatal: value => fatals.push(value), observation, launch: async () => browser,
+    timeout: () => 1000, fatal: value => fatals.push(value), observation,
+    launch: async options => { lifecycle.launchOptions = options; return browser; },
     send: async (request, admission) => {
       sends.push({ request, admission });
       const result = admission.key === 'cookieProbe' ? response({ error: 'Invalid method.' }, 405) :
@@ -358,7 +366,7 @@ function browserFixture({ leakHttpOnly = false } = {}) {
       result.headers.set('Content-Encoding', 'gzip'); result.headers.set('Content-Length', '999'); return result;
     },
   };
-  return { browser, contexts, sends, fatals, observation, fulfilled, config };
+  return { browser, contexts, sends, fatals, observation, fulfilled, config, lifecycle };
 }
 
 test('actual browser harness isolates teacher cookies, gates routes and completes exactly three planned check-ins offline', async () => {
@@ -518,4 +526,100 @@ test('cancellation during workload stops ordinary sends but preserves closure-fi
   assert.equal(run.state.checkins, 1); assert.equal(report.cleanup.availabilityClosed, true);
   assert.equal(report.cleanup.logoutConfirmed, true); assert.equal(report.cleanup.vercelDeleted, true);
   assert(run.events.indexOf('close') < run.events.indexOf('logout'));
+});
+
+test('real browser-harness launch receives a bounded timeout and no competing Playwright signal handlers', async () => {
+  const f=browserFixture();let owner,contextsAtOwnership;
+  f.config.onOwned=value=>{owner=value;contextsAtOwnership=f.contexts.length;};
+  const handle=await createBrowserHarness(f.config);
+  assert.deepEqual(f.lifecycle.launchOptions,{headless:true,timeout:1000,handleSIGINT:false,handleSIGTERM:false,handleSIGHUP:false});
+  assert.equal(contextsAtOwnership,0);assert.equal(typeof owner.close,'function');
+  await handle.close();await owner.close();
+  assert.equal(f.lifecycle.closeCalls,1);assert.equal(f.observation.closeConfirmed,true);
+});
+
+test('browser operations time out and cancellation stops an active unbounded promise', async () => {
+  await assert.rejects(browserOperation(()=>new Promise(()=>{}),10),/operation_timeout/);
+  const abort=new AbortController();
+  await assert.rejects(browserOperation(()=>{
+    queueMicrotask(()=>abort.abort());return new Promise(()=>{});
+  },1000,abort.signal),/browser_cancelled/);
+  let sent=0;
+  await assert.rejects(boundedFetch('https://fixture.vercel.app',{}, {signal:abort.signal,fetchImpl:async(_,init)=>{
+    sent++;assert.equal(init.signal.aborted,true);throw init.signal.reason;
+  }}));
+  assert.equal(sent,1);
+});
+
+test('an unbounded page evaluation is interrupted and closes the owned browser once', async () => {
+  const f=browserFixture({hangEvaluation:true});f.config.timeout=()=>10;
+  let owner;f.config.onOwned=value=>{owner=value;};
+  await assert.rejects(createBrowserHarness(f.config),/operation_timeout/);
+  assert.equal(f.browser.closed,true);assert.equal(f.observation.closeConfirmed,true);
+  await owner.close();assert.equal(f.lifecycle.closeCalls,1);
+});
+
+test('initialization failure plus browser-close failure remains uncertain while backend closure still runs', async () => {
+  const run=offlineRun(), f=browserFixture({failContext:true,failClose:true});
+  run.dependencies.createBrowser=config=>createBrowserHarness({...f.config,...config});
+  const report=await run.run();
+  assert.equal(report.passed,false);assert.equal(report.cleanup.browserClosed,false);
+  assert.equal(report.cleanup.browserClosureUncertain,true);
+  assert.equal(report.browser.closeUncertain,true);assert.equal(f.lifecycle.closeCalls,1);
+  assert.equal(report.cleanup.availabilityClosed,true);assert.equal(report.cleanup.vercelDeleted,true);
+  assert(run.events.indexOf('close')<run.events.indexOf('logout'));
+});
+
+test('stalled launch cannot spend the cleanup window and a late handle is still closed', async () => {
+  let elapsed=0, release, options;
+  const pending=new Promise(resolve=>{release=resolve;});
+  const run=offlineRun({elapsed:()=>elapsed}), f=browserFixture();
+  run.dependencies.createBrowser=config=>{
+    elapsed=129980;
+    return createBrowserHarness({...f.config,...config,launch:async value=>{options=value;return pending;}});
+  };
+  const report=await run.run();
+  assert(options.timeout<=20);assert.equal(options.handleSIGINT,false);
+  assert.equal(report.passed,false);assert.equal(report.cleanup.availabilityClosed,true);
+  assert.equal(run.state.open,false);assert(run.events.includes('close'));
+  assert.equal(report.cleanup.browserClosed,false);assert.equal(report.cleanup.browserClosureUncertain,true);
+  release(f.browser);await new Promise(done=>setImmediate(done));await new Promise(done=>setImmediate(done));
+  assert.equal(f.browser.closed,true);assert.equal(f.lifecycle.closeCalls,1);
+});
+
+test('unbounded duplicate evaluation is stopped before cleanup and availability closure', async () => {
+  let elapsed=0;
+  const run=offlineRun({elapsed:()=>elapsed});const original=run.dependencies.createBrowser;
+  run.dependencies.createBrowser=async config=>{
+    const handle=await original(config), first=handle.firstCheckin;
+    handle.firstCheckin=async()=>{await first();elapsed=129980;};
+    handle.duplicate=()=>new Promise(()=>{});return handle;
+  };
+  const report=await run.run();
+  assert.equal(report.passed,false);assert.equal(run.state.checkins,1);
+  assert.equal(report.cleanup.availabilityClosed,true);assert.equal(report.cleanup.browserClosed,true);
+  assert.equal(report.cleanup.vercelDeleted,true);assert(run.events.indexOf('close')<run.events.indexOf('logout'));
+});
+
+test('signal cancellation during actual harness initialization preserves teardown and backend closure', async () => {
+  const run=offlineRun(), f=browserFixture();
+  run.dependencies.createBrowser=config=>createBrowserHarness({...f.config,...config,launch:async options=>{
+    assert.equal(options.handleSIGINT,false);assert.equal(options.handleSIGTERM,false);
+    queueMicrotask(()=>process.emit('SIGINT'));return f.browser;
+  }});
+  const report=await run.run();
+  assert.equal(report.cancelled,true);assert.equal(report.passed,false);
+  assert.equal(report.cleanup.availabilityClosed,true);assert.equal(report.cleanup.vercelDeleted,true);
+  assert.equal(f.browser.closed,true);assert.equal(f.lifecycle.closeCalls,1);
+});
+
+test('runner owns SIGHUP too when Playwright signal handling is disabled', async () => {
+  const before=process.listenerCount('SIGHUP'),run=offlineRun(),f=browserFixture();
+  run.dependencies.createBrowser=config=>createBrowserHarness({...f.config,...config,launch:async options=>{
+    assert.equal(options.handleSIGHUP,false);queueMicrotask(()=>process.emit('SIGHUP'));return f.browser;
+  }});
+  const report=await run.run();
+  assert.equal(report.cancelled,true);assert.equal(report.cleanup.availabilityClosed,true);
+  assert.equal(report.cleanup.vercelDeleted,true);assert.equal(report.passed,false);
+  assert.equal(process.listenerCount('SIGHUP'),before);
 });
