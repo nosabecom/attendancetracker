@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLimit,
   validateLiveIdentity, validateSource, validateBuildHooks, deploymentEnvironment, deploymentFlags,
-  validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson } from '../scripts/prepare-hosted-next.mjs';
+  validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext } from '../scripts/prepare-hosted-next.mjs';
 
 const name = 'fixture-preview-123';
 function fixture() {
@@ -111,4 +111,110 @@ test('provider transport disables redirects/retries and bounds streamed bytes', 
   assert.equal(response.body.ok,true);assert.equal(attempts,1);
   await assert.rejects(providerJson('https://api.vercel.com/fixture',{fetchImpl:async()=>new Response('x'.repeat(1024*1024+1))}),/response_size/);
   await assert.rejects(providerJson('https://api.vercel.com/fixture',{fetchImpl:async()=>new Response('{}',{status:503})}),/provider_status/);
+});
+
+async function publicationScenario(options={}) {
+  const backend=fixture(), writes=new Map(), calls=[], logs=[];
+  const sha='a'.repeat(40); let createdBody, deleted=false, diskFailed=false, aliasReads=0, exitFailures=0;
+  const project={id:EXPECTED.projectId,accountId:EXPECTED.teamId,name:'attendance-tracker',framework:'nextjs',
+    nodeVersion:'24.x',buildCommand:null,installCommand:null,
+    link:{type:'github',repoId:1409352117,org:'nosabecom',repo:'attendancetracker'},
+    targets:{production:{id:'dpl_production',target:'production'}},ssoProtection:{deploymentType:'all_except_custom_domains'}};
+  const deployment=()=>({...deploymentFixture(),meta:{...createdBody.meta,githubCommitSha:sha}});
+  const json=(body,status=200)=>new Response(body===null?null:JSON.stringify(body),{status});
+  const deps={
+    vercelToken:'synthetic-api-token',
+    git:args=>args[0]==='rev-parse'?sha:'',
+    readQuotaReview:async()=>({observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'}),
+    readPrivateText:path=>path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
+      'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
+    readPublicJson:path=>path==='vercel.json'?{framework:'nextjs',installCommand:'pnpm install --frozen-lockfile',buildCommand:'pnpm build'}:
+      {scripts:{build:'node --version && next build'}},
+    persist:(path,contents,settings={})=>{
+      if(diskFailed || options.failEvidence && path.startsWith('docs/'))throw Object.assign(Error('synthetic disk full'),{code:'ENOSPC'});
+      if(settings.exclusive && (options.existingAttempt || writes.has(path)))throw Object.assign(Error('synthetic existing'),{code:'EEXIST'});
+      writes.set(path,JSON.parse(contents));
+    },
+    failProcess:()=>{exitFailures++;},output:value=>logs.push(JSON.parse(value)),sleep:async()=>{},
+    fetch:async(input,init={})=>{
+      const url=new URL(String(input)), method=init.method??'GET';calls.push({host:url.host,path:url.pathname,method});
+      if(url.host==='api.convex.dev')return json(backend.managementIdentity);
+      if(url.pathname==='/api/v1/get_canonical_urls')return json({convexCloudUrl:backend.cloudUrl,convexSiteUrl:backend.siteUrl});
+      if(url.pathname==='/api/v1/list_usage_limits')return json({usageLimits:[{metric:'functionCalls',window:'day',limitType:'disable',limit:1000,enabled:true}]});
+      if(url.pathname==='/api/query')return json({status:'success',value:{readsEnabled:false,writesEnabled:false}});
+      if(url.pathname.startsWith('/v2/teams/'))return json({id:EXPECTED.teamId,slug:'nomokaro625-9385s-projects',billing:{plan:'hobby'}});
+      if(url.pathname.startsWith('/v9/projects/'))return json(project);
+      if(url.pathname==='/v2/deployments/dpl_production/aliases'){
+        aliasReads++;return json({aliases:[{alias:options.changeAliases&&aliasReads>1?'changed.example':'production.example',uid:'stable-alias'}]});
+      }
+      if(url.pathname==='/v13/deployments'&&method==='POST'){
+        const record=writes.get('.convex/hosted-validation/next-preview-manifest.json');
+        assert.equal(record.creationState,'submitted; outcome uncertain');
+        assert.equal(record.cleanupReservation.controlRequests,4);
+        assert.equal(record.cleanupReservation.automaticResume,false);
+        createdBody=JSON.parse(init.body);
+        if(options.diskFailureAfterCreation)diskFailed=true;
+        return json(options.missingCreationUrl?{id:'dpl_fixture'}:{id:'dpl_fixture',url:'fixture.vercel.app'});
+      }
+      if(url.pathname==='/v13/deployments/dpl_fixture'){
+        if(method==='DELETE'){deleted=true;return json({});}
+        return deleted?json({},404):json(deployment());
+      }
+      if(url.pathname==='/v3/env/pull/dpl_fixture'){
+        const actual={env:{...createdBody.env},buildEnv:{...createdBody.build.env}};
+        if(options.blobEnvironment)actual.buildEnv.NEXT_PUBLIC_ATTENDANCE_BACKEND='blob';
+        if(options.inheritedCredential)actual.env.CONVEX_DEPLOY_KEY='synthetic-inherited';
+        if(options.redactedGateway)actual.env.ATTENDANCE_GATEWAY_KEY='[REDACTED]';
+        return json(actual);
+      }
+      if(url.pathname==='/aliases/dpl_fixture/protection-bypass')return json('synthetic-scoped-token');
+      if(url.host==='fixture.vercel.app')return new Response(null,{status:init.headers?.['x-vercel-protection-bypass']?200:401});
+      throw Error('Unexpected offline request');
+    },
+  };
+  const report=await prepareHostedNext(['--expected-preview',name],{
+    ATTENDANCE_VALIDATION_SOURCE_COMMIT:sha,ATTENDANCE_PREVIEW_KEY_FILE:'synthetic-key-file',
+  },deps);
+  return{report,calls,writes,logs,deleted,exitFailures};
+}
+test('publication orchestration validates effective maps and leaves an owned protected ready control',async()=>{
+  const r=await publicationScenario();
+  assert.equal(r.report.passed,true);assert.equal(r.deleted,false);assert.equal(r.exitFailures,0);
+  assert.deepEqual(r.report.environmentVerified,{build:true,runtime:true,credentialOverrides:true});
+  assert.equal(r.report.productionAliasBindingsUnchanged,true);
+  assert.equal(r.report.counters.applicationCalls,1);
+  assert.equal(r.report.counters.hostingRequests,2);
+  assert(r.report.counters.controlRequests<=16);
+  assert.equal(r.calls.filter(call=>call.path==='/v13/deployments'&&call.method==='POST').length,1);
+  assert.equal(r.writes.get('.convex/hosted-validation/next-preview-manifest.json').publication,'ready');
+});
+for(const option of ['blobEnvironment','inheritedCredential','redactedGateway'])test(`orchestration rejects ${option} and cleans up before any access probe`,async()=>{
+  const r=await publicationScenario({[option]:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'effective environment');
+  assert.equal(r.report.counters.hostingRequests,0);assert.equal(r.deleted,true);
+  assert.equal(r.report.cleanup.deploymentDeleted,true);
+});
+test('persistent storage failure after creation still spends only its reserved cleanup and reports the retained ID',async()=>{
+  const r=await publicationScenario({diskFailureAfterCreation:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.persistenceFailed,true);
+  assert.equal(r.report.cleanup.deploymentDeleted,true);assert.equal(r.deleted,true);
+  assert.equal(r.report.deploymentId,'dpl_fixture');assert.equal(r.logs.at(-1).deploymentId,'dpl_fixture');
+  assert.equal(r.calls.filter(call=>call.path==='/v13/deployments/dpl_fixture').length,3);
+  assert(r.report.counters.controlRequests<=20);
+});
+test('production alias mutation is detected even with unchanged production deployment ID',async()=>{
+  const r=await publicationScenario({changeAliases:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.productionAliasBindingsUnchanged,undefined);
+  assert.equal(r.report.productionTargetUnchanged,true);assert.equal(r.deleted,true);
+});
+test('missing creation URL retains the ID and verifies ownership through its management record before deletion',async()=>{
+  const r=await publicationScenario({missingCreationUrl:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.deploymentId,'dpl_fixture');
+  assert.equal(r.report.cleanup.ownershipVerified,true);assert.equal(r.deleted,true);
+});
+test('evidence storage failure enters cleanup and existing exclusive attempts are never overwritten',async()=>{
+  const failed=await publicationScenario({failEvidence:true});
+  assert.equal(failed.report.passed,false);assert.equal(failed.deleted,true);assert.equal(failed.report.persistenceFailed,true);
+  const exists=await publicationScenario({existingAttempt:true});
+  assert.equal(exists.report.passed,false);assert.equal(exists.calls.length,0);assert.equal(exists.writes.size,0);
 });

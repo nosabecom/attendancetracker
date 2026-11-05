@@ -19,7 +19,13 @@ request. Private deployment-only env/build.env mappings remain in memory; no key
 is placed in arguments, logs, source or upload files. Those mappings match the
 installed Vercel CLI 62.1.0 request implementation. The public OpenAPI schema does
 not enumerate them; server acceptance/precedence remains an execution gate, not
-an offline proof. Only public backend selection/URLs enter build variables; the
+an offline proof. The publisher now enforces that gate through the installed
+CLI's deployment-specific GET /v3/env/pull/{id} endpoint: exact build/runtime
+public values, private gateway values and empty credential overrides must match
+in memory before publication can be marked ready. No decrypt flag, challenge
+recovery or protected-Secret bypass is used. Missing, redacted or unsupported
+maps reject publication and trigger cleanup; raw values are never retained.
+Only public backend selection/URLs enter the requested build variables; the
 gateway key/audience enter runtime variables. Empty overrides for CONVEX_DEPLOY_KEY
 and Blob credentials remove the known inherited build credential paths. No
 protected Secret is pulled, and no projectSettings are sent: those can persist
@@ -32,7 +38,19 @@ proving this project already has its production deployment. Persist an exclusive
 creation record before submission; uncertain creation is never retried. Record
 the returned deployment ID and unique URL before any readiness wait. Require live
 owner/project/target/generated Git SHA/tag binding and unchanged production alias
-and project settings. A lost response without a proven ID remains unresolved.
+bindings and project settings. Production alias bindings are read before/after
+from GET /v2/deployments/{productionId}/aliases, bounded to one complete response;
+comparing only the production deployment ID is insufficient. A returned ID is
+saved immediately as unverified even when its URL is malformed. Cleanup can
+recover a URL from the authenticated metadata only after full ownership checks.
+A lost response without a returned ID remains unresolved.
+
+The exclusive creation record durably reserves four cleanup requests before any
+remote creation. Ordinary operations require successful persistence. A later
+storage failure stops ordinary work while permitting those bounded cleanup
+requests using the in-memory identity and counters. Both private and safe report
+writes are best-effort after failure; storage uncertainty and cleanup uncertainty
+are separate, and the structured console result retains the unverified ID.
 
 The read-only project preflight confirmed the expected team/project, Next.js,
 unchanged SSO protection, and no project-level build/install override or returned
@@ -56,10 +74,11 @@ phase grants no protection exception and does not make the preview public.
 
 ## Explicit test-allocation revision
 
-Root proposes a cumulative ceiling of **700 conservative intentional-write
+Root proposed a cumulative ceiling of **700 conservative intentional-write
 reservations**, replacing the earlier engineering ceiling of 500, with ordinary
 work stopping at 600 and 100 retained for cleanup. This is a test allocation
-decision within the authorized migration, subject to Astra review. It changes no
+decision within the authorized migration. Astra accepted this allocation's
+arithmetic at af3abf8; runner enforcement still needs review. It changes no
 provider plan, spending limit, quota or daily 1,000-function disable threshold.
 No paid upgrade or paid overage is authorized.
 
@@ -79,7 +98,9 @@ control requests, including the one project preflight already performed: at most
 20 for publication and 19 for runtime/cleanup. The publisher's closed availability
 query adds one application call (and seeds cumulative calls at 62); it is not
 silently included only as metadata. Direct publication has one counted creation
-request, no CLI-internal retries and a ten-minute deadline. Use a three-minute workload deadline with ordinary work stopping
+request, no CLI-internal retries and a ten-minute deadline. To keep environment
+and alias checks inside the unchanged control limit, readiness polling is capped
+at five reads. Use a three-minute workload deadline with ordinary work stopping
 at 130 seconds and 50 seconds reserved for closure and cleanup.
 
 ## Minimal scenario and failure behavior
@@ -111,3 +132,20 @@ the new actor if established. Revoke only the newly created shareable capability
 and delete only the newly created Vercel deployment after matching its ownership.
 Retain the already-existing Convex preview closed until separately reviewed
 deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
+
+## Implementation and offline evidence
+
+Both tools are executable but remain unexecuted against hosted services.
+The publisher has sixteen offline checks, including full orchestration fixtures
+for wrong effective environments, inherited credentials, redaction, persistent
+ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
+runner has twenty-two offline checks covering cumulative accounting, cookie
+attributes, browser isolation, request policy, ephemeral counter comparison,
+cancellation, deadlines and prioritized cleanup. These fixtures do not establish
+real provider acceptance, browser cookies or trusted-header behavior.
+
+The first publisher review blocked on four issues now corrected in source:
+environment acceptance, storage-independent reserved cleanup, alias binding
+evidence and immediate returned-ID retention. A combined pre-execution review
+of these corrections and the complete runner remains required. No Vercel
+deployment, shareable capability or new Next workload has been created.

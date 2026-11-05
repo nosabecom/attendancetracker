@@ -41,8 +41,8 @@ access were verified. One disposable preview was created and its identity and
 canonical URL independently checked. After actual team quota review and Astra
 approval of the tooling, its limit, independent signing/gateway configuration and
 functions were published. The bounded hosted backend rehearsal passed; clients
-were closed and domain reads/writes disabled afterward. Actual evidence awaits
-Astra review, and hosted Next ingress, cookies/IP and remaining expiry/browser
+were closed and domain reads/writes disabled afterward. Astra accepted the actual
+backend evidence; hosted Next ingress, cookies/IP and remaining expiry/browser
 gates are outstanding. The application still uses Blob. Free installation does
 not authorize a paid upgrade.
 

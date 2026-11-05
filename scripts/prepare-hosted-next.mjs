@@ -18,7 +18,7 @@ export const EXPECTED = Object.freeze({
 const assert = (condition, code) => { if (!condition) throw Error(code); };
 const sourcePaths = ['app', 'convex', 'lib', 'patches', 'scripts', 'package.json',
   'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'vercel.json',
-  'next.config.ts', 'next.config.js', 'next.config.mjs', 'tsconfig.json'];
+  'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'tsconfig.json'];
 
 // The input is read by a future publisher, never at module import time.
 export function validateBackendManifest(m, previewName) {
@@ -159,9 +159,12 @@ export function validateVercelDeployment(data, expected, { requireReady = true }
 }
 export async function cleanupOwnedVercel({ manifest, request }) {
   const v = manifest?.vercel;
-  assert(v?.deploymentId && v.url && manifest.runId && manifest.sourceCommit, 'cleanup_identity_missing');
+  assert(/^dpl_[A-Za-z0-9]+$/.test(v?.deploymentId ?? '') && manifest.runId && manifest.sourceCommit, 'cleanup_identity_missing');
   const identity = await request(`/v13/deployments/${encodeURIComponent(v.deploymentId)}`);
-  validateVercelDeployment(identity.body, { ...v, sourceCommit: manifest.sourceCommit, runId: manifest.runId }, { requireReady: false });
+  // A malformed creation URL must not discard a valid returned ID. Recover its
+  // URL only through the authenticated ownership/source gate before destruction.
+  const expectedUrl = v.url ?? `https://${identity.body?.url}`;
+  validateVercelDeployment(identity.body, { ...v, url: expectedUrl, sourceCommit: manifest.sourceCommit, runId: manifest.runId }, { requireReady: false });
   const result = { ownershipVerified: true, capabilityRevoked: !manifest.access?.token && !manifest.shareCapabilitySubmitted,
     deploymentDeleted: false };
   if (manifest.access?.token) {
@@ -192,54 +195,107 @@ export function deploymentBody(backendManifest, sourceCommit, runId) {
     meta: { attendanceValidation: runId, attendanceSourceCommit: sourceCommit } };
 }
 
-export async function prepareHostedNext(args, env = process.env) {
-  const started = Date.now(); let phase = 'arguments', manifest, cancelled = false, cleaning = false;
+export function validateEffectiveEnvironment(records, backendManifest) {
+  const expected = deploymentEnvironment(backendManifest);
+  const runtime = records?.env, build = records?.buildEnv;
+  assert(runtime && build && typeof runtime === 'object' && typeof build === 'object' &&
+    !Array.isArray(runtime) && !Array.isArray(build), 'effective_environment_unavailable');
+  for (const key of ['NEXT_PUBLIC_ATTENDANCE_BACKEND', 'NEXT_PUBLIC_CONVEX_URL', 'NEXT_PUBLIC_CONVEX_SITE_URL'])
+    assert(runtime[key] === expected[key] && build[key] === expected[key], 'effective_public_environment');
+  for (const key of ['CONVEX_DEPLOY_KEY', 'BLOB_READ_WRITE_TOKEN'])
+    assert(runtime[key] === '' && build[key] === '', 'effective_credential_override');
+  for (const key of ['ATTENDANCE_GATEWAY_KEY', 'ATTENDANCE_GATEWAY_AUDIENCE']) {
+    assert(runtime[key] === expected[key], 'effective_gateway_environment');
+    assert(build[key] === undefined || build[key] === expected[key], 'effective_build_gateway_environment');
+  }
+  return { build: true, runtime: true, credentialOverrides: true };
+}
+export function productionAliasBindings(value) {
+  assert(Array.isArray(value?.aliases) && value.aliases.length > 0 && value.aliases.length <= 100 &&
+    !value.pagination?.next, 'production_aliases_unavailable');
+  const names = new Set();
+  return value.aliases.map(alias => {
+    assert(typeof alias.alias === 'string' && /^[A-Za-z0-9.-]+$/.test(alias.alias) &&
+      typeof alias.uid === 'string' && alias.uid.length > 0 && alias.uid.length <= 256 &&
+      (alias.redirect === undefined || alias.redirect === null || typeof alias.redirect === 'string') &&
+      !names.has(alias.alias), 'production_alias_shape');
+    names.add(alias.alias);
+    return { alias: alias.alias, uid: alias.uid, redirect: alias.redirect ?? null };
+  }).sort((a, b) => a.alias.localeCompare(b.alias));
+}
+
+export async function prepareHostedNext(args, env = process.env, dependencies = {}) {
+  const clock = dependencies.clock ?? Date.now;
+  const sleep = dependencies.sleep ?? (ms => new Promise(done => setTimeout(done, ms)));
+  const fetchImpl = dependencies.fetch ?? fetch;
+  const privateText = dependencies.readPrivateText ?? readPrivateText;
+  const publicJson = dependencies.readPublicJson ?? (path => JSON.parse(readFileSync(path, 'utf8')));
+  const persist = dependencies.persist ?? ((path, value, { exclusive = false, privateFile = true } = {}) =>
+    writeFileSync(path, value, { mode: privateFile ? 0o600 : 0o644, ...(exclusive ? { flag: 'wx' } : {}), flush: true }));
+  const failProcess = dependencies.failProcess ?? (() => { process.exitCode = 1; });
+  const output = dependencies.output ?? console.log;
+  const started = clock(); let phase = 'arguments', manifest, cancelled = false, cleaning = false;
+  let cleanupReserved = false, cleanupUsed = 0;
   const path = '.convex/hosted-validation/next-preview-manifest.json';
   const evidencePath = 'docs/measurements/hosted-next-preview-setup.json';
-  const cancelledSignal = () => { cancelled = true; process.exitCode = 1; };
-  const report = { version: 1, startedAt: new Date().toISOString(), passed: false,
+  const cancelledSignal = () => { cancelled = true; failProcess(); };
+  const report = { version: 1, startedAt: new Date().toISOString(), passed: false, cancelled: false,
     counters: { controlRequests: 0, hostingRequests: 0, applicationCalls: 0 },
     creationRequests: 0, cleanup: {}, productionMutationRequested: false };
-  const save = () => { if (manifest) writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 }); };
+  const save = (tolerate = false) => {
+    if (!manifest) return;
+    try { persist(path, JSON.stringify(manifest, null, 2) + '\n'); }
+    catch {
+      report.persistenceFailed = true; report.passed = false; failProcess();
+      if (!tolerate && !cleaning) throw Error('publisher_persistence_failed');
+    }
+  };
   const remaining = () => {
-    const ms = (cleaning ? 600000 : 550000) - (Date.now() - started);
+    const ms = (cleaning ? 600000 : 550000) - (clock() - started);
     assert(ms > 0 && (cleaning || !cancelled), 'publisher_cancelled_or_deadline');
     return ms;
   };
   let token;
   const reserveControl = () => {
     remaining();
-    assert(report.counters.controlRequests < (cleaning ? 20 : 16), 'control_budget');
-    report.counters.controlRequests++; if (manifest) { manifest.counters = { ...report.counters }; save(); }
+    if (cleaning) {
+      assert(cleanupReserved && cleanupUsed < 4 && report.counters.controlRequests < 20, 'cleanup_budget');
+      cleanupUsed++;
+    } else assert(report.counters.controlRequests < 16, 'control_budget');
+    report.counters.controlRequests++;
+    if (manifest) { manifest.counters = { ...report.counters }; save(cleaning); }
   };
   const vercel = async (endpoint, options = {}) => {
-    assert(/^\/(?:v2\/teams\/|v9\/projects\/|v13\/deployments|aliases\/)/.test(endpoint), 'vercel_endpoint');
+    assert(/^\/(?:v2\/(?:teams|deployments)\/|v3\/env\/pull\/|v9\/projects\/|v13\/deployments|aliases\/)/.test(endpoint), 'vercel_endpoint');
     reserveControl();
     const url = new URL(endpoint, 'https://api.vercel.com'); url.searchParams.set('teamId', EXPECTED.teamId);
-    return providerJson(url.href, { ...options, headers: { Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()) });
+    return providerJson(url.href, { ...options, headers: { Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()), fetchImpl });
   };
   try {
     assert(args.length === 2 && args[0] === '--expected-preview', 'publisher_arguments');
-    const backendManifest = JSON.parse(readPrivateText('.convex/hosted-validation/preview-setup-manifest.json'));
+    const backendManifest = JSON.parse(privateText('.convex/hosted-validation/preview-setup-manifest.json'));
     const backend = validateBackendManifest(backendManifest, args[1]);
     const sourceCommit = env.ATTENDANCE_VALIDATION_SOURCE_COMMIT;
-    validateSource(sourceCommit, backendManifest.reviewedSourceCommit);
-    validateBuildHooks(JSON.parse(readFileSync('vercel.json', 'utf8')), JSON.parse(readFileSync('package.json', 'utf8')));
-    phase = 'quota and credentials'; const quota = await readQuotaReview();
-    token = readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
-    const previewKey = readPrivateText(env.ATTENDANCE_PREVIEW_KEY_FILE).trim();
+    validateSource(sourceCommit, backendManifest.reviewedSourceCommit, dependencies.git);
+    validateBuildHooks(publicJson('vercel.json'), publicJson('package.json'));
+    phase = 'quota and credentials'; const quota = await (dependencies.readQuotaReview ?? readQuotaReview)();
+    token = dependencies.vercelToken ?? readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
+    const previewKey = privateText(env.ATTENDANCE_PREVIEW_KEY_FILE).trim();
     assert(previewKey.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') &&
       previewKey.split('|').length === 2, 'preview_key_scope');
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
-    const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600); closeSync(fd);
-    manifest = { version: 1, runId, sourceCommit, publication: 'preflight', backend,
+    const candidate = { version: 1, runId, sourceCommit, publication: 'preflight', backend,
       vercel: { teamSlug: EXPECTED.teamSlug, teamId: EXPECTED.teamId, projectId: EXPECTED.projectId, target: 'preview', ready: false },
-      counters: { ...report.counters }, createdAt: new Date().toISOString() }; save();
+      cleanupReservation: { controlRequests: 4, automaticResume: false },
+      counters: { ...report.counters }, createdAt: new Date().toISOString() };
+    persist(path, JSON.stringify(candidate, null, 2) + '\n', { exclusive: true });
+    manifest = candidate; cleanupReserved = true;
+    Object.assign(report, { runId, sourceCommit, cleanupReservePersisted: true });
     process.on('SIGINT', cancelledSignal); process.on('SIGTERM', cancelledSignal);
     report.quotaReview = { observedAt: quota.observedAt, source: quota.source, sufficientReviewedHeadroom: true };
     phase = 'live identities';
     const convexControl = async (url, credential) => {
-      reserveControl(); return (await providerJson(url, { headers: { Authorization: credential }, timeoutMs: Math.min(20000, remaining()) })).body;
+      reserveControl(); return (await providerJson(url, { headers: { Authorization: credential }, timeoutMs: Math.min(20000, remaining()), fetchImpl })).body;
     };
     const live = await convexControl(`https://api.convex.dev/v1/deployments/${encodeURIComponent(backend.name)}`, `Bearer ${previewKey}`);
     const canonical = await convexControl(backend.cloudUrl + '/api/v1/get_canonical_urls', `Convex ${backendManifest.adminKey}`);
@@ -249,7 +305,7 @@ export async function prepareHostedNext(args, env = process.env) {
     const client = new ConvexHttpClient(backend.cloudUrl, { logger: false, fetch: async (input, init) => {
       assert(!sent && new URL(String(input)).origin === backend.cloudUrl, 'availability_retry'); sent = true;
       remaining(); report.counters.applicationCalls++; manifest.counters = { ...report.counters }; save();
-      const response = await fetch(input, { ...init, redirect: 'error', signal: AbortSignal.timeout(Math.min(20000, remaining())) });
+      const response = await fetchImpl(input, { ...init, redirect: 'error', signal: AbortSignal.timeout(Math.min(20000, remaining())) });
       // Bound the SDK response before giving it back to its parser.
       const bytes = []; let length = 0;
       if (response.body) for await (const part of response.body) {
@@ -270,40 +326,54 @@ export async function prepareHostedNext(args, env = process.env) {
       project.targets?.production?.target === 'production' && /^dpl_/.test(project.targets.production.id) &&
       project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&
       !project.integrations && !project.integrationActions, 'vercel_project');
+    const productionId = project.targets.production.id;
+    const aliasesBefore = productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body);
     phase = 'single deployment creation'; manifest.publication = 'creation submitted or uncertain';
     manifest.creationState = 'submitted; outcome uncertain'; save();
     report.creationRequests++;
     const created = (await vercel('/v13/deployments', { method: 'POST',
       body: deploymentBody(backendManifest, sourceCommit, runId), allowedStatuses: [200, 201] })).body;
-    assert(/^dpl_[A-Za-z0-9]+$/.test(created?.id) && typeof created.url === 'string' &&
+    if (/^dpl_[A-Za-z0-9]+$/.test(created?.id ?? '')) {
+      manifest.vercel.deploymentId = created.id; report.deploymentId = created.id;
+      manifest.creationState = 'returned ID; ownership unverified'; save();
+    }
+    assert(manifest.vercel.deploymentId && typeof created.url === 'string' &&
       /^[a-z0-9-]+\.vercel\.app$/.test(created.url), 'created_identity');
-    Object.assign(manifest.vercel, { deploymentId: created.id, url: `https://${created.url}` });
-    manifest.creationState = 'identified'; save();
+    manifest.vercel.url = `https://${created.url}`; save();
     phase = 'deployment readiness'; let deployment;
-    for (let poll = 0; poll < 8; poll++) {
+    for (let poll = 0; poll < 5; poll++) {
       deployment = (await vercel(`/v13/deployments/${created.id}`)).body;
       validateVercelDeployment(deployment, { ...manifest.vercel, sourceCommit, runId }, { requireReady: false });
       if (deployment.readyState === 'READY') break;
       assert(!['ERROR', 'CANCELED'].includes(deployment.readyState), 'deployment_failed');
-      await new Promise(resolveDelay => setTimeout(resolveDelay, Math.min(poll === 0 ? 15000 : 60000, remaining())));
+      await sleep(Math.min(poll === 0 ? 15000 : 60000, remaining()));
     }
     validateVercelDeployment(deployment, { ...manifest.vercel, sourceCommit, runId });
-    manifest.vercel.ready = true; save();
+    manifest.vercel.ready = true; manifest.creationState = 'ownership verified'; save();
     const projectAfter = (await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
     assert(projectAfter?.targets?.production?.id === project.targets.production.id &&
       projectAfter.buildCommand === project.buildCommand && projectAfter.installCommand === project.installCommand &&
       projectAfter.ssoProtection?.deploymentType === project.ssoProtection.deploymentType, 'project_state_changed');
-    report.productionAliasUnchanged = true;
+    report.productionTargetUnchanged = true;
+    const aliasesAfter = productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body);
+    assert(JSON.stringify(aliasesBefore) === JSON.stringify(aliasesAfter), 'production_alias_changed');
+    report.productionAliasBindingsUnchanged = true;
+    phase = 'effective environment';
+    // Same deployment-specific endpoint as the installed CLI. No decrypt flag,
+    // challenge recovery or protected-Secret bypass. Unknown/redacted maps fail.
+    manifest.environmentVerified = validateEffectiveEnvironment(
+      (await vercel(`/v3/env/pull/${created.id}`)).body, backendManifest);
+    report.environmentVerified = { ...manifest.environmentVerified }; save();
     const probe = async headers => {
       remaining(); assert(report.counters.hostingRequests < 2, 'hosting_budget');
       report.counters.hostingRequests++; manifest.counters = { ...report.counters }; save();
-      const response = await fetch(manifest.vercel.url, { headers, redirect: 'manual', signal: AbortSignal.timeout(Math.min(20000, remaining())) });
+      const response = await fetchImpl(manifest.vercel.url, { headers, redirect: 'manual', signal: AbortSignal.timeout(Math.min(20000, remaining())) });
       await response.body?.cancel(); return response.status;
     };
     phase = 'protected access';
     const challenged = await probe({});
     assert([302, 303, 307, 308, 401, 403].includes(challenged), 'preview_not_protected');
-    const issuedAt = Date.now();
+    const issuedAt = clock();
     manifest.shareCapabilitySubmitted = true; save();
     const capability = (await vercel(`/aliases/${created.id}/protection-bypass`, { method: 'PATCH', body: { ttl: 900 } })).body;
     assert(typeof capability === 'string' && capability.length > 0 && capability.length <= 16384 &&
@@ -314,25 +384,31 @@ export async function prepareHostedNext(args, env = process.env) {
     assert(!cancelled, 'publisher_cancelled');
     manifest.access.headerVerified = true; manifest.publication = 'ready'; manifest.counters = { ...report.counters }; save();
     report.passed = true; report.uniqueUrl = manifest.vercel.url; report.deploymentId = created.id;
+    report.finishedAt = new Date(clock()).toISOString(); report.elapsedMs = clock() - started;
+    persist(evidencePath, JSON.stringify(report, null, 2) + '\n', { privateFile: false });
   } catch {
-    report.failedPhase = phase; report.passed = false; process.exitCode = 1;
-    if (manifest) { manifest.publication = 'stopped'; manifest.failedPhase = phase; save(); }
+    report.failedPhase = phase; report.passed = false; failProcess();
+    if (manifest) { manifest.publication = 'stopped'; manifest.failedPhase = phase; save(true); }
   } finally {
     cleaning = true;
     if (manifest && !report.passed && manifest.vercel.deploymentId) {
       try { report.cleanup = await cleanupOwnedVercel({ manifest, request: vercel }); }
       catch { report.cleanup.incomplete = true; }
-      manifest.cleanup = report.cleanup; save();
+      manifest.cleanup = report.cleanup; save(true);
     }
     if (manifest && report.creationRequests > 0 && !manifest.vercel.deploymentId)
       report.cleanup.unresolvedDeploymentIdentity = true;
-    report.cancelled = cancelled; report.finishedAt = new Date().toISOString();
-    report.elapsedMs = Date.now() - started;
-    if (cancelled) { report.passed = false; process.exitCode = 1; if (manifest) { manifest.publication = 'stopped'; save(); } }
-    if (manifest) writeFileSync(evidencePath, JSON.stringify(report, null, 2) + '\n');
+    report.cancelled = cancelled;
+    if (!report.passed) { report.finishedAt = new Date(clock()).toISOString(); report.elapsedMs = clock() - started; }
+    if (cancelled) { report.passed = false; failProcess(); if (manifest) { manifest.publication = 'stopped'; save(true); } }
+    // Success was persisted inside try: a storage error there enters catch and
+    // performs cleanup. Do not introduce a second, post-cleanup success write.
+    if (manifest && !report.passed) try { persist(evidencePath, JSON.stringify(report, null, 2) + '\n', { privateFile: false }); }
+    catch { report.persistenceFailed = true; report.passed = false; failProcess(); }
     process.removeListener('SIGINT', cancelledSignal); process.removeListener('SIGTERM', cancelledSignal);
   }
-  console.log(JSON.stringify({ passed: report.passed, failedPhase: report.failedPhase, counters: report.counters }));
+  output(JSON.stringify({ passed: report.passed, failedPhase: report.failedPhase, counters: report.counters,
+    deploymentId: report.deploymentId, persistenceFailed: report.persistenceFailed, cleanup: report.cleanup }));
   return report;
 }
 

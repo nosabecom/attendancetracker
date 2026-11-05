@@ -2,7 +2,7 @@
 
 This is a bounded rehearsal using synthetic data on an **owned disposable
 Convex preview** and its matching Vercel Preview. The first backend-only run has
-passed; its [evidence](./hosted-backend-verification.md) awaits Astra review.
+passed; Astra accepted its [evidence](./hosted-backend-verification.md) at ce861715.
 The matching hosted Next/Vercel phase has not run. This is not a production cutover
 or a capacity benchmark. Production remains reserved for the real, verified
 Blob import; Blob object reads returned 403, so cutover is blocked until a
@@ -79,7 +79,7 @@ usage screenshot; the private receipt passed the guard and the Free plan was
 reverified before limits, environment configuration, publication and the first
 bounded backend workload. The screenshot's clipped storage unit was handled
 conservatively using the published Free cap. Actual figures remain private.
-The closed preview is retained pending evidence review and separately bounded
+The closed preview is retained for the separately bounded
 Next/Vercel validation or verified deletion.
 
 ## Before starting
