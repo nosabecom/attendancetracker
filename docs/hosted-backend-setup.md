@@ -28,14 +28,28 @@ credential file path is supplied through ATTENDANCE_PREVIEW_KEY_FILE. Never
 put the credential itself in arguments or source.
 
 All explicit setup HTTP attempts share a persisted 20-call ceiling, bounded
-streamed response sizes, timeouts, no redirects and no automatic retries. CLI
-publication would have a separate time bound; its internal request/retry count
-remains unknown. It uses a controlled empty environment file, minimal child
-environment, disabled code generation and the exact owned preview name, never
---preview-create or a preview-run function. It will not resume an uncertain
-publication automatically. The daily functionCalls disable threshold must be
-created and read back before environment configuration/publication. That test
-threshold is not a production budget or an exact overshoot guarantee.
+streamed response sizes, timeouts, no redirects and no automatic retries.
+Publication uses a private 0600 env file containing only the verified canonical
+URL and opaque capability under the CLI's explicit URL/capability selector.
+Its SELF_HOSTED variable names select that managed preview endpoint; they do not
+change its hosting. The child receives no project preview key and no preview
+name/create flag, so it cannot reclaim or replace a missing deployment. The
+uncertain-publication stop remains in force.
+
+Before any continuation, an offline probe runs the installed CLI with synthetic
+values and all network transports blocked. It verifies exact URL/capability
+selection, ignores misleading process selectors, preserves opaque bytes, rejects
+an empty file, and observes no claim attempt. Real selector-file round-trip and
+private-file checks precede limit/environment mutations. CLI publication requests
+remain separately unknown and time bounded.
+
+A recent private team-quota review is now mandatory before any initial claim or
+non-inspection continuation, and again before a workload. The preview-key scope
+and Vercel integration balance do not expose usable team totals. Root requested
+current used/limit figures from Nosa's team Usage page; no receipt has yet been
+created from real figures. No setup-only exception has been granted. Read-only
+inspection remains available; it cannot install limits, configure environment,
+publish, import or activate.
 
 The deployment usage response reported zero counters with seedStatus partial.
 These are provisional deployment diagnostics, not complete billing or team

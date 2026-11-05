@@ -53,6 +53,27 @@ proxy in front of Vercel, against the [Vercel request-header contract](https://v
 Never assume an arbitrary client-supplied header is trusted. No hosted header or
 protection test has been performed.
 
+## Team quota review record
+
+The agent records actual used/limit figures supplied from the team's current
+Convex Usage page in a private team-quota-review.json under .convex/hosted-validation.
+The receipt includes the exact team, verified Free plan, source and observation
+time. It must be less than 24 hours old. Neither partial deployment counters nor
+the unavailable Vercel integration balance substitutes for this team review.
+
+The proposed rehearsal reserves 1,000 function calls, 0.025 GB database I/O and
+0.005 GB database storage from the reported remaining allowance. These are
+planning buffers for the tiny scenario, not additional provider caps or a promise
+of exact overshoot/billing. Client/write limits and the preview's daily disable
+threshold remain separate controls. Setup and workload scripts both reject a
+missing, stale, wrong-team or insufficient review record. Actual figures remain
+private; safe evidence records only that the review passed and its observation time.
+
+One provisional preview was already created before this check was enforced.
+Its verified identity does not establish quota headroom. No application workloads,
+limits, environment changes or publication have followed; continuation remains
+blocked until actual quota review and adversarial recheck pass.
+
 ## Before starting
 
 1. Review the current commit, schema, pinned auth patch, migration code and
@@ -74,9 +95,10 @@ protection test has been performed.
    identity or emptiness check is uncertain, stop. Never reset an existing DB.
 3. Review the effective build pathway and preview-scoped credentials before
    deploying. The [Convex guide](https://docs.convex.dev/production/hosting/vercel)
-   describes a deploy command that can create a branch-associated preview; this
-   repository does not currently configure that command. Resolve the missing
-   setup in a separately reviewed preview-only change. Verify that the resulting
+   describes branch-associated preview creation. After a new target has been
+   claimed and independently verified, publish only to its saved URL/capability
+   using the private explicit-target env file. Never reclaim by branch name at
+   publication. This repository does not automatically deploy the backend. Verify that the resulting
    Next build uses the new backend URLs and the current code, without exposing
    credentials. Deployment, configuration and cleanup are separate from the
    test-call budget below and must be counted and reported separately.

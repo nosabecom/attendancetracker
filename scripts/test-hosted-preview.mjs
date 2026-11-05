@@ -11,6 +11,7 @@ import { ConvexClient, ConvexHttpClient } from 'convex/browser';
 import { getFunctionName, makeFunctionReference } from 'convex/server';
 import { runImport } from './import-blob.mjs';
 import { signGatewayRequest } from '../lib/gateway-proof.mjs';
+import { readQuotaReview } from './hosted-validation-policy.mjs';
 
 const directory = '.convex/hosted-validation';
 const manifestPath = directory + '/preview-setup-manifest.json';
@@ -82,6 +83,40 @@ function safeUsage(value) {
   }
   return { seedStatus: ['partial', 'complete'].includes(value?.seedStatus) ? value.seedStatus : 'UNKNOWN', metrics };
 }
+export function subscriptionObserver({ settled = () => {}, unexpected = () => {} } = {}) {
+  const state = { value: undefined, denied: null, callbacks: 0, settled: false,
+    errorGeneration: 0, expectedDenial: null, denialBaseline: 0,
+    revocationCommitted: false, expectedDenialSeen: false, violation: null, active: true };
+  const violation = code => { state.violation ??= code; unexpected(code); };
+  state.settle = () => { if (!state.settled) { state.settled = true; settled(); } };
+  state.onValue = value => {
+    state.value = value; state.denied = null; state.callbacks++;
+    // The controlled revocation window starts before submitting its mutation;
+    // do not hide a leaked success that races ahead of the HTTP acknowledgement.
+    if (state.expectedDenial !== null) violation('success_after_revocation');
+    state.settle();
+  };
+  state.onError = error => {
+    state.denied = error?.data?.status ?? 'unknown'; state.errorGeneration++;
+    if (state.expectedDenial === null || state.denied !== state.expectedDenial)
+      violation('unexpected_subscription_error');
+    else if (state.errorGeneration > state.denialBaseline) state.expectedDenialSeen = true;
+    state.settle();
+  };
+  state.beginRevocation = status => {
+    ensure(!state.violation && state.expectedDenial === null && [401, 403].includes(status), 'invalid_revocation_barrier');
+    state.denialBaseline = state.errorGeneration; state.denied = null; state.expectedDenial = status;
+  };
+  state.commitRevocation = () => { ensure(state.expectedDenial !== null, 'revocation_not_started'); state.revocationCommitted = true; };
+  state.freshDenial = () => state.revocationCommitted && state.expectedDenialSeen && !state.violation &&
+    state.errorGeneration > state.denialBaseline && state.denied === state.expectedDenial;
+  state.stop = () => {
+    if (!state.active) return;
+    state.active = false;
+    try { state.unsubscribe?.(); } finally { state.settle(); }
+  };
+  return state;
+}
 
 export async function runHostedPreview(argv, env = process.env) {
   const start = performance.now(), run = randomBytes(8).toString('hex');
@@ -89,7 +124,8 @@ export async function runHostedPreview(argv, env = process.env) {
     version: 1, localOnly: false, backendOnly: true, startedAt: new Date().toISOString(),
     bounds: { calls: 200, studentGatewayCalls: 20, fixtureWriteUpperReservations: 500,
       ordinaryCalls: 160, ordinaryWriteReservations: 400, importCalls: 60,
-      controlPlaneReads: 10, timeoutMs: 180000, responseBytes: 1024 * 1024 },
+      controlPlaneReads: 10, timeoutMs: 180000, ordinaryDeadlineMs: 130000,
+      closureRequestTimeoutMs: 10000, responseBytes: 1024 * 1024 },
     calls: { submitted: 0, settledLocally: 0, sdk: 0, subscriptions: 0, publicHttp: 0 },
     physicalHttpAttempts: 0, controlPlaneReads: 0, studentGatewayCalls: 0,
     fixtureWriteUpperReservations: 0, assertions: {}, initialWebSocketConnections: 0,
@@ -104,13 +140,14 @@ export async function runHostedPreview(argv, env = process.env) {
     ],
   };
   let manifest, key, attempt, phase = 'arguments', cleaning = false, active = false, activationAttempted = false, stopped = false;
+  let cancellationReceived = false, fatalObservation = null, requestTimeoutMs = 15000;
   let importCalls = 0, importWrites = 0;
   const actors = [], clients = [], subscriptions = [], sockets = [];
   const check = (name, value) => { report.assertions[name] = !!value; ensure(value, name); };
   const remaining = () => {
-    const ms = (cleaning ? 180000 : 145000) - (performance.now() - start);
-    ensure(ms > 0 && !stopped, 'runtime_stopped_or_timeout');
-    return Math.min(15000, Math.floor(ms));
+    const ms = (cleaning ? 180000 : 130000) - (performance.now() - start);
+    ensure(ms > 0 && (cleaning || (!stopped && !cancellationReceived && !fatalObservation)), 'runtime_stopped_or_timeout');
+    return Math.min(requestTimeoutMs, Math.floor(ms));
   };
   const saveAttempt = async () => {
     if (attempt) await writeFile(attemptPath, JSON.stringify({ ...attempt, report, phase }, null, 2) + '\n', { mode: 0o600 });
@@ -208,7 +245,10 @@ export async function runHostedPreview(argv, env = process.env) {
     await saveAttempt();
     return actor;
   }
-  const stoppedSignal = () => { stopped = true; };
+  const stoppedSignal = () => {
+    stopped = true; cancellationReceived = true;
+    report.cancelled = true; report.passed = false; process.exitCode = 1;
+  };
   async function until(predicate) {
     const deadline = performance.now() + 15000;
     while (!predicate()) { remaining(); ensure(performance.now() < deadline, 'subscription_timeout'); await delay(20); }
@@ -228,7 +268,11 @@ export async function runHostedPreview(argv, env = process.env) {
         const url = new URL(values[0]);
         ensure(url.protocol === 'wss:' && url.host === new URL(manifest.cloudUrl).host, 'socket_target');
         if (++connections > 1) { report.blockedReconnectAttempts++; stopped = true; return new RefusedSocket(); }
-        super(...values); sockets.push(this); report.initialWebSocketConnections++;
+        const protocols = typeof values[1] === 'string' || Array.isArray(values[1]) ? values[1] : undefined;
+        const options = values[1] && typeof values[1] === 'object' && !Array.isArray(values[1]) ? values[1] : values[2];
+        super(values[0], protocols, { ...options, maxPayload: 1024 * 1024,
+          handshakeTimeout: remaining(), perMessageDeflate: false });
+        sockets.push(this); report.initialWebSocketConnections++;
         this.addEventListener('message', event => { report.webSocketApplicationBytes.received += Buffer.byteLength(String(event.data)); });
       }
       send(value, ...other) {
@@ -242,12 +286,11 @@ export async function runHostedPreview(argv, env = process.env) {
   }
   function subscribe(client, legacyId) {
     reserve('subscriptions');
-    const state = { value: undefined, denied: null, callbacks: 0, settled: false };
-    const settle = () => { if (!state.settled) { state.settled = true; report.calls.settledLocally++; } };
+    const state = subscriptionObserver({ settled: () => { report.calls.settledLocally++; },
+      unexpected: code => { fatalObservation ??= code; report.passed = false; } });
     state.unsubscribe = client.onUpdate(ref('attendance:bucket'), { legacyId, bucket: 0 },
-      value => { state.value = value; state.callbacks++; settle(); },
-      error => { state.denied = error?.data?.status ?? 'unknown'; settle(); });
-    state.settle = settle; subscriptions.push(state);
+      state.onValue, state.onError);
+    subscriptions.push(state);
     return state;
   }
   async function logout(actor) {
@@ -273,6 +316,10 @@ export async function runHostedPreview(argv, env = process.env) {
     const core = ['app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json'];
     execFileSync('git', ['diff', '--exit-code', manifest.reviewedSourceCommit, '--', ...core], { stdio: 'ignore' });
     ensure(!execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', ...core], { encoding: 'utf8' }).trim(), 'unreviewed_core');
+    phase = 'team quota review';
+    const quota = await readQuotaReview();
+    report.teamQuotaReview = { observedAt: quota.observedAt, source: quota.source,
+      sufficientReviewedHeadroom: true, plannedHeadroom: quota.plannedHeadroom };
     key = (await privateText(env.ATTENDANCE_PREVIEW_KEY_FILE)).trim();
     ensure(key.startsWith('preview:' + manifest.team + ':' + manifest.project + '|') && key.split('|').length === 2, 'preview_key_scope');
     ensure(typeof manifest.adminKey === 'string' && manifest.adminKey.length && !/[\r\n]/.test(manifest.adminKey) &&
@@ -380,9 +427,11 @@ export async function runHostedPreview(argv, env = process.env) {
     await publicJson('checkin', { payload: { legacyId, identity: 'HST04' }, expected: 409, writes: 48 });
     check('ClosedMetadata', (await publicJson('public-info', { payload: { legacyId } })).closed === true);
     phase = 'sharing revocation';
+    teacherState.beginRevocation(403);
     await rpc('mutation', 'attendance:unshare', { classId: created.classId, username: teacher.username }, owner.tokens.token, 1);
-    await until(() => teacherState.denied !== null);
-    check('LiveSharingDenial', teacherState.denied === 403);
+    teacherState.commitRevocation();
+    await until(teacherState.freshDenial);
+    check('LiveSharingDenial', teacherState.freshDenial());
     const oldCallbacks = teacherState.callbacks;
     await rpc('mutation', 'attendance:excuse', { legacyId, studentId: roster[3].id, excused: true }, owner.tokens.token, 1);
     await until(() => ownerState.value?.some(fact => fact.studentId === roster[3].id && fact.excusedAt));
@@ -419,11 +468,14 @@ export async function runHostedPreview(argv, env = process.env) {
     owner.tokens = refreshed.tokens;
     await rpc('query', 'attendance:viewer', {}, owner.tokens.token);
     phase = 'logout and old token revocation';
+    ownerState.beginRevocation(401);
     await logout(owner);
+    ownerState.commitRevocation();
     await denied('attendance:viewer', oldToken, {}, 401);
-    await until(() => ownerState.denied !== null);
-    check('LogoutRevokesLiveSubscription', ownerState.denied === 401);
+    await until(ownerState.freshDenial);
+    check('LogoutRevokesLiveSubscription', ownerState.freshDenial());
     await rpc('query', 'attendance:viewer', {}, teacher.tokens.token);
+    teacherState.stop();
     await logout(teacher);
     await denied('attendance:viewer', teacher.tokens.token, {}, 401);
     check('ControlSessionIsolated', true);
@@ -434,28 +486,37 @@ export async function runHostedPreview(argv, env = process.env) {
       [400, 401, 403, 409, 429, 503].includes(error?.data?.status) ? 'unexpected_domain_status_' + error.data.status : 'transport_or_unexpected';
     process.exitCode = 1;
   } finally {
-    cleaning = true; stopped = false;
+    cleaning = true;
     if (attempt) {
-      for (const subscription of subscriptions) { subscription.unsubscribe(); subscription.settle(); }
+      for (const subscription of subscriptions) {
+        try { subscription.stop(); } catch { report.cleanup.subscriptionStopIncomplete = true; }
+      }
       try {
         await within(Promise.all(clients.map(client => client.close())), Math.max(1, Math.min(5000, 180000 - (performance.now() - start))));
         report.cleanup.clientsClosed = true;
       } catch { report.cleanup.clientsClosed = false; }
       for (const socket of sockets) socket.terminate();
-      stopped = false;
+      // Reserve two ten-second requests for closing domain access BEFORE optional
+      // remaining logouts. Ordinary work stops at 130s, leaving 50s for shutdown.
+      requestTimeoutMs = 10000;
+      if (active || activationAttempted) {
+        let closed;
+        try {
+          closed = await rpc('mutation', 'operations:setAvailability', {
+            fingerprint: emptyFingerprint, readsEnabled: false, writesEnabled: false,
+          }, 'admin', 1);
+        } catch { report.cleanup.closureMutationUncertain = true; }
+        try {
+          const observed = await rpc('query', 'operations:availability', { fingerprint: emptyFingerprint }, 'admin');
+          report.cleanup.availabilityClosed = observed?.readsEnabled === false && observed?.writesEnabled === false;
+          report.cleanup.closureAcknowledged = closed?.readsEnabled === false && closed?.writesEnabled === false;
+        } catch { report.cleanup.availabilityClosed = false; }
+      }
+      requestTimeoutMs = 4000;
       for (const actor of actors) {
         try { await logout(actor); } catch { report.cleanup.logoutIncomplete = true; }
       }
-      if (active || activationAttempted) {
-        try {
-          const closed = await rpc('mutation', 'operations:setAvailability', {
-            fingerprint: emptyFingerprint, readsEnabled: false, writesEnabled: false,
-          }, 'admin', 1);
-          const observed = await rpc('query', 'operations:availability', { fingerprint: emptyFingerprint }, 'admin');
-          report.cleanup.availabilityClosed = closed?.readsEnabled === false && closed?.writesEnabled === false &&
-            observed?.readsEnabled === false && observed?.writesEnabled === false;
-        } catch { report.cleanup.availabilityClosed = false; }
-      }
+      requestTimeoutMs = 2000;
       try {
         report.afterDeploymentUsage = safeUsage(await control(manifest.cloudUrl + '/api/v1/get_current_usage', 'Convex ' + manifest.adminKey));
       } catch { report.afterDeploymentUsage = 'UNAVAILABLE'; }
@@ -463,9 +524,14 @@ export async function runHostedPreview(argv, env = process.env) {
     report.importReservations = { calls: importCalls, writes: importWrites };
     report.elapsedMs = Math.round(performance.now() - start);
     report.finishedAt = new Date().toISOString();
+    report.cancelled = cancellationReceived;
+    if (cancellationReceived && !report.failedPhase) report.failedPhase = 'cancelled';
+    if (fatalObservation && !report.failedPhase) report.failedPhase = fatalObservation;
     if (report.blockedReconnectAttempts && !report.failedPhase) report.failedPhase = 'unexpected_reconnect';
     report.passed = !!report.functionalFlowCompleted && report.cleanup.clientsClosed &&
       report.cleanup.availabilityClosed && !report.failedPhase && !report.cleanup.logoutIncomplete &&
+      !report.cancelled && !fatalObservation && !report.cleanup.subscriptionStopIncomplete &&
+      !report.cleanup.closureMutationUncertain && report.cleanup.closureAcknowledged === true &&
       report.calls.submitted === report.calls.settledLocally && Object.values(report.assertions).every(Boolean) &&
       report.calls.submitted <= 200 && report.fixtureWriteUpperReservations <= 500;
     if (!report.passed) process.exitCode = 1;
