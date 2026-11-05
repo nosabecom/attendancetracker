@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Explicit, one-attempt rehearsal on the already verified disposable preview.
 import { open, lstat, writeFile, constants } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomBytes, createHash, createPublicKey, verify } from 'node:crypto';
@@ -116,6 +117,33 @@ export function subscriptionObserver({ settled = () => {}, unexpected = () => {}
     try { state.unsubscribe?.(); } finally { state.settle(); }
   };
   return state;
+}
+
+export async function persistHostedReports({ attemptPath, evidencePath, attemptRecord, report, isCancelled },
+  { write = writeFile, writeSync = writeFileSync } = {}) {
+  const observeCancellation = () => {
+    if (!isCancelled()) return false;
+    report.cancelled = true; report.passed = false;
+    report.failedPhase ??= 'cancelled';
+    return true;
+  };
+  const privateSnapshot = () => JSON.stringify({ ...attemptRecord, report }, null, 2) + '\n';
+  const publicSnapshot = () => JSON.stringify(report, null, 2) + '\n';
+  observeCancellation();
+  try {
+    await write(attemptPath, privateSnapshot(), { mode: 0o600 });
+    await write(evidencePath, publicSnapshot());
+  } finally {
+    // A signal may change memory after either asynchronous write captured its
+    // snapshot. Repair both records in one synchronous turn before the caller
+    // removes its signal listeners; another delivered signal cannot interleave.
+    if (observeCancellation()) {
+      let failure;
+      try { writeSync(attemptPath, privateSnapshot(), { mode: 0o600 }); } catch (error) { failure = error; }
+      try { writeSync(evidencePath, publicSnapshot()); } catch (error) { failure ??= error; }
+      if (failure) throw failure;
+    }
+  }
 }
 
 export async function runHostedPreview(argv, env = process.env) {
@@ -536,8 +564,8 @@ export async function runHostedPreview(argv, env = process.env) {
       report.calls.submitted <= 200 && report.fixtureWriteUpperReservations <= 500;
     if (!report.passed) process.exitCode = 1;
     if (attempt) {
-      await saveAttempt();
-      await writeFile(evidencePath, JSON.stringify(report, null, 2) + '\n');
+      await persistHostedReports({ attemptPath, evidencePath, attemptRecord: { ...attempt, phase },
+        report, isCancelled: () => cancellationReceived });
     }
     process.removeListener('SIGINT', stoppedSignal); process.removeListener('SIGTERM', stoppedSignal);
   }

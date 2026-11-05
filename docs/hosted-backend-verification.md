@@ -75,7 +75,10 @@ require a new matching error generation from a barrier set before the mutation;
 any success in that controlled window or unexpected error fails the run through
 shutdown. Successful results clear prior denial state. Cancellation is persistent
 and always prevents a passing report or successful process exit, while bounded
-cleanup can proceed. Each SDK RPC uses a one-use
+cleanup can proceed. Final report persistence rechecks delivered cancellation
+after the asynchronous writes. When cancellation was observed, both private and
+public records are synchronously rewritten as failed before listeners are removed.
+Each SDK RPC uses a one-use
 HTTP transport, rejects automatic resubmission and redirects, and has a timeout
 and streamed 1 MiB response cap. The whole attempt has a three-minute bound.
 Deployment/setup/control calls are reported separately from application work.
@@ -104,11 +107,20 @@ Validation so far: node --check passed; the empty fixture dry run and invalid
 argument rejection completed offline with fetch disabled and no private input.
 Hosted execution, observations, actual bounds and cleanup remain unverified.
 
-## Review corrections pending recheck
+## Adversarial review and final persistence correction
 
 The first pre-execution review found stale-error acceptance, a cleanup scheduling
 gap, and cancellation state that could be cleared. The corrected observer rejects
 stale errors and successes even when they race ahead of the mutation acknowledgement.
 Offline callback simulations passed; deadline allocation leaves fifteen seconds
-of margin, and cleanup no longer clears the cancellation flag. Hosted execution
-remains unstarted and these corrections still require adversarial recheck.
+of margin, and cleanup no longer clears the cancellation flag. Astra's recheck
+accepted the publication, observer, quota and cleanup corrections at 146d769.
+
+That recheck found cancellation during the final asynchronous file writes could
+leave a passing saved snapshot even though memory and process exit showed failure.
+The final persistence helper now rechecks cancellation and repairs both records
+in a synchronous turn. Five regression checks deliver real SIGINT/SIGTERM during
+each write and verify both files, process exit and private permissions, with an
+uncancelled passing control. Hosted execution remains unstarted; this last
+correction requires a focused Astra recheck. Actual team quota figures are still
+required before publication or execution.
