@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Opt-in, one-attempt verification. Importing this file performs no I/O.
-import { readFile, open, constants } from 'node:fs/promises';
+import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -11,17 +11,16 @@ import { makeFunctionReference } from 'convex/server';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { persistHostedReports } from './test-hosted-preview.mjs';
 import * as publisher from './prepare-hosted-next.mjs';
+import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, validateContinuationHistory,
+  validateContinuationSnapshot, continuationTotals, validateContinuationPublication } from './hosted-next-continuation.mjs';
 
 export const FINGERPRINT = 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba';
 const TEAM = 'nomokaro625-9385s-projects';
 const TEAM_ID = 'team_fmwIPLne9w30y7G5JQrs3fzl';
 const PROJECT = 'prj_uOMK1a4PLAgsDr1A16InuImM1M3q';
 const directory = '.convex/hosted-validation';
-const manifestPath = `${directory}/next-preview-manifest.json`;
 const backendPath = `${directory}/preview-setup-manifest.json`;
-const attemptPath = `${directory}/next-runtime-attempt.json`;
 const priorPath = 'docs/measurements/hosted-backend-verification.json';
-const evidencePath = 'docs/measurements/hosted-next-verification.json';
 const AUTH_NAMES = ['__Host-__convexAuthJWT', '__Host-__convexAuthRefreshToken', '__Host-__convexAuthOAuthVerifier'];
 class GateError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = code => { throw new GateError(code); };
@@ -32,16 +31,23 @@ const identity = value => (typeof value === 'string' && value.length > 0 && valu
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
 
 export function parseArgs(args) {
-  check(args.length === 4 && args[0] === '--expected-vercel-deployment' &&
+  const continued = args.length === 6 && args[4] === '--continue-after' && args[5] === CONTINUATION.predecessorDeploymentId;
+  check((args.length === 4 || continued) && args[0] === '--expected-vercel-deployment' &&
     /^dpl_[A-Za-z0-9]+$/.test(args[1]) && args[2] === '--expected-preview' &&
     /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(args[3]), 'invalid_arguments');
-  return { deploymentId: args[1], backendName: args[3] };
+  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}) };
 }
 
 export function validateManifest(m, expected, now = Date.now()) {
   const v = m?.vercel, b = m?.backend, a = m?.access, c = m?.counters;
   check(m?.version === 1 && m.publication === 'ready' && /^[a-f0-9]{40}$/.test(m.sourceCommit ?? '') &&
     /^attendance-next-[a-f0-9]{32}$/.test(m.runId ?? ''), 'manifest_state');
+  if (expected.continuation) {
+    validateContinuationSnapshot(m.continuation);
+    check(v?.deploymentId !== CONTINUATION.predecessorDeploymentId && m.runId !== CONTINUATION.predecessorRunId,
+      'continuation_reuses_predecessor');
+  }
+  else check(!m.continuation, 'continuation_mode_required');
   check(m.environmentVerified?.build === true && m.environmentVerified.runtime === true &&
     m.environmentVerified.credentialOverrides === true, 'environment_not_verified');
   check(v?.teamSlug === TEAM && v.teamId === TEAM_ID && v.projectId === PROJECT &&
@@ -84,13 +90,17 @@ export function validatePriorEvidence(prior, backend, manifest) {
 }
 
 // Counters never reset between the backend rehearsal, publisher and runtime.
-export function createBudget(publisherCounters, { now = () => performance.now() } = {}) {
+export function createBudget(publisherCounters, { now = () => performance.now(), continuation } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
     count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= 2 &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
-  const totals = { calls: 62, writes: 355, gateway: 7, control: 1 + publisherCounters.controlRequests,
-    hosting: publisherCounters.hostingRequests, nextCalls: 1, nextGateway: 0, runnerControl: 0 };
+  if (continuation) validateContinuationSnapshot(continuation);
+  const seed = continuation ? continuationTotals(publisherCounters, 1) : {
+    calls: 62, nextCalls: 1, controls: 1 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests };
+  const totals = { calls: seed.calls, writes: 355, gateway: 7, control: seed.controls,
+    hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
+    ...(continuation ? { creations: seed.creations } : {}) };
   const snapshot = () => ({ ...totals });
   function reserve({ kind, writes = 0, gateway = false, cleanup = false }) {
     const elapsed = now() - start;
@@ -104,7 +114,7 @@ export function createBudget(publisherCounters, { now = () => performance.now() 
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
     check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= (cleanup ? 700 : 600) &&
-      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= 40 && next.runnerControl <= 19 &&
+      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (continuation ? 60 : 40) && next.runnerControl <= 19 &&
       next.hosting <= 100, 'budget_exceeded');
     Object.assign(totals, next);
     return snapshot();
@@ -469,8 +479,9 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
   } catch (error) { await close().catch(() => {}); throw error; }
 }
 
-async function exclusiveAttempt(recordValue) {
-  const file = await open(attemptPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+async function exclusiveAttempt(recordValue, path) {
+  check([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt].includes(path), 'attempt_path');
+  const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try { await file.writeFile(JSON.stringify(recordValue, null, 2) + '\n'); await file.sync(); } finally { await file.close(); }
 }
 
@@ -479,6 +490,10 @@ async function exclusiveAttempt(recordValue) {
 export async function runHostedNext(argv = process.argv.slice(2), env = process.env, injected = {}) {
   const deps = { readPrivateText: publisher.readPrivateText, readVercelToken: publisher.readVercelToken,
     readPublic: path => readFile(path, 'utf8'), quota: readQuotaReview,
+    assertAbsent: async path => {
+      try { await lstat(path); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+      throw Error('original_runtime_exists');
+    },
     git: args => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }),
     providerJson: publisher.providerJson, validateDeployment: publisher.validateVercelDeployment,
     cleanupVercel: publisher.cleanupOwnedVercel, exclusiveAttempt,
@@ -486,11 +501,20 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     transport: boundedFetch, createBrowser: createBrowserHarness, createAdmin: createAdminReader,
     ...injected };
   const expected = parseArgs(argv);
-  const manifest = JSON.parse(await deps.readPrivateText(manifestPath));
+  const paths = expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const manifest = JSON.parse(await deps.readPrivateText(paths.manifest));
   validateManifest(manifest, expected, deps.wallNow());
   const backend = JSON.parse(await deps.readPrivateText(backendPath));
   const prior = JSON.parse(await deps.readPublic(priorPath));
   const previous = validatePriorEvidence(prior, backend, manifest);
+  let continuation;
+  if (expected.continuation) {
+    continuation = validateContinuationHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
+      JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), manifest.backend);
+    await deps.assertAbsent(ORIGINAL_PATHS.attempt);
+    await deps.assertAbsent(paths.evidence);
+    validateContinuationPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
+  }
   const core = ['app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json'];
   check(deps.git(['rev-parse', 'HEAD']).trim() === manifest.sourceCommit, 'head_mismatch');
   deps.git(['diff', '--exit-code', backend.reviewedSourceCommit, manifest.sourceCommit, '--', ...core]);
@@ -502,18 +526,21 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') && key.split('|').length === 2 &&
     !/[\u0000-\u0020\u007f]/.test(key), 'preview_key_scope');
   const vercelToken = await deps.readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
-  const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now });
+  const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation });
   const attempt = { version: 1, runId: manifest.runId, sourceCommit: manifest.sourceCommit,
     vercelDeploymentId: expected.deploymentId, backendId: manifest.backend.id,
     backendReference: manifest.backend.reference, fingerprint: FINGERPRINT,
+    ...(continuation ? { continuation } : {}),
     startedAt: new Date(deps.wallNow()).toISOString() };
   // Existing backend runtime-attempt.json and publication records remain untouched.
-  await deps.exclusiveAttempt(attempt);
+  await deps.exclusiveAttempt(attempt, paths.attempt);
   const report = { version: 1, localOnly: false, backendOnly: false, hostedNext: true,
     startedAt: attempt.startedAt, sourceCommit: manifest.sourceCommit, deploymentId: expected.deploymentId,
     deploymentName: expected.backendName, priorBackend: previous,
+    ...(continuation ? { continuation } : {}),
     bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: 40, writes: 700, ordinaryWrites: 600,
-      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: 100, control: 40,
+      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: 100, control: continuation ? 60 : 40,
+      ...(continuation ? { cumulativeCreations: 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
     assertions: {}, negativeProbes: [], ipProvenance: { status: 'unverified' },
@@ -808,7 +835,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       report.cleanup.logoutConfirmed && report.cleanup.sessionRevocationVerified &&
       report.cleanup.capabilityRevoked && report.cleanup.vercelDeleted &&
       Object.values(report.assertions).every(Boolean);
-    try { await deps.persist({ attemptPath, evidencePath, attemptRecord: { ...attempt, phase }, report,
+    try { await deps.persist({ attemptPath: paths.attempt, evidencePath: paths.evidence, attemptRecord: { ...attempt, phase }, report,
       isCancelled: () => cancelled }); }
     finally { for (const name of workSignals) process.removeListener(name, signal); }
   }

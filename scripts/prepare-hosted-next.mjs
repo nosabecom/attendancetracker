@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One-attempt publisher for an owned Preview; execution requires Astra review.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, constants, openSync, fstatSync, closeSync } from 'node:fs';
+import { readFileSync, writeFileSync, constants, openSync, fstatSync, closeSync, lstatSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -9,6 +9,8 @@ import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import { checkVercelPrivateEnv } from './check-vercel-private-env.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
+import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS,
+  validateContinuationHistory, continuationTotals } from './hosted-next-continuation.mjs';
 
 export const EXPECTED = Object.freeze({
   teamSlug: 'nomokaro625-9385s-projects', teamId: 'team_fmwIPLne9w30y7G5JQrs3fzl',
@@ -266,20 +268,28 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
   const fetchImpl = dependencies.fetch ?? fetch;
   const privateText = dependencies.readPrivateText ?? readPrivateText;
   const publicJson = dependencies.readPublicJson ?? (path => JSON.parse(readFileSync(path, 'utf8')));
+  const publicText = dependencies.readPublicText ?? (path => readFileSync(path, 'utf8'));
+  const absent = dependencies.assertAbsent ?? (path => {
+    try { lstatSync(path); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+    throw Error('original_runtime_exists');
+  });
   const persist = dependencies.persist ?? ((path, value, { exclusive = false, privateFile = true } = {}) =>
     writeFileSync(path, value, { mode: privateFile ? 0o600 : 0o644, ...(exclusive ? { flag: 'wx' } : {}), flush: true }));
   const failProcess = dependencies.failProcess ?? (() => { process.exitCode = 1; });
   const output = dependencies.output ?? console.log;
   const started = clock(); let phase = 'arguments', manifest, cancelled = false, cleaning = false;
   let cleanupReserved = false, cleanupUsed = 0;
-  const path = '.convex/hosted-validation/next-preview-manifest.json';
-  const evidencePath = 'docs/measurements/hosted-next-preview-setup.json';
+  const continued = args.length === 4 && args[2] === '--continue-after' && args[3] === CONTINUATION.predecessorDeploymentId;
+  const paths = continued ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const path = paths.manifest, evidencePath = paths.publication;
   const cancelledSignal = () => { cancelled = true; failProcess(); };
   const report = { version: 1, startedAt: new Date().toISOString(), passed: false, cancelled: false,
     counters: { controlRequests: 0, hostingRequests: 0, applicationCalls: 0 },
     creationRequests: 0, cleanup: {}, productionMutationRequested: false };
   const save = (tolerate = false) => {
     if (!manifest) return;
+    if (continued) { report.cumulative = continuationTotals(report.counters, report.creationRequests);
+      manifest.cumulative = report.cumulative; }
     try { persist(path, JSON.stringify(manifest, null, 2) + '\n'); }
     catch {
       report.persistenceFailed = true; report.passed = false; failProcess();
@@ -308,9 +318,16 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     return providerJson(url.href, { ...options, headers: { Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()), fetchImpl });
   };
   try {
-    assert(args.length === 2 && args[0] === '--expected-preview', 'publisher_arguments');
+    assert((args.length === 2 || continued) && args[0] === '--expected-preview', 'publisher_arguments');
     const backendManifest = JSON.parse(privateText('.convex/hosted-validation/preview-setup-manifest.json'));
     const backend = validateBackendManifest(backendManifest, args[1]);
+    if (continued) {
+      phase = 'continuation history';
+      report.continuation = validateContinuationHistory(publicText(ORIGINAL_PATHS.publication),
+        JSON.parse(privateText(ORIGINAL_PATHS.manifest)), backend);
+      absent(ORIGINAL_PATHS.attempt);
+      for (const unused of [paths.publication, paths.attempt, paths.evidence]) absent(unused);
+    }
     const sourceCommit = env.ATTENDANCE_VALIDATION_SOURCE_COMMIT;
     validateSource(sourceCommit, backendManifest.reviewedSourceCommit, dependencies.git);
     validateBuildHooks(publicJson('vercel.json'), publicJson('package.json'));
@@ -321,6 +338,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
       previewKey.split('|').length === 2, 'preview_key_scope');
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     const candidate = { version: 1, runId, sourceCommit, publication: 'preflight', backend,
+      ...(continued ? { continuation: report.continuation, cumulative: continuationTotals(report.counters) } : {}),
       vercel: { teamSlug: EXPECTED.teamSlug, teamId: EXPECTED.teamId, projectId: EXPECTED.projectId, target: 'preview', ready: false },
       cleanupReservation: { controlRequests: 4, automaticResume: false },
       counters: { ...report.counters }, createdAt: new Date().toISOString() };
@@ -366,6 +384,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     const aliasesBefore = productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body);
     phase = 'single deployment creation'; manifest.publication = 'creation submitted or uncertain';
     manifest.creationState = 'submitted; outcome uncertain'; save();
+    if (continued) continuationTotals(report.counters, report.creationRequests + 1);
     report.creationRequests++;
     const created = (await vercel('/v13/deployments', { method: 'POST',
       body: deploymentBody(backendManifest, sourceCommit, runId), allowedStatuses: [200, 201] })).body;
@@ -447,6 +466,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     process.removeListener('SIGINT', cancelledSignal); process.removeListener('SIGTERM', cancelledSignal);
   }
   output(JSON.stringify({ passed: report.passed, failedPhase: report.failedPhase, counters: report.counters,
+    cumulative: report.cumulative,
     deploymentId: report.deploymentId, failure: report.failure,
     persistenceFailed: report.persistenceFailed, cleanup: report.cleanup }));
   return report;

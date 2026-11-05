@@ -5,6 +5,8 @@ import { assertPublicResponse, boundedFetch, compareIpObservations, counterSnaps
   createBrowserHarness, createBrowserPolicy, createBudget, createOneShotRpc, FINGERPRINT, inspectAuthCookies, parseArgs,
   readAdminTable, runHostedNext, validateManifest, validatePriorEvidence, browserOperation } from '../scripts/test-hosted-next.mjs';
 import { persistHostedReports } from '../scripts/test-hosted-preview.mjs';
+import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
+import { historyText, originalPublication, readyContinuationPublication } from './fixtures/hosted-next-history.mjs';
 
 const expected = { deploymentId: 'dpl_fixture', backendName: 'fixture-preview-123' };
 const time = Date.parse('2030-01-01T00:00:00Z');
@@ -53,6 +55,16 @@ function response(body, status = 200, cookies = []) {
 }
 function offlineRun(options = {}) {
   const manifest = fixture(), backend = backendFixture(), prior = priorFixture();
+  const original = originalPublication(manifest.backend);
+  if (options.continuation) {
+    manifest.continuation = structuredClone(CONTINUATION);
+    manifest.cumulative = continuationTotals(manifest.counters, 1);
+    options.mutateContinuation?.(manifest);
+    options.mutateHistory?.(original);
+  }
+  const paths = options.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const publication = options.continuation ? readyContinuationPublication(manifest) : undefined;
+  options.mutatePublication?.(publication);
   const events = [], persisted = new Map();
   const state = { open: false, checkins: 0, loggedOut: false, exclusive: 0, deleted: false, mutationCalls: 0 };
   const deploy = { id: expected.deploymentId, ownerId: manifest.vercel.teamId, projectId: manifest.vercel.projectId,
@@ -61,17 +73,29 @@ function offlineRun(options = {}) {
   const dependencies = {
     now: () => options.elapsed?.() ?? 0, wallNow: () => time,
     readPrivateText: async path => {
-      if (path?.endsWith('/next-preview-manifest.json')) return JSON.stringify(manifest);
+      if (path === paths.manifest) return JSON.stringify(manifest);
+      if (options.continuation && path === ORIGINAL_PATHS.manifest) return JSON.stringify(original);
       if (path?.endsWith('/preview-setup-manifest.json')) return JSON.stringify(backend);
       if (path === 'fixture-key-path') return 'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic-key';
       throw Error('unexpected private fixture path');
     },
     readVercelToken: async path => { assert.equal(path, 'fixture-auth-path'); return 'synthetic-vercel-auth'; },
-    readPublic: async () => JSON.stringify(prior),
+    readPublic: async path => path === ORIGINAL_PATHS.publication ? historyText + (options.corruptHistory ? '\n' : '') :
+      path === CONTINUATION_PATHS.publication ? JSON.stringify(publication) : JSON.stringify(prior),
+    assertAbsent: async path => {
+      assert([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.evidence].includes(path));
+      if (options.originalRuntimeExists && path === ORIGINAL_PATHS.attempt) throw Error('original_runtime_exists');
+      if (persisted.has(path)) throw Error('continuation_record_exists');
+    },
     git: values => values[0] === 'rev-parse' ? manifest.sourceCommit : '',
     quota: async () => ({ plan: 'CONVEX_BASE', source: 'convex-dashboard-user-report', observedAt: new Date(time).toISOString(),
       plannedHeadroom: { functionCalls: 1000 } }),
-    exclusiveAttempt: async () => { state.exclusive++; events.push('exclusive'); if (options.existing) throw Error('EEXIST'); },
+    exclusiveAttempt: async (record, path) => {
+      assert.equal(path, paths.attempt);
+      assert.equal(!!record.continuation, !!options.continuation);
+      state.exclusive++; events.push('exclusive');
+      if (options.existing || state.exclusive > 1) throw Error('EEXIST');
+    },
     providerJson: async (value, init) => {
       const url = new URL(value); assert.equal(state.exclusive, 1);
       events.push('control:' + (init.method ?? 'GET') + ':' + url.pathname);
@@ -186,7 +210,8 @@ function offlineRun(options = {}) {
     }),
   };
   return { manifest, backend, prior, state, events, persisted, dependencies,
-    run: () => runHostedNext(args, { ATTENDANCE_PREVIEW_KEY_FILE: 'fixture-key-path', ATTENDANCE_VERCEL_AUTH_FILE: 'fixture-auth-path' }, dependencies) };
+    run: () => runHostedNext([...args, ...(options.continuation ? ['--continue-after', CONTINUATION.predecessorDeploymentId] : [])],
+      { ATTENDANCE_PREVIEW_KEY_FILE: 'fixture-key-path', ATTENDANCE_VERCEL_AUTH_FILE: 'fixture-auth-path' }, dependencies) };
 }
 
 test('manifest binds source, exact ready deployment, expiring scoped access and publisher usage', () => {
@@ -696,4 +721,61 @@ test('browser route cannot send when teardown completes during its header read',
   assert.equal(fixture.sends.filter(x => x.admission.key === 'checkin').length, 0);
   assert.equal(fixture.observation.closeConfirmed, true);
   assert.equal(fixture.lifecycle.closeCalls, 1);
+});
+
+test('continuation runtime budget starts at63 calls, two Next calls and all prior controls without spending the margin', () => {
+  const counters = { controlRequests: 20, hostingRequests: 2, applicationCalls: 1 };
+  const budget = createBudget(counters, { continuation: CONTINUATION });
+  assert.deepEqual(budget.snapshot(), { calls: 63, writes: 355, gateway: 7, control: 37, hosting: 2,
+    nextCalls: 2, nextGateway: 0, runnerControl: 0, creations: 2 });
+  for (let i = 0; i < 19; i++) budget.reserve({ kind: 'control' });
+  assert.equal(budget.snapshot().control, 56);
+  assert.throws(() => budget.reserve({ kind: 'control' }), /budget_exceeded/);
+  for (let i = 0; i < 38; i++) budget.reserve({ kind: 'application' });
+  assert.equal(budget.snapshot().nextCalls, 40); assert.equal(budget.snapshot().calls, 101);
+  assert.throws(() => budget.reserve({ kind: 'application' }), /budget_exceeded/);
+  const altered = structuredClone(CONTINUATION); altered.spent.calls = 61;
+  assert.throws(() => createBudget(counters, { continuation: altered }), /continuation_snapshot/);
+});
+
+test('continuation runner validates its new manifest and history, persists separate records and preserves cleanup', async () => {
+  const run = offlineRun({ continuation: true });
+  const report = await run.run();
+  assert.equal(report.passed, true); assert.deepEqual(report.continuation, CONTINUATION);
+  assert.equal(report.bounds.control, 60); assert.equal(report.bounds.cumulativeCreations, 2);
+  assert.equal(report.counters.creations, 2);
+  assert.equal(report.counters.calls, 61 + report.counters.nextCalls);
+  assert.equal(report.counters.control, 17 + 20 + report.counters.runnerControl);
+  assert.equal(report.counters.writes, 593); assert.equal(report.cleanup.availabilityClosed, true);
+  assert.equal(report.cleanup.vercelDeleted, true);
+  assert(run.persisted.has(CONTINUATION_PATHS.attempt)); assert(run.persisted.has(CONTINUATION_PATHS.evidence));
+  assert([...run.persisted.keys()].every(path => !Object.values(ORIGINAL_PATHS).includes(path)));
+  const sent = run.events.length;
+  await assert.rejects(run.run(), /continuation_record_exists/);
+  assert.deepEqual(run.events.slice(sent), []);
+});
+
+for (const options of [{ corruptHistory: true }, { originalRuntimeExists: true },
+  { mutateHistory: x => { x.cleanup.deploymentDeleted = false; } },
+  { mutateContinuation: x => { x.continuation.spent.controls = 1; } },
+  { mutateContinuation: x => { x.cumulative.calls = 62; } },
+  { mutatePublication: x => { x.passed = false; } },
+  { mutatePublication: x => { x.cumulative.controls = 1; } },
+  { mutatePublication: x => { x.counters.controlRequests = 0; } },
+  { mutatePublication: x => { x.deploymentId = 'dpl_other'; } },
+  { mutateContinuation: x => { delete x.continuation; } }])
+  test('continuation runner rejects missing, changed or underreported history before workload or records', async () => {
+    const run = offlineRun({ continuation: true, ...options });
+    await assert.rejects(run.run());
+    assert.deepEqual(run.events, []); assert.equal(run.state.exclusive, 0); assert.equal(run.persisted.size, 0);
+  });
+
+test('continuation mode cannot be downgraded or chained to a third deployment selector', () => {
+  const current = fixture(); current.continuation = structuredClone(CONTINUATION);
+  assert.throws(() => validateManifest(current, expected, time), /continuation_mode_required/);
+  assert.throws(() => parseArgs([...args, '--continue-after', 'dpl_fixture']));
+  assert.throws(() => parseArgs([...args, '--continue-after', CONTINUATION.predecessorDeploymentId,
+    '--continue-after', CONTINUATION.predecessorDeploymentId]));
+  assert.deepEqual(parseArgs([...args, '--continue-after', CONTINUATION.predecessorDeploymentId]),
+    { ...expected, continuation: true });
 });

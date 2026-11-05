@@ -35,7 +35,7 @@ sequence. Successful Next ingress, cookies, trusted IP, browser refresh and
 natural expiry remain unverified. Blob access is scheduled for a separate retry
 on November 8; no support request or paid plan change has been made.
 
-## Offline diagnostic preparation and proposed continuation
+## Offline diagnostics and prepared continuation
 
 Astra accepted the stopped-attempt evidence at 2e8a5c6 and blocked another attempt
 under the spent single-creation allocation. The prepared diagnostic change makes
@@ -54,7 +54,7 @@ absent/inherited credentials, redaction, cleanup and accounting without leaking
 sentinels into public reports, console output or persisted fixture records. They
 cannot reconstruct the original discarded response. Its cause remains unknown.
 
-Root proposes one diagnostic continuation for separate review: at most **two
+Astra accepted preparing one diagnostic continuation at f9ab6e2: at most **two
 Vercel creations in total**, including the deleted first preview, and **60
 Next-phase control requests**. The bounds retain the root preflight and actual
 first attempt: `1 + 16 + 20 + 19 = 56` controls for prior work, one new publisher
@@ -64,17 +64,47 @@ calls, 40 Next calls including both publication queries, 700 write reservations
 with 100 retained for cleanup, 20 cumulative gateway requests and 100 hosting
 requests. No provider plan or spending limit changes.
 
-This proposal is not implemented or executable yet. The original exclusive
-manifest and evidence must remain immutable. A separate exclusive continuation
-record must validate the original failed/deleted attempt and retain its costs
-before any creation. A second publisher query raises the runtime's initial
+Continuation enforcement is implemented offline and awaits pre-execution review.
+The original exclusive manifest and evidence remain immutable. A separate
+exclusive continuation record validates the original failed/deleted attempt and
+retains its costs before any creation. A second publisher query raises the runtime's initial
 application total to **63**, its Next count to **2**, and its control seed to
 **17 plus the second publisher's actual controls**. Prior writes stay at 355,
 gateway requests at seven, and hosting requests include both attempts. The
-current runner's 62-call/one-publisher seed must not be used for a continuation.
-No extra diagnostic service calls or third creation are included. Code, ledger
-enforcement and this allocation need Astra review before any new hosted attempt,
+legacy runner's 62-call/one-publisher seed is not used for a continuation.
+No extra diagnostic service calls or third creation are included. Code and ledger
+enforcement need Astra review before any new hosted attempt,
 which also requires fresh genuine quota and live identity/closed-state checks.
+
+The explicit selector is `--continue-after dpl_3uruS1NUit1V6YjpMNKLaW1T5Cs6`
+on both publisher and runtime commands. No arbitrary record paths or successor
+indexes are accepted. Default invocations retain the original paths and cannot
+reuse the spent slot. The new records are:
+
+- Private publication: `.convex/hosted-validation/next-continuation-preview-manifest.json`.
+- Safe publication: `docs/measurements/hosted-next-continuation-preview-setup.json`.
+- Private runtime: `.convex/hosted-validation/next-continuation-runtime-attempt.json`.
+- Safe runtime: `docs/measurements/hosted-next-continuation-verification.json`.
+
+The shared pure policy pins the committed original safe artifact's SHA-256 and
+checks the private predecessor's identity, backend relationship, exact counters,
+confirmed cleanup and absence of a share capability. It rejects a prior runtime
+record. Unused continuation evidence/runtime paths must be absent before
+publication; the new manifest uses exclusive creation. Runtime verifies the new
+ready publication evidence against its manifest, fixed history snapshot and
+cumulative totals, then creates its own separate exclusive attempt. Existing
+runtime evidence also rejects replay before provider work. Original files are
+never persistence targets.
+
+The cumulative runtime starts at 63 calls, two Next calls, 355 write reservations,
+seven gateway calls, and seventeen plus the new publisher's actual controls.
+The publisher retains its 20-control ceiling and durable four-control cleanup
+reserve; runtime retains its 19-control ceiling. Thus the four-control margin
+cannot be spent by either phase. Three pure-policy tests, six additional publisher
+orchestrations and thirteen additional runtime checks cover history drift,
+missing publication proof, altered costs, repeat attempts, distinct paths,
+cleanup and the maximum-budget boundary without service requests. No continuation
+record or cloud workload has been created during this preparation.
 
 ## Private deployment inputs
 
@@ -208,10 +238,10 @@ deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
 
 Both tools are executable. Publication has the stopped attempt recorded above;
 the Next runtime runner remains unexecuted against hosted services.
-The publisher has thirty-two offline checks, including full orchestration fixtures
+The publisher has thirty-eight offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
-runner has thirty-four offline checks covering cumulative accounting, cookie
+runner has forty-seven offline checks covering cumulative accounting, cookie
 attributes, browser isolation, request policy, ephemeral counter comparison,
 cancellation, deadlines and prioritized cleanup. These fixtures do not establish
 real provider acceptance, browser cookies or trusted-header behavior.

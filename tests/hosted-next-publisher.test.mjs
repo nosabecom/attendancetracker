@@ -4,6 +4,8 @@ import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLi
   validateLiveIdentity, validateSource, validateBuildHooks, deploymentEnvironment, deploymentFlags,
   validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext,
   safePublisherDiagnostic, validateEffectiveEnvironment } from '../scripts/prepare-hosted-next.mjs';
+import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
+import { historyText, originalPublication } from './fixtures/hosted-next-history.mjs';
 
 const name = 'fixture-preview-123';
 function fixture() {
@@ -116,6 +118,14 @@ test('provider transport disables redirects/retries and bounds streamed bytes', 
 
 async function publicationScenario(options={}) {
   const backend=fixture(), writes=new Map(), calls=[], logs=[];
+  const paths=options.continuation?CONTINUATION_PATHS:ORIGINAL_PATHS;
+  const original=originalPublication(validateBackendManifest(backend,name));
+  if(options.continuation){
+    options.mutateHistory?.(original);
+    writes.set(ORIGINAL_PATHS.manifest,structuredClone(original));
+    writes.set(ORIGINAL_PATHS.publication,JSON.parse(historyText));
+  }
+  const historical=JSON.stringify([...writes]);
   const sha='a'.repeat(40); let createdBody, deleted=false, diskFailed=false, aliasReads=0, exitFailures=0;
   const project={id:EXPECTED.projectId,accountId:EXPECTED.teamId,name:'attendance-tracker',framework:'nextjs',
     nodeVersion:'24.x',buildCommand:null,installCommand:null,
@@ -127,11 +137,19 @@ async function publicationScenario(options={}) {
     vercelToken:'synthetic-api-token',
     git:args=>args[0]==='rev-parse'?sha:'',
     readQuotaReview:async()=>({observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'}),
-    readPrivateText:path=>path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
-      'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
+    readPrivateText:path=>path===ORIGINAL_PATHS.manifest&&options.continuation?JSON.stringify(original):
+      path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
+        'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
+    readPublicText:path=>{assert.equal(path,ORIGINAL_PATHS.publication);return historyText+(options.corruptHistory?'\n':'');},
+    assertAbsent:path=>{
+      assert([ORIGINAL_PATHS.attempt,...Object.values(CONTINUATION_PATHS)].includes(path));
+      if(options.originalRuntimeExists&&path===ORIGINAL_PATHS.attempt)throw Error('original_runtime_exists');
+      if(writes.has(path))throw Error('continuation_record_exists');
+    },
     readPublicJson:path=>path==='vercel.json'?{framework:'nextjs',installCommand:'pnpm install --frozen-lockfile',buildCommand:'pnpm build'}:
       {scripts:{build:'node --version && next build'}},
     persist:(path,contents,settings={})=>{
+      if(options.continuation)assert(!Object.values(ORIGINAL_PATHS).includes(path));
       if(diskFailed || options.failEvidence && path.startsWith('docs/'))throw Object.assign(Error('synthetic disk full'),{code:'ENOSPC'});
       if(settings.exclusive && (options.existingAttempt || writes.has(path)))throw Object.assign(Error('synthetic existing'),{code:'EEXIST'});
       writes.set(path,JSON.parse(contents));
@@ -149,7 +167,7 @@ async function publicationScenario(options={}) {
         aliasReads++;return json({aliases:[{alias:options.changeAliases&&aliasReads>1?'changed.example':'production.example',uid:'stable-alias'}]});
       }
       if(url.pathname==='/v13/deployments'&&method==='POST'){
-        const record=writes.get('.convex/hosted-validation/next-preview-manifest.json');
+        const record=writes.get(paths.manifest);
         assert.equal(record.creationState,'submitted; outcome uncertain');
         assert.equal(record.cleanupReservation.controlRequests,4);
         assert.equal(record.cleanupReservation.automaticResume,false);
@@ -176,10 +194,12 @@ async function publicationScenario(options={}) {
       throw Error('Unexpected offline request');
     },
   };
-  const report=await prepareHostedNext(['--expected-preview',name],{
+  const args=['--expected-preview',name,...(options.continuation?['--continue-after',CONTINUATION.predecessorDeploymentId]:[])];
+  const run=()=>prepareHostedNext(args,{
     ATTENDANCE_VALIDATION_SOURCE_COMMIT:sha,ATTENDANCE_PREVIEW_KEY_FILE:'synthetic-key-file',
   },deps);
-  return{report,calls,writes,logs,deleted,exitFailures};
+  const report=await run();
+  return{report,calls,writes,logs,deleted,exitFailures,historical,run};
 }
 test('publication orchestration validates effective maps and leaves an owned protected ready control',async()=>{
   const r=await publicationScenario();
@@ -313,4 +333,41 @@ for (const [scenario, category, options] of [
   assert.equal(result.calls.filter(x => x.method === 'DELETE').length, 1);
   assert(result.calls.filter(x => x.method === 'DELETE').every(x => x.path === '/v13/deployments/dpl_fixture'));
   assert(!JSON.stringify({ report, writes: [...result.writes], logs: result.logs }).includes(sentinel));
+});
+
+test('continuation publication preserves original records and durably carries prior costs before its single creation',async()=>{
+  const result=await publicationScenario({continuation:true});
+  assert.equal(result.report.passed,true);
+  assert.deepEqual(result.report.continuation,CONTINUATION);
+  assert.deepEqual(result.report.cumulative,continuationTotals(result.report.counters,1));
+  const manifest=result.writes.get(CONTINUATION_PATHS.manifest);
+  assert.equal(manifest.publication,'ready');assert.deepEqual(manifest.continuation,CONTINUATION);
+  assert.deepEqual(manifest.cumulative,result.report.cumulative);
+  assert.equal(result.report.cumulative.calls,63);assert.equal(result.report.cumulative.nextCalls,2);
+  assert.equal(result.report.cumulative.controls,17+result.report.counters.controlRequests);
+  assert.equal(result.report.cumulative.creations,2);
+  assert(result.writes.has(CONTINUATION_PATHS.publication));
+  assert.equal(JSON.stringify([...result.writes].filter(([path])=>Object.values(ORIGINAL_PATHS).includes(path))),result.historical);
+  const sent=result.calls.length,oldManifest=structuredClone(manifest);
+  const repeated=await result.run();
+  assert.equal(repeated.passed,false);assert.equal(result.calls.length,sent);
+  assert.deepEqual(result.writes.get(CONTINUATION_PATHS.manifest),oldManifest);
+  assert.equal(result.calls.filter(x=>x.path==='/v13/deployments'&&x.method==='POST').length,1);
+});
+
+for(const options of [{corruptHistory:true},{mutateHistory:x=>{x.cleanup.deploymentDeleted=false;}},
+  {mutateHistory:x=>{x.counters.controlRequests=0;}},{originalRuntimeExists:true}])
+  test('continuation rejects changed/uncertain history before any provider operation',async()=>{
+    const result=await publicationScenario({continuation:true,...options});
+    assert.equal(result.report.passed,false);assert.equal(result.report.failedPhase,'continuation history');
+    assert.equal(result.calls.length,0);assert(!result.writes.has(CONTINUATION_PATHS.manifest));
+    assert.equal(JSON.stringify([...result.writes]),result.historical);
+  });
+
+test('continuation environment rejection retains both creations and all prior costs while cleaning its new fixture',async()=>{
+  const result=await publicationScenario({continuation:true,redactedGateway:true});
+  assert.equal(result.report.passed,false);assert.equal(result.report.failure.category,'gateway_mismatch');
+  assert.deepEqual(result.report.cumulative,{calls:63,nextCalls:2,controls:31,hosting:0,writes:355,gateway:7,creations:2});
+  assert.equal(result.report.cleanup.deploymentDeleted,true);
+  assert.equal(JSON.stringify([...result.writes].filter(([path])=>Object.values(ORIGINAL_PATHS).includes(path))),result.historical);
 });
