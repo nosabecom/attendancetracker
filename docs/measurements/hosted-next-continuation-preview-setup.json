@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "startedAt": "2026-11-05T04:17:12.825Z",
+  "passed": false,
+  "cancelled": false,
+  "counters": {
+    "controlRequests": 16,
+    "hostingRequests": 0,
+    "applicationCalls": 1
+  },
+  "creationRequests": 1,
+  "cleanup": {
+    "ownershipVerified": true,
+    "capabilityRevoked": true,
+    "deploymentDeleted": true,
+    "capabilityInvalidatedByDeletion": true
+  },
+  "productionMutationRequested": false,
+  "continuation": {
+    "version": 1,
+    "predecessorRunId": "attendance-next-ce59bc1883c3ccbf84baec993870e04d",
+    "predecessorSourceCommit": "aa2b25d76e1bec977b16d80f3fdfb53baa6161cd",
+    "predecessorDeploymentId": "dpl_3uruS1NUit1V6YjpMNKLaW1T5Cs6",
+    "evidenceSha256": "7ff21650d0c963bccb7e71edf8b222af7756b434053a747c44fa569788c53ae4",
+    "spent": {
+      "calls": 62,
+      "nextCalls": 1,
+      "controls": 17,
+      "hosting": 0,
+      "writes": 355,
+      "gateway": 7,
+      "creations": 1
+    },
+    "limits": {
+      "controls": 60,
+      "creations": 2,
+      "publisherControls": 20,
+      "runtimeControls": 19
+    }
+  },
+  "runId": "attendance-next-c46801e578baa2c52e070b25c05cfa6a",
+  "sourceCommit": "53b7965cb594407cf1dea3d5d2a5e04b38f03a32",
+  "cleanupReservePersisted": true,
+  "quotaReview": {
+    "observedAt": "2026-11-05T02:04:00.776Z",
+    "source": "convex-dashboard-user-report",
+    "sufficientReviewedHeadroom": true
+  },
+  "cumulative": {
+    "calls": 63,
+    "nextCalls": 2,
+    "controls": 33,
+    "hosting": 0,
+    "writes": 355,
+    "gateway": 7,
+    "creations": 2
+  },
+  "deploymentId": "dpl_4AAsug64RaRxhbVDToFQMhBUEVwQ",
+  "productionTargetUnchanged": true,
+  "productionAliasBindingsUnchanged": true,
+  "failedPhase": "effective environment",
+  "failure": {
+    "category": "http_status",
+    "httpStatus": 400
+  },
+  "finishedAt": "2026-11-05T04:18:34.070Z",
+  "elapsedMs": 81245
+}

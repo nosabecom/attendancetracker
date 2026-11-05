@@ -1,11 +1,12 @@
-# Bounded hosted Next validation — publication stopped at configuration gate
+# Bounded hosted Next validation — both publications stopped at configuration gate
 
 The backend-only rehearsal passed and Astra accepted its evidence at ce861715.
-Astra accepted the corrected Next rehearsal code at aa2b25d. One hosted publication
-attempt then built a disposable Vercel preview but stopped at the effective
-environment gate. Ownership-checked cleanup deleted that deployment and confirmed
-404. No Next browser workload ran; the Convex preview was never opened. Production
-remains on Blob. The existing local browser runner's loopback guards remain intact.
+Astra accepted the corrected Next rehearsal code at aa2b25d and the retained-cost
+continuation at 53b7965. Both hosted publication attempts built disposable Vercel
+previews and stopped at the effective-environment gate. Ownership-checked cleanup
+deleted both deployments and confirmed 404. No Next browser workload ran; the
+Convex preview was never opened. Production remains on Blob. The existing local
+browser runner's loopback guards remain intact.
 
 ## Recorded publication attempt
 
@@ -34,6 +35,38 @@ The remaining sections retain the reviewed design and its historical review
 sequence. Successful Next ingress, cookies, trusted IP, browser refresh and
 natural expiry remain unverified. Blob access is scheduled for a separate retry
 on November 8; no support request or paid plan change has been made.
+
+## Recorded continuation attempt
+
+The [continuation evidence](./measurements/hosted-next-continuation-preview-setup.json)
+records the separately reviewed November 5 attempt against 53b7965. Genuine quota
+evidence was still within the required freshness window. Live identity, closed
+fingerprint, daily limit, Vercel Hobby/team/project, readiness and production
+target/settings/alias checks passed. The environment-pull request returned **HTTP
+400**; environment validation was therefore not reached. The fixed diagnostic
+records `http_status` and `400`, without response text or values. The server's
+reason for rejecting the request remains unknown.
+
+That attempt made one creation, sixteen explicit controls including cleanup,
+one closed-availability query and zero hosting probes. Its exact owned Vercel
+deployment was deleted with a confirming 404. No capability, signup, check-in,
+browser or availability opening followed. Both exclusive publication records and
+their separate safe artifacts remain preserved; no runtime attempt was created.
+
+Cumulative Next controls are now **33** (`1 + 16 + 16`). Application calls total
+**63**, including the backend rehearsal's 61 and both publication queries. Next
+publication calls total two; write reservations remain 355 and gateway calls
+remain seven. Both allowed creations are spent. Unused control capacity permits
+no third creation or extra diagnostic request. Hosted continuation is stopped;
+the runtime runner has not executed. These explicit counters do not measure
+Vercel build usage, provider retries/internal work or final billing.
+
+Offline inspection found a request difference: the installed CLI's
+`pullEnvRecords` helper adds a `source` query when its caller supplies one; this
+publisher sent only `teamId`. This is an investigation lead, not an established
+cause of HTTP 400. No changed request or further provider call has been attempted.
+The [first-party helper](https://github.com/vercel/vercel/blob/main/packages/cli/src/util/env/get-env-records.ts)
+does not establish whether the server requires that query for this deployment.
 
 ## Offline diagnostics and prepared continuation
 
@@ -64,7 +97,8 @@ calls, 40 Next calls including both publication queries, 700 write reservations
 with 100 retained for cleanup, 20 cumulative gateway requests and 100 hosting
 requests. No provider plan or spending limit changes.
 
-Continuation enforcement is implemented offline and awaits pre-execution review.
+Continuation enforcement was prepared offline, then accepted for the single
+attempt recorded above. Its spent records now reject reuse.
 The original exclusive manifest and evidence remain immutable. A separate
 exclusive continuation record validates the original failed/deleted attempt and
 retains its costs before any creation. A second publisher query raises the runtime's initial
@@ -72,9 +106,9 @@ application total to **63**, its Next count to **2**, and its control seed to
 **17 plus the second publisher's actual controls**. Prior writes stay at 355,
 gateway requests at seven, and hosting requests include both attempts. The
 legacy runner's 62-call/one-publisher seed is not used for a continuation.
-No extra diagnostic service calls or third creation are included. Code and ledger
-enforcement need Astra review before any new hosted attempt,
-which also requires fresh genuine quota and live identity/closed-state checks.
+No extra diagnostic service calls or third creation are included. The previous
+pre-execution acceptance applied only to the now-completed publication attempt;
+it does not authorize further hosted work.
 
 The explicit selector is `--continue-after dpl_3uruS1NUit1V6YjpMNKLaW1T5Cs6`
 on both publisher and runtime commands. No arbitrary record paths or successor
@@ -104,7 +138,10 @@ cannot be spent by either phase. Three pure-policy tests, six additional publish
 orchestrations and thirteen additional runtime checks cover history drift,
 missing publication proof, altered costs, repeat attempts, distinct paths,
 cleanup and the maximum-budget boundary without service requests. No continuation
-record or cloud workload has been created during this preparation.
+record or cloud workload was created during preparation; the later attempt and
+its closure are recorded above. All 88 targeted tests passed in Astra's review,
+along with twelve additional offline adversarial scenarios. The supplied full
+unit run passed 211 tests; no tests have been removed.
 
 ## Private deployment inputs
 
@@ -236,7 +273,7 @@ deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
 
 ## Implementation and offline evidence
 
-Both tools are executable. Publication has the stopped attempt recorded above;
+Both tools are executable. Publication has the two stopped attempts recorded above;
 the Next runtime runner remains unexecuted against hosted services.
 The publisher has thirty-eight offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
