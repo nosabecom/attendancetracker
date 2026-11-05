@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "measuredAt": "2026-11-05T04:31:09.030Z",
+  "vercelCliVersion": "62.1.0",
+  "installedHelperSourceSha256": "42c72993b880ee7a154952bac14ac03a89e37c956e118cf1ee64e336898ddaf1",
+  "requestConstructionMatches": true,
+  "deploymentScopeOnly": true,
+  "projectTargetAndBranchIgnoredForDeployment": true,
+  "fixedSource": "vercel-cli:env:pull",
+  "teamScopePreserved": true,
+  "interceptedFixtureCalls": 1,
+  "networkRequests": 0,
+  "limitation": "Executes the installed path-construction helper with a synthetic fetch and a no-op challenge wrapper. No actual CLI recovery, provider request or server acceptance was exercised. The original HTTP400 cause remains unknown."
+}

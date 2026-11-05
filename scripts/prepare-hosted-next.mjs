@@ -113,6 +113,10 @@ export function deploymentEnvironment(m) {
     CONVEX_DEPLOY_KEY: '', BLOB_READ_WRITE_TOKEN: '',
   };
 }
+export function deploymentEnvironmentPath(deploymentId) {
+  assert(typeof deploymentId === 'string' && /^dpl_[A-Za-z0-9]+$/.test(deploymentId), 'environment_deployment_id');
+  return `/v3/env/pull/${deploymentId}?${new URLSearchParams({ source: 'vercel-cli:env:pull' })}`;
+}
 export function deploymentFlags() {
   const publicNames = ['NEXT_PUBLIC_ATTENDANCE_BACKEND', 'NEXT_PUBLIC_CONVEX_URL', 'NEXT_PUBLIC_CONVEX_SITE_URL'];
   const emptyNames = ['CONVEX_DEPLOY_KEY', 'BLOB_READ_WRITE_TOKEN'];
@@ -416,7 +420,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     phase = 'effective environment';
     // Same deployment-specific endpoint as the installed CLI. No decrypt flag,
     // challenge recovery or protected-Secret bypass. Unknown/redacted maps fail.
-    const effectiveEnvironment = await vercel(`/v3/env/pull/${created.id}`);
+    const effectiveEnvironment = await vercel(deploymentEnvironmentPath(created.id));
     manifest.environmentVerified = validateEffectiveEnvironment(effectiveEnvironment.body,
       backendManifest, { httpStatus: effectiveEnvironment.status });
     report.environmentVerified = { ...manifest.environmentVerified }; save();

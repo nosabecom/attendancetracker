@@ -68,6 +68,45 @@ cause of HTTP 400. No changed request or further provider call has been attempte
 The [first-party helper](https://github.com/vercel/vercel/blob/main/packages/cli/src/util/env/get-env-records.ts)
 does not establish whether the server requires that query for this deployment.
 
+## Settled offline request correction
+
+Astra accepted the second stopped-attempt evidence at efbfd5d. Our design review
+agreed that complete Secret readback is not inherently necessary for functional
+verification, but the proposed behavioral replacement did not yet establish all
+required boundaries before writes. It has not been implemented. The current
+strict environment gate remains in place.
+
+Build safety, exact cloud/site destinations, backend selection, gateway authority
+and teacher-client configuration are distinct claims. A post-READY readback does
+not prevent earlier build-side effects. Requested empty credentials and absent
+hook metadata do not prove effective credential absence or no provider work.
+The generic closed 503 is not positive target evidence, and public routes exist
+independently of the page's backend flag. A later expected-preview JWT check
+cannot repair a signup already sent to a wrong destination. These limitations
+must be resolved explicitly before substituting behavioral proof for the gate.
+
+We chose the smaller compatibility correction for offline preparation. The
+publisher now builds the deployment-specific pull path with the fixed
+`source=vercel-cli:env:pull`, then its existing transport adds the exact team ID.
+It rejects project IDs, URL/query/path injection and other deployment selectors.
+No challenge recovery, retry, alternate target, Secret conversion or empty-value
+relaxation was added. Existing spent records and allocation are unchanged.
+
+The [offline helper check](./measurements/vercel-env-pull-request-check.json)
+executed installed CLI 62.1.0's path-construction function against a synthetic
+fetch and a no-op challenge wrapper. Its single intercepted fixture call matched
+the publisher's path; no real CLI recovery or network request ran. Publisher
+fixtures also assert exact host, deployment, source, team, method and private
+authentication before returning synthetic responses. HTTP 400 still fails before
+map validation, retains fixed diagnostics and the same accounting, and deletes
+only the owned fixture. Historical response bodies remain unavailable; this
+offline match neither identifies their cause nor predicts HTTP 200.
+
+No third creation, diagnostic provider request or hosted runtime is enabled by
+this correction. Another hosted request still needs a separately reviewed
+allocation, fresh genuine quota/live gates and exact-owned cleanup. Production
+export access will be checked separately on November 8 as scheduled.
+
 ## Offline diagnostics and prepared continuation
 
 Astra accepted the stopped-attempt evidence at 2e8a5c6 and blocked another attempt
@@ -275,7 +314,7 @@ deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
 
 Both tools are executable. Publication has the two stopped attempts recorded above;
 the Next runtime runner remains unexecuted against hosted services.
-The publisher has thirty-eight offline checks, including full orchestration fixtures
+The publisher has forty offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
 runner has forty-seven offline checks covering cumulative accounting, cookie

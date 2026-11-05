@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLimit,
   validateLiveIdentity, validateSource, validateBuildHooks, deploymentEnvironment, deploymentFlags,
   validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext,
-  safePublisherDiagnostic, validateEffectiveEnvironment } from '../scripts/prepare-hosted-next.mjs';
+  safePublisherDiagnostic, validateEffectiveEnvironment, deploymentEnvironmentPath } from '../scripts/prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
 import { historyText, originalPublication } from './fixtures/hosted-next-history.mjs';
 
@@ -37,6 +37,15 @@ test('flags never contain values and server capability stays out of build flags'
   assert.equal(env.CONVEX_DEPLOY_KEY, ''); assert.equal(env.BLOB_READ_WRITE_TOKEN, '');
   assert(!flags.includes(env.ATTENDANCE_GATEWAY_KEY));
   assert(!flags.some((value, index) => value === '--build-env' && flags[index + 1] === 'ATTENDANCE_GATEWAY_KEY'));
+});
+test('deployment environment path confines the pull to one deployment and the fixed first-party source', () => {
+  const url = new URL(deploymentEnvironmentPath('dpl_fixture'), 'https://api.vercel.com');
+  url.searchParams.set('teamId', EXPECTED.teamId);
+  assert.equal(url.pathname, '/v3/env/pull/dpl_fixture');
+  assert.deepEqual([...url.searchParams], [['source', 'vercel-cli:env:pull'], ['teamId', EXPECTED.teamId]]);
+  for (const value of [undefined, '', 'prj_other', 'https://outside.example', 'dpl_fixture?source=other',
+    'dpl_fixture/../../other', 'dpl_fixture#other', 'dpl_fixture\n'])
+    assert.throws(() => deploymentEnvironmentPath(value), /environment_deployment_id/);
 });
 test('source checks reject a changed head or untracked relevant files', () => {
   const sha = 'a'.repeat(40);
@@ -180,6 +189,9 @@ async function publicationScenario(options={}) {
         return deleted?json({},404):json(deployment());
       }
       if(url.pathname==='/v3/env/pull/dpl_fixture'){
+        assert.equal(url.origin,'https://api.vercel.com');assert.equal(method,'GET');
+        assert.deepEqual([...url.searchParams],[['source','vercel-cli:env:pull'],['teamId',EXPECTED.teamId]]);
+        assert.equal(init.headers.Authorization,'Bearer synthetic-api-token');
         if(options.environmentTransportFailure)throw Error(options.environmentTransportFailure);
         if(options.environmentStatus)return json({error:options.sentinel},options.environmentStatus);
         if(options.environmentRaw!==undefined)return new Response(options.environmentRaw,{status:200});
@@ -306,6 +318,7 @@ test('exact empty overrides remain required in both resolved maps; absence, reda
 for (const [scenario, category, options] of [
   ['transport', 'transport', { environmentTransportFailure: sentinel }],
   ['status', 'http_status', { environmentStatus: 403, sentinel }],
+  ['bad request', 'http_status', { environmentStatus: 400, sentinel }],
   ['invalid JSON', 'invalid_json', { environmentRaw: 'not-json:' + sentinel }],
   ['missing map', 'missing_or_malformed_maps', { environmentTransform: x => ({ env: x.env, [sentinel]: sentinel }) }],
   ['public mismatch', 'public_value_mismatch', { environmentTransform: x => {
@@ -325,7 +338,8 @@ for (const [scenario, category, options] of [
   const result = await publicationScenario(options), report = result.report;
   assert.equal(report.passed, false); assert.equal(report.failedPhase, 'effective environment');
   assert.equal(report.failure.category, category);
-  assert.equal(report.failure.httpStatus, scenario === 'transport' ? undefined : scenario === 'status' ? 403 : 200);
+  assert.equal(report.failure.httpStatus, options.environmentTransportFailure ? undefined : options.environmentStatus ?? 200);
+  if (options.environmentStatus) assert.equal(report.failure.environment, undefined);
   assert.deepEqual(report.counters, { controlRequests: 14, hostingRequests: 0, applicationCalls: 1 });
   assert.equal(report.creationRequests, 1); assert.equal(report.cleanup.deploymentDeleted, true);
   assert.equal(result.deleted, true);
