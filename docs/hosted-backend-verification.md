@@ -121,6 +121,10 @@ leave a passing saved snapshot even though memory and process exit showed failur
 The final persistence helper now rechecks cancellation and repairs both records
 in a synchronous turn. Five regression checks deliver real SIGINT/SIGTERM during
 each write and verify both files, process exit and private permissions, with an
-uncancelled passing control. Hosted execution remains unstarted; this last
-correction requires a focused Astra recheck. Actual team quota figures are still
-required before publication or execution.
+uncancelled passing control. Astra accepted this correction at f141397 after
+reproducing the original bug, running the five regressions and 32 additional
+offline simulations, including independent repair failures. Filesystem failures
+still propagate; storage that rejects writes cannot guarantee repaired records.
+The runner code is accepted for bounded rehearsal subject to the existing gates.
+Hosted execution remains unstarted. Actual team quota figures are still required
+before publication or execution; this is not production or cutover approval.

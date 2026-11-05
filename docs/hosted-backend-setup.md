@@ -54,8 +54,10 @@ publish, import or activate.
 The deployment usage response reported zero counters with seedStatus partial.
 These are provisional deployment diagnostics, not complete billing or team
 headroom. The team's remaining shared allowance is unknown. No daily limit is
-yet installed, and no paid plan or guarantee is implied. Root/Astra review is
-required before continuing beyond the verified setup state.
+yet installed, and no paid plan or guarantee is implied. Astra accepted the
+corrected setup/publication path at 146d769 and the rehearsal runner at f141397,
+conditional on a genuine, fresh, sufficient team-quota receipt. That receipt
+remains the prerequisite to continuation. No production approval was granted.
 
 For cleanup, Convex documents
 [POST /v1/deployments/{deployment_name}/delete](https://docs.convex.dev/management-api/delete-deployment)
