@@ -35,6 +35,47 @@ sequence. Successful Next ingress, cookies, trusted IP, browser refresh and
 natural expiry remain unverified. Blob access is scheduled for a separate retry
 on November 8; no support request or paid plan change has been made.
 
+## Offline diagnostic preparation and proposed continuation
+
+Astra accepted the stopped-attempt evidence at 2e8a5c6 and blocked another attempt
+under the spent single-creation allocation. The prepared diagnostic change makes
+no service requests. It classifies transport failure, non-allowed HTTP status,
+oversized response, invalid JSON, missing/malformed maps, public-value mismatch,
+credential-override mismatch and gateway mismatch. Numeric HTTP status is retained
+when available. Environment diagnostics contain only fixed runtime/build map-shape
+and expected-field type/presence categories, including missing versus empty
+strings. Arbitrary errors are unclassified. No arbitrary error text, response
+body/header, value, hash, length or discovered variable name is serialized.
+
+Strict environment rejection is unchanged: absent credentials do not satisfy the
+required exact empty overrides. Sixteen additional offline tests use synthetic
+private sentinels to check category/status reporting, missing/malformed maps,
+absent/inherited credentials, redaction, cleanup and accounting without leaking
+sentinels into public reports, console output or persisted fixture records. They
+cannot reconstruct the original discarded response. Its cause remains unknown.
+
+Root proposes one diagnostic continuation for separate review: at most **two
+Vercel creations in total**, including the deleted first preview, and **60
+Next-phase control requests**. The bounds retain the root preflight and actual
+first attempt: `1 + 16 + 20 + 19 = 56` controls for prior work, one new publisher
+and runtime/cleanup. Four remaining controls are margin, not an automatic retry
+allowance. All other allocations stay unchanged: 200 cumulative application
+calls, 40 Next calls including both publication queries, 700 write reservations
+with 100 retained for cleanup, 20 cumulative gateway requests and 100 hosting
+requests. No provider plan or spending limit changes.
+
+This proposal is not implemented or executable yet. The original exclusive
+manifest and evidence must remain immutable. A separate exclusive continuation
+record must validate the original failed/deleted attempt and retain its costs
+before any creation. A second publisher query raises the runtime's initial
+application total to **63**, its Next count to **2**, and its control seed to
+**17 plus the second publisher's actual controls**. Prior writes stay at 355,
+gateway requests at seven, and hosting requests include both attempts. The
+current runner's 62-call/one-publisher seed must not be used for a continuation.
+No extra diagnostic service calls or third creation are included. Code, ledger
+enforcement and this allocation need Astra review before any new hosted attempt,
+which also requires fresh genuine quota and live identity/closed-state checks.
+
 ## Private deployment inputs
 
 Installed Vercel CLI 62.1.0 parses `--env NAME` without a value, then resolves
@@ -108,7 +149,7 @@ Root proposed a cumulative ceiling of **700 conservative intentional-write
 reservations**, replacing the earlier engineering ceiling of 500, with ordinary
 work stopping at 600 and 100 retained for cleanup. This is a test allocation
 decision within the authorized migration. Astra accepted this allocation's
-arithmetic at af3abf8; runner enforcement still needs review. It changes no
+arithmetic at af3abf8; runner enforcement was accepted in subsequent rechecks. It changes no
 provider plan, spending limit, quota or daily 1,000-function disable threshold.
 No paid upgrade or paid overage is authorized.
 
@@ -167,7 +208,7 @@ deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
 
 Both tools are executable. Publication has the stopped attempt recorded above;
 the Next runtime runner remains unexecuted against hosted services.
-The publisher has sixteen offline checks, including full orchestration fixtures
+The publisher has thirty-two offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
 runner has thirty-four offline checks covering cumulative accounting, cookie

@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLimit,
   validateLiveIdentity, validateSource, validateBuildHooks, deploymentEnvironment, deploymentFlags,
-  validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext } from '../scripts/prepare-hosted-next.mjs';
+  validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext,
+  safePublisherDiagnostic, validateEffectiveEnvironment } from '../scripts/prepare-hosted-next.mjs';
 
 const name = 'fixture-preview-123';
 function fixture() {
@@ -161,11 +162,14 @@ async function publicationScenario(options={}) {
         return deleted?json({},404):json(deployment());
       }
       if(url.pathname==='/v3/env/pull/dpl_fixture'){
+        if(options.environmentTransportFailure)throw Error(options.environmentTransportFailure);
+        if(options.environmentStatus)return json({error:options.sentinel},options.environmentStatus);
+        if(options.environmentRaw!==undefined)return new Response(options.environmentRaw,{status:200});
         const actual={env:{...createdBody.env},buildEnv:{...createdBody.build.env}};
         if(options.blobEnvironment)actual.buildEnv.NEXT_PUBLIC_ATTENDANCE_BACKEND='blob';
         if(options.inheritedCredential)actual.env.CONVEX_DEPLOY_KEY='synthetic-inherited';
         if(options.redactedGateway)actual.env.ATTENDANCE_GATEWAY_KEY='[REDACTED]';
-        return json(actual);
+        return json(options.environmentTransform?options.environmentTransform(actual):actual);
       }
       if(url.pathname==='/aliases/dpl_fixture/protection-bypass')return json('synthetic-scoped-token');
       if(url.host==='fixture.vercel.app')return new Response(null,{status:init.headers?.['x-vercel-protection-bypass']?200:401});
@@ -217,4 +221,96 @@ test('evidence storage failure enters cleanup and existing exclusive attempts ar
   assert.equal(failed.report.passed,false);assert.equal(failed.deleted,true);assert.equal(failed.report.persistenceFailed,true);
   const exists=await publicationScenario({existingAttempt:true});
   assert.equal(exists.report.passed,false);assert.equal(exists.calls.length,0);assert.equal(exists.writes.size,0);
+});
+
+const sentinel = 'SYNTHETIC_PRIVATE_SENTINEL_DO_NOT_SERIALIZE';
+for (const [category, expectedStatus, response] of [
+  ['transport', undefined, () => { throw Object.assign(Error(sentinel), { cause: { secret: sentinel } }); }],
+  ['http_status', 403, () => new Response(JSON.stringify({ error: sentinel }), { status: 403 })],
+  ['invalid_json', 200, () => new Response('invalid:' + sentinel, { status: 200 })],
+  ['oversized_response', 200, () => new Response(sentinel + 'x'.repeat(1024 * 1024), { status: 200 })],
+]) test(`provider ${category} diagnostics retain only its fixed category and numeric status`, async () => {
+  let attempts = 0, failure;
+  try { await providerJson('https://api.vercel.com/fixture', { fetchImpl: async () => {
+    attempts++; return response();
+  } }); } catch (error) { failure = error; }
+  assert(failure); assert.equal(attempts, 1);
+  const diagnostic = safePublisherDiagnostic(failure);
+  assert.deepEqual(diagnostic, { category, ...(expectedStatus ? { httpStatus: expectedStatus } : {}) });
+  assert(!JSON.stringify({ diagnostic, error: String(failure) }).includes(sentinel));
+});
+
+test('unclassified errors cannot forge a diagnostic or expose arbitrary messages and properties', () => {
+  const error = Object.assign(Error(sentinel), { category: sentinel, httpStatus: 403,
+    diagnostic: { category: sentinel }, headers: { secret: sentinel } });
+  assert.deepEqual(safePublisherDiagnostic(error), { category: 'unclassified' });
+  assert.deepEqual(safePublisherDiagnostic(sentinel), { category: 'unclassified' });
+});
+
+function effectiveFixture() {
+  const body = deploymentBody(fixture(), 'a'.repeat(40), 'synthetic-run');
+  return { env: body.env, buildEnv: body.build.env };
+}
+test('environment diagnostics distinguish missing, null, array and other maps without serializing contents', () => {
+  for (const [value, shape] of [[undefined, 'missing'], [null, 'null'], [[], 'array'], [sentinel, 'other']]) {
+    const records = effectiveFixture(); records.buildEnv = value;
+    let failure;
+    try { validateEffectiveEnvironment(records, fixture(), { httpStatus: 200 }); } catch (error) { failure = error; }
+    const diagnostic = safePublisherDiagnostic(failure);
+    assert.equal(diagnostic.category, 'missing_or_malformed_maps'); assert.equal(diagnostic.httpStatus, 200);
+    assert.deepEqual(diagnostic.environment.build, { shape });
+    assert.equal(diagnostic.environment.runtime.fields.gatewayKey, 'string');
+    assert(!JSON.stringify(diagnostic).includes(sentinel));
+  }
+});
+
+test('exact empty overrides remain required in both resolved maps; absence, redaction and inherited values reject', () => {
+  assert.deepEqual(validateEffectiveEnvironment(effectiveFixture(), fixture()),
+    { build: true, runtime: true, credentialOverrides: true });
+  for (const map of ['env', 'buildEnv']) for (const key of ['CONVEX_DEPLOY_KEY', 'BLOB_READ_WRITE_TOKEN'])
+    for (const state of ['absent', 'nonempty', 'nonstring']) {
+      const records = effectiveFixture(); records[map][sentinel] = sentinel;
+      if (state === 'absent') delete records[map][key];
+      else records[map][key] = state === 'nonempty' ? sentinel : null;
+      let failure;
+      try { validateEffectiveEnvironment(records, fixture()); } catch (error) { failure = error; }
+      const diagnostic = safePublisherDiagnostic(failure);
+      assert.equal(diagnostic.category, 'credential_override_mismatch');
+      const alias = key === 'CONVEX_DEPLOY_KEY' ? 'deployCredential' : 'blobCredential';
+      assert.equal(diagnostic.environment[map === 'env' ? 'runtime' : 'build'].fields[alias],
+        state === 'absent' ? 'missing' : state === 'nonempty' ? 'string' : 'non_string');
+      assert(!JSON.stringify(diagnostic).includes(sentinel));
+    }
+});
+
+for (const [scenario, category, options] of [
+  ['transport', 'transport', { environmentTransportFailure: sentinel }],
+  ['status', 'http_status', { environmentStatus: 403, sentinel }],
+  ['invalid JSON', 'invalid_json', { environmentRaw: 'not-json:' + sentinel }],
+  ['missing map', 'missing_or_malformed_maps', { environmentTransform: x => ({ env: x.env, [sentinel]: sentinel }) }],
+  ['public mismatch', 'public_value_mismatch', { environmentTransform: x => {
+    x.buildEnv.NEXT_PUBLIC_ATTENDANCE_BACKEND = sentinel; return x;
+  } }],
+  ['absent credential', 'credential_override_mismatch', { environmentTransform: x => {
+    delete x.env.CONVEX_DEPLOY_KEY; return x;
+  } }],
+  ['inherited credential', 'credential_override_mismatch', { environmentTransform: x => {
+    x.env.CONVEX_DEPLOY_KEY = sentinel; return x;
+  } }],
+  ['redacted gateway', 'gateway_mismatch', { redactedGateway: true }],
+  ['build gateway mismatch', 'gateway_mismatch', { environmentTransform: x => {
+    x.buildEnv.ATTENDANCE_GATEWAY_KEY = sentinel; return x;
+  } }],
+]) test(`orchestration records safe ${scenario} diagnostics, preserves accounting and deletes its exact fixture`, async () => {
+  const result = await publicationScenario(options), report = result.report;
+  assert.equal(report.passed, false); assert.equal(report.failedPhase, 'effective environment');
+  assert.equal(report.failure.category, category);
+  assert.equal(report.failure.httpStatus, scenario === 'transport' ? undefined : scenario === 'status' ? 403 : 200);
+  assert.deepEqual(report.counters, { controlRequests: 14, hostingRequests: 0, applicationCalls: 1 });
+  assert.equal(report.creationRequests, 1); assert.equal(report.cleanup.deploymentDeleted, true);
+  assert.equal(result.deleted, true);
+  assert.equal(result.calls.filter(x => x.path === '/v3/env/pull/dpl_fixture').length, 1);
+  assert.equal(result.calls.filter(x => x.method === 'DELETE').length, 1);
+  assert(result.calls.filter(x => x.method === 'DELETE').every(x => x.path === '/v13/deployments/dpl_fixture'));
+  assert(!JSON.stringify({ report, writes: [...result.writes], logs: result.logs }).includes(sentinel));
 });

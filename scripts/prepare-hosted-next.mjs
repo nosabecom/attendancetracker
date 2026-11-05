@@ -16,6 +16,32 @@ export const EXPECTED = Object.freeze({
   fingerprint: 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba',
 });
 const assert = (condition, code) => { if (!condition) throw Error(code); };
+// Only this module can attach diagnostics. Arbitrary provider errors, messages,
+// response values and discovered variable names never enter a report.
+const diagnostics = new WeakMap();
+function diagnosticError(code, category, httpStatus, environment) {
+  const error = new Error(code);
+  diagnostics.set(error, { category,
+    ...(Number.isInteger(httpStatus) && httpStatus >= 200 && httpStatus <= 599 ? { httpStatus } : {}),
+    ...(environment ? { environment } : {}) });
+  return error;
+}
+export function safePublisherDiagnostic(error) {
+  return structuredClone(diagnostics.get(error) ?? { category: 'unclassified' });
+}
+function environmentShape(records) {
+  const fields = [['backend', 'NEXT_PUBLIC_ATTENDANCE_BACKEND'], ['cloudUrl', 'NEXT_PUBLIC_CONVEX_URL'],
+    ['siteUrl', 'NEXT_PUBLIC_CONVEX_SITE_URL'], ['deployCredential', 'CONVEX_DEPLOY_KEY'],
+    ['blobCredential', 'BLOB_READ_WRITE_TOKEN'], ['gatewayKey', 'ATTENDANCE_GATEWAY_KEY'],
+    ['gatewayAudience', 'ATTENDANCE_GATEWAY_AUDIENCE']];
+  const shape = value => value === undefined ? 'missing' : value === null ? 'null' :
+    Array.isArray(value) ? 'array' : typeof value === 'object' ? 'object' : 'other';
+  const describe = value => ({ shape: shape(value),
+    ...(shape(value) === 'object' ? { fields: Object.fromEntries(fields.map(([label, key]) => [label,
+      !Object.hasOwn(value, key) ? 'missing' : typeof value[key] !== 'string' ? 'non_string' :
+        value[key] === '' ? 'empty_string' : 'string'])) } : {}) });
+  return { runtime: describe(records?.env), build: describe(records?.buildEnv) };
+}
 const sourcePaths = ['app', 'convex', 'lib', 'patches', 'scripts', 'package.json',
   'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'vercel.json',
   'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'tsconfig.json'];
@@ -124,22 +150,29 @@ export async function providerJson(url, { method = 'GET', headers = {}, body, ti
   const target = new URL(url);
   assert(target.protocol === 'https:' && !target.username && !target.password && !target.hash,
     'provider_url');
-  const response = await fetchImpl(target.href, { method, redirect: 'error',
-    signal: AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs))),
-    headers: { ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  let response;
+  try { response = await fetchImpl(target.href, { method, redirect: 'error',
+      signal: AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs))),
+      headers: { ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
+  catch { throw diagnosticError('provider_transport', 'transport'); }
   const reader = response.body?.getReader(), chunks = [];
   let bytes = 0;
   if (reader) try {
     for (;;) {
       const next = await reader.read(); if (next.done) break;
-      bytes += next.value.byteLength; assert(bytes <= 1024 * 1024, 'provider_response_size');
+      bytes += next.value.byteLength;
+      if (bytes > 1024 * 1024) throw diagnosticError('provider_response_size', 'oversized_response', response.status);
       chunks.push(Buffer.from(next.value));
     }
+  } catch (error) {
+    if (diagnostics.has(error)) throw error;
+    throw diagnosticError('provider_transport', 'transport', response.status);
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-  assert(allowedStatuses.includes(response.status), 'provider_status');
+  if (!allowedStatuses.includes(response.status)) throw diagnosticError('provider_status', 'http_status', response.status);
   const text = Buffer.concat(chunks).toString('utf8');
-  return { status: response.status, body: text.length ? JSON.parse(text) : null };
+  try { return { status: response.status, body: text.length ? JSON.parse(text) : null }; }
+  catch { throw diagnosticError('provider_json', 'invalid_json', response.status); }
 }
 export function validateVercelDeployment(data, expected, { requireReady = true } = {}) {
   const owners = [data?.ownerId, data?.teamId, data?.team?.id].filter(value => value !== undefined);
@@ -195,18 +228,21 @@ export function deploymentBody(backendManifest, sourceCommit, runId) {
     meta: { attendanceValidation: runId, attendanceSourceCommit: sourceCommit } };
 }
 
-export function validateEffectiveEnvironment(records, backendManifest) {
+export function validateEffectiveEnvironment(records, backendManifest, { httpStatus } = {}) {
   const expected = deploymentEnvironment(backendManifest);
   const runtime = records?.env, build = records?.buildEnv;
-  assert(runtime && build && typeof runtime === 'object' && typeof build === 'object' &&
-    !Array.isArray(runtime) && !Array.isArray(build), 'effective_environment_unavailable');
+  const verify = (condition, code, category) => {
+    if (!condition) throw diagnosticError(code, category, httpStatus, environmentShape(records));
+  };
+  verify(runtime && build && typeof runtime === 'object' && typeof build === 'object' &&
+    !Array.isArray(runtime) && !Array.isArray(build), 'effective_environment_unavailable', 'missing_or_malformed_maps');
   for (const key of ['NEXT_PUBLIC_ATTENDANCE_BACKEND', 'NEXT_PUBLIC_CONVEX_URL', 'NEXT_PUBLIC_CONVEX_SITE_URL'])
-    assert(runtime[key] === expected[key] && build[key] === expected[key], 'effective_public_environment');
+    verify(runtime[key] === expected[key] && build[key] === expected[key], 'effective_public_environment', 'public_value_mismatch');
   for (const key of ['CONVEX_DEPLOY_KEY', 'BLOB_READ_WRITE_TOKEN'])
-    assert(runtime[key] === '' && build[key] === '', 'effective_credential_override');
+    verify(runtime[key] === '' && build[key] === '', 'effective_credential_override', 'credential_override_mismatch');
   for (const key of ['ATTENDANCE_GATEWAY_KEY', 'ATTENDANCE_GATEWAY_AUDIENCE']) {
-    assert(runtime[key] === expected[key], 'effective_gateway_environment');
-    assert(build[key] === undefined || build[key] === expected[key], 'effective_build_gateway_environment');
+    verify(runtime[key] === expected[key], 'effective_gateway_environment', 'gateway_mismatch');
+    verify(build[key] === undefined || build[key] === expected[key], 'effective_build_gateway_environment', 'gateway_mismatch');
   }
   return { build: true, runtime: true, credentialOverrides: true };
 }
@@ -361,8 +397,9 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     phase = 'effective environment';
     // Same deployment-specific endpoint as the installed CLI. No decrypt flag,
     // challenge recovery or protected-Secret bypass. Unknown/redacted maps fail.
-    manifest.environmentVerified = validateEffectiveEnvironment(
-      (await vercel(`/v3/env/pull/${created.id}`)).body, backendManifest);
+    const effectiveEnvironment = await vercel(`/v3/env/pull/${created.id}`);
+    manifest.environmentVerified = validateEffectiveEnvironment(effectiveEnvironment.body,
+      backendManifest, { httpStatus: effectiveEnvironment.status });
     report.environmentVerified = { ...manifest.environmentVerified }; save();
     const probe = async headers => {
       remaining(); assert(report.counters.hostingRequests < 2, 'hosting_budget');
@@ -386,9 +423,11 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     report.passed = true; report.uniqueUrl = manifest.vercel.url; report.deploymentId = created.id;
     report.finishedAt = new Date(clock()).toISOString(); report.elapsedMs = clock() - started;
     persist(evidencePath, JSON.stringify(report, null, 2) + '\n', { privateFile: false });
-  } catch {
+  } catch (error) {
     report.failedPhase = phase; report.passed = false; failProcess();
-    if (manifest) { manifest.publication = 'stopped'; manifest.failedPhase = phase; save(true); }
+    report.failure = safePublisherDiagnostic(error);
+    if (manifest) { manifest.publication = 'stopped'; manifest.failedPhase = phase;
+      manifest.failure = report.failure; save(true); }
   } finally {
     cleaning = true;
     if (manifest && !report.passed && manifest.vercel.deploymentId) {
@@ -408,7 +447,8 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     process.removeListener('SIGINT', cancelledSignal); process.removeListener('SIGTERM', cancelledSignal);
   }
   output(JSON.stringify({ passed: report.passed, failedPhase: report.failedPhase, counters: report.counters,
-    deploymentId: report.deploymentId, persistenceFailed: report.persistenceFailed, cleanup: report.cleanup }));
+    deploymentId: report.deploymentId, failure: report.failure,
+    persistenceFailed: report.persistenceFailed, cleanup: report.cleanup }));
   return report;
 }
 
