@@ -1,9 +1,39 @@
-# Bounded hosted Next validation — preparation only
+# Bounded hosted Next validation — publication stopped at configuration gate
 
-The backend-only rehearsal passed and Astra accepted its evidence at ce861715. This next
-phase has not deployed or executed. Production remains on Blob and the disposable
-Convex preview remains closed. The existing local browser runner's loopback guards
-must remain intact.
+The backend-only rehearsal passed and Astra accepted its evidence at ce861715.
+Astra accepted the corrected Next rehearsal code at aa2b25d. One hosted publication
+attempt then built a disposable Vercel preview but stopped at the effective
+environment gate. Ownership-checked cleanup deleted that deployment and confirmed
+404. No Next browser workload ran; the Convex preview was never opened. Production
+remains on Blob. The existing local browser runner's loopback guards remain intact.
+
+## Recorded publication attempt
+
+The [safe evidence](./measurements/hosted-next-preview-setup.json) records the
+November 5 attempt against aa2b25d: one creation request, sixteen explicit control
+requests including cleanup, one closed-availability query, and zero hosting
+probes. The preview reached READY. The production target, alias bindings and
+checked project settings matched their pre-creation values.
+
+The effective-environment phase did not pass. The artifact records the phase,
+but not the failing status or validation category; it cannot distinguish a
+provider error from missing maps or a value mismatch. Do not claim the provider
+ignores the requested environment, or that its API is unsupported. No protected
+Secret bypass, protection capability, signup or student request followed this
+failure. Cleanup's `capabilityRevoked: true` means no capability had been issued.
+
+The private exclusive manifest remains preserved. Do not rerun or overwrite it.
+The Next phase has consumed seventeen control requests including the earlier
+root preflight. Cumulative application accounting is now sixty-two calls, with
+the backend rehearsal's 355 write reservations and seven gateway requests
+unchanged. Any separately reviewed continuation must retain those costs and
+explicitly revise the single-publication/control allocation before creating
+another preview; it must not silently reset the original attempt.
+
+The remaining sections retain the reviewed design and its historical review
+sequence. Successful Next ingress, cookies, trusted IP, browser refresh and
+natural expiry remain unverified. Blob access is scheduled for a separate retry
+on November 8; no support request or paid plan change has been made.
 
 ## Private deployment inputs
 
@@ -135,7 +165,8 @@ deletion. Any uncertain closure, revocation or deletion remains an explicit gap.
 
 ## Implementation and offline evidence
 
-Both tools are executable but remain unexecuted against hosted services.
+Both tools are executable. Publication has the stopped attempt recorded above;
+the Next runtime runner remains unexecuted against hosted services.
 The publisher has sixteen offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
@@ -147,8 +178,8 @@ real provider acceptance, browser cookies or trusted-header behavior.
 The first publisher review blocked on four issues now corrected in source:
 environment acceptance, storage-independent reserved cleanup, alias binding
 evidence and immediate returned-ID retention. A combined pre-execution review
-of these corrections and the complete runner remains required. No Vercel
-deployment, shareable capability or new Next workload has been created.
+of these corrections and the complete runner was required. At that point no
+Vercel deployment, shareable capability or new Next workload had been created.
 
 The combined recheck accepted those publisher corrections but found browser
 lifecycle defects in the runner: an unbounded launch/evaluation, Playwright's
@@ -174,5 +205,7 @@ is aborted or cleanup has begun; no asynchronous operation separates that guard
 from dispatch. Four additional offline checks cover cancellation after headers,
 teardown during a header read, and queued sends during both signal-triggered and
 fatal-observation cleanup. The teardown and both caller-boundary regressions
-failed against the previous implementation. Hosted publication and rehearsal
-remain unexecuted pending another pre-execution review and fresh live/quota gates.
+failed against the previous implementation. The next scoped review accepted the
+correction: fifty targeted tests and 118 additional offline timing cases passed.
+It granted code readiness subject to live/quota gates; it did not establish
+provider behavior. The subsequent publication outcome is recorded above.
