@@ -61,8 +61,8 @@ subsequent genuine quota receipt satisfied that gate. The continuation used
 seven additional explicit setup requests, for sixteen cumulatively, without
 another claim. CLI publication requests remain unknown and separately bounded
 by its timeout. No paid plan or free-cost guarantee is implied. Astra accepted
-the corrected setup/publication path at 146d769 and the rehearsal runner at
-f141397; review of the actual hosted evidence remains pending. No production
+the corrected setup/publication path at 146d769, the rehearsal runner at
+f141397 and the actual hosted evidence at ce861715. No production
 approval was granted. See [hosted-backend-verification.md](./hosted-backend-verification.md).
 
 For cleanup, Convex documents

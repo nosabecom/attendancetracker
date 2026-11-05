@@ -1,6 +1,6 @@
 # Bounded hosted Next validation — preparation only
 
-The backend-only rehearsal passed; Astra's evidence review is pending. This next
+The backend-only rehearsal passed and Astra accepted its evidence at ce861715. This next
 phase has not deployed or executed. Production remains on Blob and the disposable
 Convex preview remains closed. The existing local browser runner's loopback guards
 must remain intact.
@@ -14,20 +14,25 @@ installed parser/resolver expressions with synthetic values: values stay out of
 flags and resolver logs, explicit empty overrides stay empty, and missing values
 fail. This is narrower than a full CLI or server-side precedence test.
 
-The proposed publisher uses a minimal child environment and name-only flags.
-Only public backend selection/URLs enter build variables. The server gateway
-key/audience enter runtime variables. Deployment-specific empty overrides for
-CONVEX_DEPLOY_KEY and Blob credentials prevent the application build from using
-inherited backend/store credentials. No protected Secret is pulled. Disable
-debug/telemetry, keep output private, and confirm effective settings; stop if a
-provider integration action can independently publish a backend.
+The implemented publisher uses a single direct, non-retrying Vercel creation API
+request. Private deployment-only env/build.env mappings remain in memory; no key
+is placed in arguments, logs, source or upload files. Those mappings match the
+installed Vercel CLI 62.1.0 request implementation. The public OpenAPI schema does
+not enumerate them; server acceptance/precedence remains an execution gate, not
+an offline proof. Only public backend selection/URLs enter build variables; the
+gateway key/audience enter runtime variables. Empty overrides for CONVEX_DEPLOY_KEY
+and Blob credentials remove the known inherited build credential paths. No
+protected Secret is pulled, and no projectSettings are sent: those can persist
+for later deployments. Unknown provider-side actions remain outside this evidence.
 
-Package only tracked reviewed source into an owned temporary upload directory;
-do not copy private directories, local env files, node_modules, credentials or
-backups. This is deployment packaging, not a new Git checkout. Bind the existing
-Vercel project/team explicitly and request Preview. Persist an exclusive creation
-record before submission; uncertain creation must never be retried automatically.
-Record the returned deployment ID and unique URL before any readiness wait.
+The request selects the existing linked GitHub repo and exact reviewed SHA,
+avoiding local uploads of private directories, env files or backups. As the
+installed CLI does, omit target to select the documented Preview default, after
+proving this project already has its production deployment. Persist an exclusive
+creation record before submission; uncertain creation is never retried. Record
+the returned deployment ID and unique URL before any readiness wait. Require live
+owner/project/target/generated Git SHA/tag binding and unchanged production alias
+and project settings. A lost response without a proven ID remains unresolved.
 
 The read-only project preflight confirmed the expected team/project, Next.js,
 unchanged SSO protection, and no project-level build/install override or returned
@@ -71,9 +76,10 @@ The overall application ceiling stays 200 calls and 20 student-gateway requests.
 The next phase adds at most 40 application calls, 13 student requests, 100 hosting
 requests and one Vercel Preview deployment. Allow at most 40 explicit Next-phase
 control requests, including the one project preflight already performed: at most
-20 for publication and 19 for runtime/cleanup. CLI upload/deployment internals
-have separately unknown request counts, a ten-minute deadline, and no automatic
-creation retry. Use a three-minute workload deadline with ordinary work stopping
+20 for publication and 19 for runtime/cleanup. The publisher's closed availability
+query adds one application call (and seeds cumulative calls at 62); it is not
+silently included only as metadata. Direct publication has one counted creation
+request, no CLI-internal retries and a ten-minute deadline. Use a three-minute workload deadline with ordinary work stopping
 at 130 seconds and 50 seconds reserved for closure and cleanup.
 
 ## Minimal scenario and failure behavior

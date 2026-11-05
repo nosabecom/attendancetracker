@@ -3,7 +3,7 @@
 The first bounded hosted backend rehearsal passed on 2026-11-05 UTC against the
 owned disposable preview, using source b06caab. Setup and runner code had received
 Astra approval, and Nosa's real team-usage screenshot satisfied the quota gate.
-Actual hosted evidence still requires adversarial review. Production remains on
+Actual hosted evidence was accepted by Astra at ce861715. Production remains on
 Blob. This is backend evidence; the Next/Vercel gateway has not been tested here.
 
 The run settled all 61 application calls: 51 SDK calls, 8 public HTTP requests and
@@ -148,4 +148,6 @@ offline simulations, including independent repair failures. Filesystem failures
 still propagate; storage that rejects writes cannot guarantee repaired records.
 The runner code was accepted for bounded rehearsal subject to the existing gates.
 The genuine receipt and setup gates were satisfied before the recorded run.
-Review of this hosted evidence is pending; this is not production or cutover approval.
+Astra's review accepted the actual backend milestone at ce861715 with no blocking
+finding, including accounting, quota interpretation and shutdown evidence. This
+is not production or cutover approval; the remaining hosted Next work is separate.
