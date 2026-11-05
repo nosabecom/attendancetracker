@@ -284,7 +284,8 @@ test('browser allowlist admits only exact student requests and planned duplicate
 
 // An in-memory Playwright surface exercises the actual harness. It starts no
 // browser/server and all route responses are synthetic bounded byte buffers.
-function browserFixture({ leakHttpOnly = false, failContext = false, failClose = false, hangEvaluation = false } = {}) {
+function browserFixture({ leakHttpOnly = false, failContext = false, failClose = false, hangEvaluation = false,
+  readHeaders } = {}) {
   const origin = 'https://fixture.vercel.app', legacyId = 'a'.repeat(32);
   const contexts = [], sends = [], fatals = [], fulfilled = [];
   const observation = { blockedTeacherSockets: 0, stubbedTelemetry: 0 };
@@ -310,7 +311,8 @@ function browserFixture({ leakHttpOnly = false, failContext = false, failClose =
           let result, aborted = false;
           await this.httpRoute({
             request: () => ({ url: () => url, method: () => method, postData: () => body,
-              redirectedFrom: () => redirected ? {} : null, allHeaders: async () => headers }),
+              redirectedFrom: () => redirected ? {} : null,
+              allHeaders: async () => readHeaders ? readHeaders({ method, headers }) : headers }),
             fulfill: async value => { result = value; fulfilled.push(value); },
             abort: async () => { aborted = true; },
           });
@@ -622,4 +624,76 @@ test('runner owns SIGHUP too when Playwright signal handling is disabled', async
   assert.equal(report.cancelled,true);assert.equal(report.cleanup.availabilityClosed,true);
   assert.equal(report.cleanup.vercelDeleted,true);assert.equal(report.passed,false);
   assert.equal(process.listenerCount('SIGHUP'),before);
+});
+
+for (const stop of ['signal', 'fatal']) {
+  test(`browser send boundary rejects queued check-in during ${stop} cleanup`, async () => {
+    const run = offlineRun();
+    let queued = 0, rejected = 0;
+    run.dependencies.createBrowser = async config => ({
+      cookiesVerified: true,
+      firstCheckin: () => new Promise(() => {
+        queueMicrotask(() => {
+          run.events.push('stop');
+          if (stop === 'signal') process.emit('SIGTERM');
+          else config.fatal('fixture_fatal');
+        });
+      }),
+      close: async () => {
+        // A route already waiting for headers resumes while cleanup owns the
+        // shared transport. It must retain its ordinary-work restrictions.
+        queued++;
+        await assert.rejects(config.send({ url: config.origin + '/api/convex/public', method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'checkin', id: config.legacyId, identity: 'NXT01' }),
+        }, { category: 'api', key: 'checkin', ordinal: 1, gateway: true, writes: 48 }), /browser_stopped/);
+        rejected++;
+        run.events.push('browser-close');
+      },
+    });
+    const report = await run.run();
+    assert.equal(queued, 1); assert.equal(rejected, 1);
+    assert.equal(run.state.checkins, 0);
+    assert.equal(report.browser.checkinRequests, 0);
+    assert.equal(report.passed, false); assert.equal(report.cancelled, stop === 'signal');
+    assert.equal(report.cleanup.browserClosed, true);
+    assert.equal(report.cleanup.availabilityClosed, true);
+    assert.equal(report.cleanup.logoutConfirmed, true);
+    assert.equal(report.cleanup.vercelDeleted, true);
+    assert(run.events.indexOf('stop') < run.events.indexOf('browser-close'));
+    assert(run.events.indexOf('browser-close') < run.events.indexOf('close'));
+  });
+}
+
+test('browser route rechecks cancellation after its header read settles', async () => {
+  const abort = new AbortController();
+  const fixture = browserFixture({ readHeaders: ({ method, headers }) => {
+    if (method === 'POST') {
+      // Let the header operation settle, then stop before its caller dispatches.
+      const result = Promise.resolve(headers);
+      result.then(() => queueMicrotask(() => queueMicrotask(() => abort.abort())));
+      return result;
+    }
+    return headers;
+  } });
+  fixture.config.signal = abort.signal;
+  const browser = await createBrowserHarness(fixture.config);
+  await assert.rejects(browser.firstCheckin(), /browser_cancelled|browser_stopped/);
+  await new Promise(done => setImmediate(done));
+  assert.equal(fixture.sends.filter(x => x.admission.key === 'checkin').length, 0);
+  await browser.close();
+  assert.equal(fixture.observation.closeConfirmed, true);
+});
+
+test('browser route cannot send when teardown completes during its header read', async () => {
+  let browser;
+  const fixture = browserFixture({ readHeaders: async ({ method, headers }) => {
+    if (method === 'POST') await browser.close();
+    return headers;
+  } });
+  browser = await createBrowserHarness(fixture.config);
+  await assert.rejects(browser.firstCheckin(), /browser_stopped|browser request aborted/);
+  assert.equal(fixture.sends.filter(x => x.admission.key === 'checkin').length, 0);
+  assert.equal(fixture.observation.closeConfirmed, true);
+  assert.equal(fixture.lifecycle.closeCalls, 1);
 });

@@ -392,15 +392,19 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
     }));
     await step(() => value.route('**/*', route => {
       const task = (async () => {
-        if (stopped) return route.abort();
+        if (stopped || signal?.aborted) return route.abort();
         const req = route.request();
         try {
           check(!req.redirectedFrom(), 'browser_redirect');
           const request = { url: req.url(), method: req.method(), body: req.postData(), headers: await step(() => req.allHeaders()) };
           const admitted = policy(request);
+          // Reading headers yields. A queued route must not dispatch once
+          // teardown or cancellation has begun, even if headers just settled.
+          check(!stopped && !signal?.aborted, 'browser_stopped');
           if (admitted.stub) { observation.stubbedTelemetry++; return route.fulfill({ status: 200,
             contentType: 'application/javascript', body: '' }); }
           const result = await send(request, admitted);
+          check(!stopped && !signal?.aborted, 'browser_stopped');
           check(result.status < 300 || result.status >= 400, 'browser_redirect');
           const headers = Object.fromEntries(result.headers);
           delete headers['content-length']; delete headers['content-encoding']; delete headers['transfer-encoding'];
@@ -709,6 +713,9 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
         if (cleaning) owner.close().catch(() => { report.browser.closeUncertain = true; });
       },
       timeout: remaining, fatal, observation: report.browser, send: async (request, admission) => {
+        // Browser traffic always belongs to ordinary work. The shared transport
+        // entering cleanup must never grant a queued route a new deadline.
+        check(!cleaning && !ordinaryAbort.signal.aborted, 'browser_stopped');
         const url = new URL(request.url);
         const response = await hosting(url.pathname + url.search, { method: request.method, body: request.body,
           headers: request.headers, application: admission.category === 'api',

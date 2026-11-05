@@ -139,7 +139,7 @@ Both tools are executable but remain unexecuted against hosted services.
 The publisher has sixteen offline checks, including full orchestration fixtures
 for wrong effective environments, inherited credentials, redaction, persistent
 ENOSPC after creation, alias drift and a returned ID with a malformed URL. The
-runner has thirty offline checks covering cumulative accounting, cookie
+runner has thirty-four offline checks covering cumulative accounting, cookie
 attributes, browser isolation, request policy, ephemeral counter comparison,
 cancellation, deadlines and prioritized cleanup. These fixtures do not establish
 real provider acceptance, browser cookies or trusted-header behavior.
@@ -164,5 +164,15 @@ initialization. Late launch handles are closed too. A close promise is shared
 between failure and final cleanup, bounded independently to 2.5 seconds, and
 failed/unconfirmed closure remains uncertain. Caller cleanup allows at most three
 seconds before proceeding to the priority backend closure. Eight new regressions
-cover these paths without starting a real browser or service. These corrections
-require another pre-execution review.
+cover these paths without starting a real browser or service.
+
+The focused recheck accepted those lifecycle corrections and identified a queued
+route that could resume after cancellation while the shared transport had entered
+cleanup. Routes now recheck cancellation/teardown after reading headers and after
+the response. The caller independently rejects browser sends once ordinary work
+is aborted or cleanup has begun; no asynchronous operation separates that guard
+from dispatch. Four additional offline checks cover cancellation after headers,
+teardown during a header read, and queued sends during both signal-triggered and
+fatal-observation cleanup. The teardown and both caller-boundary regressions
+failed against the previous implementation. Hosted publication and rehearsal
+remain unexecuted pending another pre-execution review and fresh live/quota gates.
