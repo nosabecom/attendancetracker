@@ -38,11 +38,13 @@ The integration created a protected production `CONVEX_DEPLOY_KEY` in Vercel.
 Vercel refuses to pull that Secret into local commands. A preview deploy key was
 supplied through the private credential card; its project scope and management
 access were verified. One disposable preview was created and its identity and
-canonical URL independently checked. No functions, application fixtures or
-configuration have been published there. Publication and runtime rehearsal remain
-gated on actual team quota review and adversarial approval of the corrected
-setup and runner. The application still uses Blob. Free installation does not
-authorize a paid upgrade.
+canonical URL independently checked. After actual team quota review and Astra
+approval of the tooling, its limit, independent signing/gateway configuration and
+functions were published. The bounded hosted backend rehearsal passed; clients
+were closed and domain reads/writes disabled afterward. Actual evidence awaits
+Astra review, and hosted Next ingress, cookies/IP and remaining expiry/browser
+gates are outstanding. The application still uses Blob. Free installation does
+not authorize a paid upgrade.
 
 ## Evidence before freezing writers
 

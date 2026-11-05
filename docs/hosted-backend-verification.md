@@ -1,12 +1,32 @@
-# Hosted backend verification — not yet run
+# Hosted backend verification
 
-The runner is implemented, syntax/offline checks pass, and adversarial review is
-still required. No hosted application workloads have run. The current preview
-has not yet had its environment configured or functions published. Source setup
-and publication remain separate reviewed gates.
+The first bounded hosted backend rehearsal passed on 2026-11-05 UTC against the
+owned disposable preview, using source b06caab. Setup and runner code had received
+Astra approval, and Nosa's real team-usage screenshot satisfied the quota gate.
+Actual hosted evidence still requires adversarial review. Production remains on
+Blob. This is backend evidence; the Next/Vercel gateway has not been tested here.
 
-The completed script replaces the earlier non-executable scaffold. Run only
-after the exact preview setup succeeds and both setup and runner receive review:
+The run settled all 61 application calls: 51 SDK calls, 8 public HTTP requests and
+2 subscription registrations. There were 59 physical application HTTP attempts,
+7 student-gateway requests and 5 separate control reads. All 24 named assertions
+passed in 15,059 ms, with no reconnect attempts. Conservative intentional-write
+reservations were 355; that is not an observed write or billing count. Import
+accounting used 25 calls and 24 reserved writes for the empty synthetic dataset.
+
+Both sockets were closed, both synthetic actors logged out, and availability
+closure was acknowledged and independently confirmed. Synthetic rows and possible
+auth jobs remain in the closed preview until reviewed deletion or another
+separately bounded validation step. Do not rerun this one-attempt runner.
+
+The final deployment usage snapshot reported seedStatus complete, 97 function
+calls and approximately 0.000246 GB database I/O. It is a short deployment-level
+observation, not a team-total refresh, final invoice, storage bound or monthly
+projection. The report's generic team-headroom limitation refers to the absence
+of live/post-run team metering; its separate quota-review field records the actual
+pre-run receipt. See the [unaltered run artifact](./measurements/hosted-backend-verification.json).
+
+The completed script replaced the earlier non-executable scaffold. The reviewed
+invocation used for this recorded attempt was:
 
     ATTENDANCE_PREVIEW_KEY_FILE=/private/key-file \
     node scripts/test-hosted-preview.mjs --expected-preview prestigious-jaguar-360
@@ -103,9 +123,10 @@ and possible auth jobs remain until root verifies and deletes the exact owned
 preview. The script never deletes a deployment or invokes local-only fixtures.
 Production and Blob are not targets of this runner.
 
-Validation so far: node --check passed; the empty fixture dry run and invalid
+Before execution, node --check passed; the empty fixture dry run and invalid
 argument rejection completed offline with fetch disabled and no private input.
-Hosted execution, observations, actual bounds and cleanup remain unverified.
+The actual run now supplies the scoped observations above. Hosted Next ingress,
+cookies, trusted IP, SSO, natural expiry and browser refresh timing remain open.
 
 ## Adversarial review and final persistence correction
 
@@ -125,6 +146,6 @@ uncancelled passing control. Astra accepted this correction at f141397 after
 reproducing the original bug, running the five regressions and 32 additional
 offline simulations, including independent repair failures. Filesystem failures
 still propagate; storage that rejects writes cannot guarantee repaired records.
-The runner code is accepted for bounded rehearsal subject to the existing gates.
-Hosted execution remains unstarted. Actual team quota figures are still required
-before publication or execution; this is not production or cutover approval.
+The runner code was accepted for bounded rehearsal subject to the existing gates.
+The genuine receipt and setup gates were satisfied before the recorded run.
+Review of this hosted evidence is pending; this is not production or cutover approval.

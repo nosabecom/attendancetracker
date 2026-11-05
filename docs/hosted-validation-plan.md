@@ -1,7 +1,9 @@
-# Hosted validation plan (not yet run)
+# Hosted validation plan
 
-This is a proposed, bounded rehearsal using synthetic data on a **new disposable
-Convex preview** and its matching Vercel Preview. It is not a production cutover
+This is a bounded rehearsal using synthetic data on an **owned disposable
+Convex preview** and its matching Vercel Preview. The first backend-only run has
+passed; its [evidence](./hosted-backend-verification.md) awaits Astra review.
+The matching hosted Next/Vercel phase has not run. This is not a production cutover
 or a capacity benchmark. Production remains reserved for the real, verified
 Blob import; Blob object reads returned 403, so cutover is blocked until a
 complete source export is available. PR 13 is open and unmerged; the current
@@ -25,11 +27,13 @@ The connected `convex-cyan-garden` resource was previously verified available,
 with Free subscription plan `CONVEX_BASE`. The project metadata lists sensitive
 `CONVEX_DEPLOY_KEY` entries for production and preview, and Blob token entries
 for production and preview/development. It exposes neither key type nor validity;
-a preview key was subsequently supplied through the private card and its encoded scope matches this Convex team/project. Network usability remains unverified.
+a preview key was subsequently supplied through the private card. Its scope and
+network usability were verified in the setup and first backend rehearsal.
 Do not pull or reveal protected secrets. Confirm privately that the preview key
 is actually a **preview** key for the intended Convex project, and that the
-importer's admin authentication can target the resulting preview. A preview key
-entry is not proof of either. Configure missing preview-only application settings
+importer's admin authentication can target the resulting preview. These backend
+gates were subsequently verified in the setup and recorded hosted rehearsal;
+an environment entry alone was not proof. Configure missing preview-only application settings
 through supported private controls; never reuse production signing or gateway
 keys. Verify `NEXT_PUBLIC_ATTENDANCE_BACKEND=convex`, matching public Convex
 cloud/site URLs, and independent matching gateway key/audience and auth signing
@@ -69,10 +73,14 @@ threshold remain separate controls. Setup and workload scripts both reject a
 missing, stale, wrong-team or insufficient review record. Actual figures remain
 private; safe evidence records only that the review passed and its observation time.
 
-One provisional preview was already created before this check was enforced.
-Its verified identity does not establish quota headroom. No application workloads,
-limits, environment changes or publication have followed; continuation remains
-blocked until actual quota review and adversarial recheck pass.
+One provisional preview was created before this check was enforced. Its identity
+did not establish quota headroom. Nosa subsequently supplied the real All Projects
+usage screenshot; the private receipt passed the guard and the Free plan was
+reverified before limits, environment configuration, publication and the first
+bounded backend workload. The screenshot's clipped storage unit was handled
+conservatively using the published Free cap. Actual figures remain private.
+The closed preview is retained pending evidence review and separately bounded
+Next/Vercel validation or verified deletion.
 
 ## Before starting
 

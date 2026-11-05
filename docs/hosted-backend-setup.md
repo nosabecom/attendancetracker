@@ -1,9 +1,11 @@
 # Disposable hosted preview setup
 
-Latest state: the new preview's management identity and returned read capability
-have been verified. Setup is paused before limit creation, environment changes,
-function publication, import, activation, or hosted workloads. Production still
-uses Blob. Safe evidence is in
+Latest state: the owned preview was configured and functions published on
+2026-11-05 UTC after quota review. The daily 1,000-function disable threshold was
+created and read back before independent signing/gateway configuration and direct
+publication. The bounded backend rehearsal then passed and closed domain reads
+and writes. The preview remains for adversarial evidence review; it has not been
+deleted. Production still uses Blob. Safe setup evidence is in
 [measurements/hosted-preview-setup.json](./measurements/hosted-preview-setup.json).
 
 The first attempt stopped because it assumed a deployment-name prefix in the
@@ -46,18 +48,22 @@ remain separately unknown and time bounded.
 A recent private team-quota review is now mandatory before any initial claim or
 non-inspection continuation, and again before a workload. The preview-key scope
 and Vercel integration balance do not expose usable team totals. Root requested
-current used/limit figures from Nosa's team Usage page; no receipt has yet been
-created from real figures. No setup-only exception has been granted. Read-only
-inspection remains available; it cannot install limits, configure environment,
-publish, import or activate.
+current used/limit figures from Nosa's team Usage page. Nosa supplied the All
+Projects screenshot; its private receipt passed the guard before continuation.
+The clipped storage unit was interpreted conservatively using the published Free
+cap. The available integration was independently rechecked as CONVEX_BASE/Free.
+No setup-only exception was needed. The receipt is a pre-run snapshot, not live
+team metering. Actual figures and credentials remain private.
 
-The deployment usage response reported zero counters with seedStatus partial.
-These are provisional deployment diagnostics, not complete billing or team
-headroom. The team's remaining shared allowance is unknown. No daily limit is
-yet installed, and no paid plan or guarantee is implied. Astra accepted the
-corrected setup/publication path at 146d769 and the rehearsal runner at f141397,
-conditional on a genuine, fresh, sufficient team-quota receipt. That receipt
-remains the prerequisite to continuation. No production approval was granted.
+The initial deployment usage response reported zero counters with seedStatus
+partial. Those provisional diagnostics did not establish team headroom; the
+subsequent genuine quota receipt satisfied that gate. The continuation used
+seven additional explicit setup requests, for sixteen cumulatively, without
+another claim. CLI publication requests remain unknown and separately bounded
+by its timeout. No paid plan or free-cost guarantee is implied. Astra accepted
+the corrected setup/publication path at 146d769 and the rehearsal runner at
+f141397; review of the actual hosted evidence remains pending. No production
+approval was granted. See [hosted-backend-verification.md](./hosted-backend-verification.md).
 
 For cleanup, Convex documents
 [POST /v1/deployments/{deployment_name}/delete](https://docs.convex.dev/management-api/delete-deployment)
