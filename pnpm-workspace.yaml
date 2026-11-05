@@ -1,3 +1,7 @@
+allowBuilds:
+  esbuild: true
 # @vercel/cli-config pins Zod 4.1.11; require the fix for GHSA-mrhx-c7xc-m3w5.
 overrides:
   zod@<4.6.6: ^4.6.6
+patchedDependencies:
+  '@convex-dev/auth@0.0.96': patches/@convex-dev__auth@0.0.96.patch

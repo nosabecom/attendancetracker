@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "startedAt": "2026-11-05T03:47:00.494Z",
+  "passed": false,
+  "cancelled": false,
+  "counters": {
+    "controlRequests": 16,
+    "hostingRequests": 0,
+    "applicationCalls": 1
+  },
+  "creationRequests": 1,
+  "cleanup": {
+    "ownershipVerified": true,
+    "capabilityRevoked": true,
+    "deploymentDeleted": true,
+    "capabilityInvalidatedByDeletion": true
+  },
+  "productionMutationRequested": false,
+  "runId": "attendance-next-ce59bc1883c3ccbf84baec993870e04d",
+  "sourceCommit": "aa2b25d76e1bec977b16d80f3fdfb53baa6161cd",
+  "cleanupReservePersisted": true,
+  "quotaReview": {
+    "observedAt": "2026-11-05T02:04:00.776Z",
+    "source": "convex-dashboard-user-report",
+    "sufficientReviewedHeadroom": true
+  },
+  "deploymentId": "dpl_3uruS1NUit1V6YjpMNKLaW1T5Cs6",
+  "productionTargetUnchanged": true,
+  "productionAliasBindingsUnchanged": true,
+  "failedPhase": "effective environment",
+  "finishedAt": "2026-11-05T03:48:22.119Z",
+  "elapsedMs": 81625
+}

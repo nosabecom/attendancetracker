@@ -1,0 +1,225 @@
+diff --git a/dist/react/client.js b/dist/react/client.js
+index 818636ce0729004ac3c61e45b491f8b53695046a..8e182c5dc42e6264d19937462b931ca4f7c816d5 100644
+--- a/dist/react/client.js
++++ b/dist/react/client.js
+@@ -293,20 +293,16 @@ function useNamespacedStorage(peristentStorage, namespace) {
+     return { storageSet, storageGet, storageRemove, storageKey };
+ }
+ function useInMemoryStorage() {
+-    const [inMemoryStorage, setInMemoryStorage] = useState({});
+-    return () => ({
+-        getItem: (key) => inMemoryStorage[key],
+-        setItem: (key, value) => {
+-            setInMemoryStorage((prev) => ({ ...prev, [key]: value }));
+-        },
+-        removeItem: (key) => {
+-            setInMemoryStorage((prev) => {
+-                const { [key]: _, ...rest } = prev;
+-                return rest;
+-            });
+-        },
+-    });
++  // A ref keeps reads synchronous and current even when the storage object is
++  // memoized by useNamespacedStorage. A state closure retained its initial map.
++  const values = useRef({});
++  return () => ({
++    getItem: (key) => values.current[key],
++    setItem: (key, value) => { values.current[key] = value; },
++    removeItem: (key) => { delete values.current[key]; },
++  });
+ }
++
+ // In the browser, executes the callback as the only tab / frame at a time.
+ async function browserMutex(key, callback) {
+     const lockManager = window?.navigator?.locks;
+diff --git a/dist/server/implementation/mutations/refreshSession.js b/dist/server/implementation/mutations/refreshSession.js
+index 116c251826dfc7d0f7006f2839fb80b27e6c77d7..ceb060fafb34c0c793e54451d5baa0828f10567a 100644
+--- a/dist/server/implementation/mutations/refreshSession.js
++++ b/dist/server/implementation/mutations/refreshSession.js
+@@ -1,6 +1,6 @@
+ import { v } from "convex/values";
+ import { logWithLevel, maybeRedact } from "../utils.js";
+-import { deleteAllRefreshTokens, invalidateRefreshTokensInSubtree, loadActiveRefreshToken, parseRefreshToken, REFRESH_TOKEN_REUSE_WINDOW_MS, refreshTokenIfValid, } from "../refreshTokens.js";
++import { loadActiveRefreshToken, parseRefreshToken, REFRESH_TOKEN_REUSE_WINDOW_MS, refreshTokenIfValid, } from "../refreshTokens.js";
+ import { generateTokensForSession } from "../sessions.js";
+ export const refreshSessionArgs = v.object({
+     refreshToken: v.string(),
+@@ -15,15 +15,19 @@ export async function refreshSessionImpl(ctx, args, getProviderOrThrow, config)
+         logWithLevel("INFO", "Invalid refresh token");
+         return null;
+     }
++    // Attendance integration: prove the capability/session binding in this SAME
++    // transaction before any revocation. An absent or mismatched token is read-only.
++    const capability = await ctx.db.get(refreshTokenId);
++    if (capability === null || capability.sessionId !== tokenSessionId) return null;
+     const validationResult = await refreshTokenIfValid(ctx, refreshTokenId, tokenSessionId);
+     if (validationResult === null) {
+-        // Replicating `deleteSession` but ensuring that we delete both the session
+-        // and the refresh token, even if one of them is missing.
++        // A proven expired capability can revoke only its own session. Remove
++        // authority first, then let the application clean refresh records in batches.
+         const session = await ctx.db.get(tokenSessionId);
+         if (session !== null) {
+-            await ctx.db.delete(session._id);
++          await ctx.db.delete(session._id);
++          await ctx.scheduler.runAfter(0, "authSupport:cleanupSession", { sessionId: tokenSessionId });
+         }
+-        await deleteAllRefreshTokens(ctx, tokenSessionId);
+         return null;
+     }
+     const { session } = validationResult;
+@@ -73,15 +77,10 @@ export async function refreshSessionImpl(ctx, args, getProviderOrThrow, config)
+         return result;
+     }
+     else {
+-        // Outside of reuse window -- invalidate all refresh tokens in subtree.
+-        // This can indicate token theft/replay, but also fires for benign delayed retries,
+-        // so surface it as a warning rather than a server error.
+-        logWithLevel("WARN", "Refresh token used outside of reuse window");
+-        logWithLevel("DEBUG", `Token ${maybeRedact(validationResult.refreshTokenDoc._id)} being used outside of reuse window, so invalidating all refresh tokens in subtree`);
+-        const tokensToInvalidate = await invalidateRefreshTokensInSubtree(ctx, validationResult.refreshTokenDoc);
+-        logWithLevel("DEBUG", `Invalidated ${tokensToInvalidate.length} refresh tokens in subtree: ${tokensToInvalidate
+-            .map((token) => maybeRedact(token._id))
+-            .join(", ")}`);
++        // Delayed replay revokes this established session in bounded work. Avoid
++        // walking descendants or collecting its entire refresh-token history.
++        await ctx.db.delete(sessionId);
++        await ctx.scheduler.runAfter(0, "authSupport:cleanupSession", { sessionId });
+         return null;
+     }
+ }
+diff --git a/dist/server/implementation/refreshTokens.js b/dist/server/implementation/refreshTokens.js
+index cc9b8ff4bd8e26e351b30eaf2cc01930b2de87d1..15a7e518a654b86271ba67aee02d9494320b98fa 100644
+--- a/dist/server/implementation/refreshTokens.js
++++ b/dist/server/implementation/refreshTokens.js
+@@ -111,8 +111,8 @@ export async function refreshTokenIfValid(ctx, refreshTokenId, tokenSessionId) {
+ export async function loadActiveRefreshToken(ctx, sessionId) {
+     return ctx.db
+         .query("authRefreshTokens")
+-        .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
+-        .filter((q) => q.eq(q.field("firstUsedTime"), undefined))
++        .withIndex("sessionIdAndFirstUsedTime", (q) =>
++          q.eq("sessionId", sessionId).eq("firstUsedTime", undefined))
+         .order("desc")
+         .first();
+ }
+diff --git a/src/react/client.tsx b/src/react/client.tsx
+index 81a869f7bf301687483b4504fd05f481000ce4d1..6e59a869ac0d997f6863bfb05908c6da3d008b49 100644
+--- a/src/react/client.tsx
++++ b/src/react/client.tsx
+@@ -447,22 +447,14 @@ function useNamespacedStorage(
+ }
+ 
+ function useInMemoryStorage() {
+-  const [inMemoryStorage, setInMemoryStorage] = useState<
+-    Record<string, string>
+-  >({});
+-  return () =>
+-    ({
+-      getItem: (key) => inMemoryStorage[key],
+-      setItem: (key, value) => {
+-        setInMemoryStorage((prev) => ({ ...prev, [key]: value }));
+-      },
+-      removeItem: (key) => {
+-        setInMemoryStorage((prev) => {
+-          const { [key]: _, ...rest } = prev;
+-          return rest;
+-        });
+-      },
+-    }) satisfies TokenStorage;
++  // A ref keeps reads synchronous and current even when the storage object is
++  // memoized by useNamespacedStorage. A state closure retained its initial map.
++  const values = useRef<Record<string, string>>({});
++  return () => ({
++    getItem: (key: string) => values.current[key],
++    setItem: (key: string, value: string) => { values.current[key] = value; },
++    removeItem: (key: string) => { delete values.current[key]; },
++  });
+ }
+ 
+ // In the browser, executes the callback as the only tab / frame at a time.
+diff --git a/src/server/implementation/mutations/refreshSession.ts b/src/server/implementation/mutations/refreshSession.ts
+index 38c79bc771faccb1cdf1df24c0d77993f8f6a6fd..d94e04063892bda9f9e8a88819f3c026953aea9a 100644
+--- a/src/server/implementation/mutations/refreshSession.ts
++++ b/src/server/implementation/mutations/refreshSession.ts
+@@ -3,8 +3,6 @@ import { ActionCtx, MutationCtx } from "../types.js";
+ import * as Provider from "../provider.js";
+ import { logWithLevel, maybeRedact } from "../utils.js";
+ import {
+-  deleteAllRefreshTokens,
+-  invalidateRefreshTokensInSubtree,
+   loadActiveRefreshToken,
+   parseRefreshToken,
+   REFRESH_TOKEN_REUSE_WINDOW_MS,
+@@ -45,6 +43,10 @@ export async function refreshSessionImpl(
+     logWithLevel("INFO", "Invalid refresh token");
+     return null;
+   }
++  // Attendance integration: prove the capability/session binding in this SAME
++  // transaction before any revocation. An absent or mismatched token is read-only.
++  const capability = await ctx.db.get(refreshTokenId);
++  if (capability === null || capability.sessionId !== tokenSessionId) return null;
+   const validationResult = await refreshTokenIfValid(
+     ctx,
+     refreshTokenId,
+@@ -52,13 +54,13 @@ export async function refreshSessionImpl(
+   );
+ 
+   if (validationResult === null) {
+-    // Replicating `deleteSession` but ensuring that we delete both the session
+-    // and the refresh token, even if one of them is missing.
++    // A proven expired capability can revoke only its own session. Remove
++    // authority first, then let the application clean refresh records in batches.
+     const session = await ctx.db.get(tokenSessionId);
+     if (session !== null) {
+       await ctx.db.delete(session._id);
++      await ctx.scheduler.runAfter(0, "authSupport:cleanupSession" as any, { sessionId: tokenSessionId });
+     }
+-    await deleteAllRefreshTokens(ctx, tokenSessionId);
+     return null;
+   }
+   const { session } = validationResult;
+@@ -130,24 +132,10 @@ export async function refreshSessionImpl(
+     );
+     return result;
+   } else {
+-    // Outside of reuse window -- invalidate all refresh tokens in subtree.
+-    // This can indicate token theft/replay, but also fires for benign delayed retries,
+-    // so surface it as a warning rather than a server error.
+-    logWithLevel("WARN", "Refresh token used outside of reuse window");
+-    logWithLevel(
+-      "DEBUG",
+-      `Token ${maybeRedact(validationResult.refreshTokenDoc._id)} being used outside of reuse window, so invalidating all refresh tokens in subtree`,
+-    );
+-    const tokensToInvalidate = await invalidateRefreshTokensInSubtree(
+-      ctx,
+-      validationResult.refreshTokenDoc,
+-    );
+-    logWithLevel(
+-      "DEBUG",
+-      `Invalidated ${tokensToInvalidate.length} refresh tokens in subtree: ${tokensToInvalidate
+-        .map((token) => maybeRedact(token._id))
+-        .join(", ")}`,
+-    );
++    // Delayed replay revokes this established session in bounded work. Avoid
++    // walking descendants or collecting its entire refresh-token history.
++    await ctx.db.delete(sessionId);
++    await ctx.scheduler.runAfter(0, "authSupport:cleanupSession" as any, { sessionId });
+     return null;
+   }
+ }
+diff --git a/src/server/implementation/refreshTokens.ts b/src/server/implementation/refreshTokens.ts
+index 5e68d18320edb7ef5f250781860dbd0ec70e2f63..41a388fd1ce353ac30ad16f109629dc03f041918 100644
+--- a/src/server/implementation/refreshTokens.ts
++++ b/src/server/implementation/refreshTokens.ts
+@@ -160,8 +160,8 @@ export async function loadActiveRefreshToken(
+ ) {
+   return ctx.db
+     .query("authRefreshTokens")
+-    .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
+-    .filter((q) => q.eq(q.field("firstUsedTime"), undefined))
++    .withIndex("sessionIdAndFirstUsedTime" as any, (q: any) =>
++      q.eq("sessionId", sessionId).eq("firstUsedTime", undefined))
+     .order("desc")
+     .first();
+ }

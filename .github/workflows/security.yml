@@ -31,5 +31,11 @@ jobs:
           cache-dependency-path: ./pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit
+      - run: pnpm exec tsc -p convex/tsconfig.json --noEmit
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_ATTENDANCE_BACKEND: convex
+          NEXT_PUBLIC_CONVEX_URL: https://build-check.convex.cloud
+          NEXT_PUBLIC_CONVEX_SITE_URL: https://build-check.convex.site
