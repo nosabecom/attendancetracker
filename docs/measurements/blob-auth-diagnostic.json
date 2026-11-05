@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-11-05T00:34:13.870Z",
+  "sdkVersion": "2.8.2",
+  "objectRequests": 0,
+  "knownPriorProbeUsedListedUrl": true,
+  "resolvedAuthenticationKind": "readWrite",
+  "ambientStoreMatchesProduction": true,
+  "explicitTokenStoreMatchesProduction": true,
+  "environmentTokenPresent": true,
+  "environmentStoreIdPresent": false,
+  "ambientCredentialEqualsEnvironmentToken": true,
+  "environmentTokenHasLegacyReadWritePrefix": true,
+  "configurationOverridesPresent": false,
+  "environmentTokenIsEncodedObject": false,
+  "completed": true,
+  "credentialValuesRecorded": false,
+  "source": "Production environment resolved by Vercel CLI; installed SDK auth resolver only",
+  "limitation": "Environment retrieval used Vercel control-plane access. No Blob metadata/object request was made by this diagnostic. It does not establish the specific server-side cause of the prior403."
+}

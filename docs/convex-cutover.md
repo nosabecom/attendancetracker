@@ -13,6 +13,21 @@ access is not proof that the object bodies can be exported. Obtain supported
 export access before the final migration. A prepared, unsent access request is
 in [blob-export-access-request.md](./blob-export-access-request.md).
 
+A follow-up local diagnostic resolved the actual production environment through
+the installed SDK: read-write authentication selected the expected store, with
+no API URL override. The injected token was the normal read-write format, not an
+encoded Config. The earlier private-read probe also used Blob's listed URL and
+checked its hostname. This rules out the proposed address/config mismatch for
+these checks; it does not identify the server-side reason for the 403. The
+[safe diagnostic](./measurements/blob-auth-diagnostic.json) made no object requests
+and retained no credential values.
+
+Vercel's [Hobby usage policy](https://vercel.com/docs/vercel-blob/usage-and-pricing#hobby)
+states that exceeding the allowance prevents Blob access and requires waiting
+30 days before using it again. The precise restoration time for this store and
+any earlier export-only assistance remain unconfirmed. No supported early export
+guarantee was found; cached reads are not an established suspension recovery path.
+
 On 2026-11-04, the installed marketplace resource `convex-cyan-garden` was
 verified available on billing plan `CONVEX_BASE` (Free), connected to
 `attendance-tracker` in the existing Vercel team. The normal Marketplace flow
