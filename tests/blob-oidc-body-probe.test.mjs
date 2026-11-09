@@ -236,6 +236,54 @@ for (const mode of ['unique', 'conflicting', 'identical']) test(`production HTTP
     await identical(dir, result);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+const parserBoundaryChild = `
+import {mock} from 'node:test'; import {request as realRequest,Agent} from 'node:https';
+import {Duplex} from 'node:stream'; import {join} from 'node:path';
+const [dir,mode]=process.argv.slice(1);let sockets=0,headerCount,etagCount,headerLimit;
+// Socket creation alone is replaced. The real ClientRequest and HTTP parser
+// consume a complete response over this in-memory stream, without network I/O.
+Agent.prototype.createConnection=function(){
+ const ordinal=++sockets;let request='',sent=false;
+ return new Duplex({read(){},write(chunk,encoding,done){
+  request+=chunk.toString();
+  if(!sent&&request.includes('\\r\\n\\r\\n')){
+   sent=true;const bytes=Buffer.from(ordinal===1?${JSON.stringify(JSON.stringify(page))}:${JSON.stringify(body.toString())});
+   let fields='Content-Length: '+bytes.length+'\\r\\nConnection: close\\r\\n';
+   if(ordinal===2){
+    fields+='ETag: '+${JSON.stringify(row.etag)}+'\\r\\n';
+    fields+=mode==='byte-limit'?'X: '+'b'.repeat(16*1024+1)+'\\r\\n':'X: b\\r\\n'.repeat(2100);
+    if(mode==='conflicting'||mode==='identical')fields+='eTaG: '+(mode==='conflicting'?'"CONFLICTING"':${JSON.stringify(row.etag)})+'\\r\\n';
+   }
+   queueMicrotask(()=>{this.push(Buffer.concat([Buffer.from('HTTP/1.1 200 OK\\r\\n'+fields+'\\r\\n'),bytes]));this.push(null);});
+  }
+  done();
+ }});
+};
+mock.module('node:https',{namedExports:{request:(...args)=>{
+ headerLimit=args[1].maxHeaderSize;const req=realRequest(...args);
+ req.on('response',message=>{if(sockets===2){headerCount=message.rawHeaders.length/2;etagCount=message.headersDistinct.etag?.length;}});
+ return req;
+}}});
+const {probeBlobOidcBody}=await import(${JSON.stringify(new URL('../scripts/probe-blob-oidc-body.mjs', import.meta.url).href)});
+const result=await probeBlobOidcBody({token:${JSON.stringify(token)},now:()=>${now},outputPath:join(dir,'outcome.json'),attemptPath:join(dir,'attempt.json')});
+console.log(JSON.stringify({result,sockets,headerCount,etagCount,headerLimit}));
+`;
+for (const mode of ['unique', 'conflicting', 'identical', 'byte-limit']) test(`real HTTP parser handles ${mode} long header lists without truncation`, async () => {
+  const dir = await temp();
+  try {
+    const { stdout } = await execute(process.execPath, ['--experimental-test-module-mocks', '--input-type=module', '-e', parserBoundaryChild, dir, mode], { timeout: 10_000 });
+    const { result, sockets, headerCount, etagCount, headerLimit } = JSON.parse(stdout);
+    assert.equal(sockets, 2); assert.equal(headerLimit, 16 * 1024);
+    if (mode !== 'byte-limit') {
+      assert.ok(headerCount > 2100); // Node's default would retain only 1,000 fields.
+      assert.equal(etagCount, mode === 'unique' ? 1 : 2);
+    }
+    assert.equal(result.code, mode === 'unique' ? 'body_retrieved' : mode === 'byte-limit' ? 'transport_error' : 'invalid_headers');
+    assert.equal(result.bodyComplete, mode === 'unique');
+    assert.equal(result.listAttempts, 1); assert.equal(result.objectAttempts, 1);
+    await identical(dir, result);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 const child = `
 import {mock} from 'node:test'; import * as fs from 'node:fs/promises'; import {join} from 'node:path';
 const [dir,mode]=process.argv.slice(1),control=new AbortController(),attempt=join(dir,'attempt.json');let syncs=0,sends=0;

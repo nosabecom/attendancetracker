@@ -8,10 +8,14 @@ spent and cannot be replayed.
 The [implementation](../scripts/probe-blob-oidc-body.mjs) is complete. The first
 execution review accepted allocation scope but found that Node's normalized
 headers could hide duplicate ETags. The transport now preserves raw header lines
-and rejects duplicate validator fields before acceptance. All 54 focused tests
-pass, including real `IncomingMessage` boundary regressions for unique,
-conflicting and identical duplicate ETags. No real credentials or provider calls
-were used during implementation. A focused execution recheck remains pending.
+and rejects duplicate validator fields before acceptance. A follow-up review
+found Node could still truncate those lines by field count. The request now sets
+`maxHeadersCount = 0` before dispatch while explicitly retaining Node's 16 KiB
+`maxHeaderSize`. All 58 focused tests pass, including actual HTTPS/HTTP-parser
+regressions over in-memory sockets for more than 2,100 fields, conflicting and
+identical duplicate ETags, a valid control and an oversized-header rejection.
+No real credentials or provider calls were used during implementation. A focused
+execution recheck remains pending.
 
 ## Purpose
 

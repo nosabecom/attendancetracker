@@ -8,7 +8,7 @@ import { request as httpsRequest } from 'node:https';
 import { Readable } from 'node:stream';
 import { BLOB_PROBE_TARGET, BlobCredentialProbeError, readBlobProbeCredential } from './probe-blob-credential.mjs';
 
-export const OIDC_BODY_PROBE_LIMITS = Object.freeze({ listRequests: 1, objectRequests: 1, listBytes: 16 * 1024, objectBytes: 64 * 1024, headersMs: 15_000, bodyMs: 15_000, globalMs: 60_000 });
+export const OIDC_BODY_PROBE_LIMITS = Object.freeze({ listRequests: 1, objectRequests: 1, headerBytes: 16 * 1024, listBytes: 16 * 1024, objectBytes: 64 * 1024, headersMs: 15_000, bodyMs: 15_000, globalMs: 60_000 });
 const codes = new Set([
   'invalid_options', 'invalid_token', 'oidc_claims', 'oidc_expiry', 'protocol_version',
   'credential_private', 'credential_format', 'destination_private', 'output_exists',
@@ -51,10 +51,14 @@ function credential(token, now) {
 }
 function singleRequest(url, { headers, signal }) {
   return new Promise((resolveResponse, reject) => {
-    const req = httpsRequest(url, { method: 'GET', headers, signal, agent: false }, response => {
+    const req = httpsRequest(url, { method: 'GET', headers, signal, agent: false,
+      maxHeaderSize: OIDC_BODY_PROBE_LIMITS.headerBytes }, response => {
       resolveResponse({ status: response.statusCode, headers: response.headers,
         rawHeaders: response.rawHeaders, body: Readable.toWeb(response) });
     });
+    // Preserve every field within the byte limit: Node otherwise silently
+    // truncates rawHeaders by field count before duplicate validation.
+    req.maxHeadersCount = 0;
     req.once('error', reject); req.end();
   });
 }
