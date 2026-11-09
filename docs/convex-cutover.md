@@ -10,8 +10,12 @@ The production Blob store was inspected on 2026-11-04. Its state was
 `limits-exceeded-suspended`, with `usageQuotaExceeded: true`; a bounded private
 read returned 403. Inventory showed 298 objects, approximately 31.69 KB. Metadata
 access is not proof that the object bodies can be exported. Obtain supported
-export access before the final migration. A prepared, unsent access request is
-in [blob-export-access-request.md](./blob-export-access-request.md).
+export access before the final migration. The owner authorized contacting Vercel
+and the [access request](./blob-export-access-request.md) was sent through the
+authenticated support chat on 2026-11-09 UTC. The dashboard confirmed usage case
+`CSE_015biYiwnR3FpTkS` as Open, Severity 2. No human response or access exception is
+confirmed. A chat-offered courtesy unblock has not been activated; see the
+[recovery preparation](./blob-recovery-preparation.md).
 
 A follow-up local diagnostic resolved the actual production environment through
 the installed SDK: read-write authentication selected the expected store, with
@@ -29,12 +33,15 @@ with no caller retry or saved body. This narrows the tested immediate options;
 it does not establish that every provider-side route is unavailable. The exporter
 can run under the owner's credentials once reads are restored. Contacting support
 is an optional request for earlier access, not a prerequisite to running the
-exporter. No support message or plan change has been made.
+exporter. A support message has now been sent with the owner's permission; no plan
+change has been made. It requests export-only access or a provider-side backup and
+asks support not to restore writable access before the old writers are frozen.
 
 Vercel's [Hobby usage policy](https://vercel.com/docs/vercel-blob/usage-and-pricing#hobby)
 states that exceeding the allowance prevents Blob access and requires waiting
-30 days before using it again. The precise restoration time for this store and
-any earlier export-only assistance remain unconfirmed. No supported early export
+30 days before using it again. The owner's dashboard screenshots explicitly show
+December 4, 2026 as the resumption date. The November 8 bounded retry still returned
+403. Earlier export-only assistance remains unconfirmed. No supported early export
 guarantee was found; cached reads are not an established suspension recovery path.
 
 On 2026-11-04, the installed marketplace resource `convex-cyan-garden` was

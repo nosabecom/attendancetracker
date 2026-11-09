@@ -1,4 +1,31 @@
-# Prepared Vercel access request — not sent
+# Vercel export-access request
+
+Status: the owner authorized contacting Vercel, and this request was sent through
+the authenticated Vercel Support chat on 2026-11-09 UTC (November 8 Saskatchewan
+time). The case form was submitted under Billing / Usage Enquiry and the dashboard
+confirmed case `CSE_015biYiwnR3FpTkS`, Open, Severity 2. No human response or access
+exception is confirmed. The summary below contains no credentials or attendance
+records.
+
+The dashboard now explicitly says access resumes December 4, 2026. The scheduled
+November 8 origin-read retry still returned 403. The request asks for the fastest
+free export-only access or provider-side backup and expressly declines an upgrade,
+Pro trial, payment or paid overages. Support was told not to fully restore
+writable access until all old writers have been frozen.
+
+The support agent offered an **Unblock My Account** action and described it as a
+free, one-time Hobby courtesy unblock. That is an AI response, not confirmation
+of eligibility or a completed unblock. The action has not been activated. The
+case asks whether it covers this private store, whether a read-only exception or
+backup is available, and how to revoke old credentials while retaining exclusive
+export access. Dedicated CDN / Blob support was plan-gated; the genuine usage
+and suspension enquiry accepted the case without changing the Hobby plan.
+
+See the [recovery preparation](./blob-recovery-preparation.md) for the proposed
+sequence and the provider facts that still need verification. The existing
+December 4 banner remains the fallback date, not a guaranteed successful export.
+
+## Request summary
 
 Hello Vercel team,
 
