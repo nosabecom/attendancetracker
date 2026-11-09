@@ -183,21 +183,27 @@ and whether a legitimate OIDC export path exists during suspension. If so,
 recovery might avoid courtesy activation, but metadata acceptance is not proof
 that such a body-read path works. The case still awaits a human response.
 
-## Static-revocation diagnostics awaiting review
+## Static-revocation diagnostics
 
 The original probe discarded every 401/403 body. A subsequent offline change
 retains only allowlisted provider error codes for static-token 401/403 responses,
 under the same 16 KiB/time bounds. Installed SDK `getBlobError()` distinguishes
 `store_suspended` from `forbidden`; arbitrary messages and unrecognized codes are
-discarded. OIDC denial behavior remains unchanged. All denials still have
-inconclusive status; a code alone is not a declaration that credentials were
-revoked or that every writer is frozen.
+discarded. OIDC denial behavior remains unchanged. Ordinary completed 401/403
+diagnostics remain inconclusive; oversized, stalled or missing denial bodies can
+fail instead. Neither outcome declares credentials revoked or writers frozen.
 
 The new 49-test focused suite passed locally. No static check has been run.
-This change requires review before any future use. In the eventual controlled
+This change and OIDC1's actual evidence were accepted by Astra at `abc119d`.
+In the eventual controlled
 comparison, assess provider codes together with the confirmed immediate rotation,
 explicit old/new credentials and successful fresh-key checks. A suspension,
 generic error or ambiguous denial leaves the store suspended and stops recovery.
+
+Astra recommended preparing a separately reviewed
+[OIDC LIST + body check](./blob-oidc-body-probe-plan.md). That recommendation did
+not allocate or run another request. OIDC1 remains spent, and no body capability
+has yet been established.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not
