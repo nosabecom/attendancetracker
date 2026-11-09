@@ -52,12 +52,27 @@ function credential(token, now) {
 function singleRequest(url, { headers, signal }) {
   return new Promise((resolveResponse, reject) => {
     const req = httpsRequest(url, { method: 'GET', headers, signal, agent: false }, response => {
-      resolveResponse({ status: response.statusCode, headers: response.headers, body: Readable.toWeb(response) });
+      resolveResponse({ status: response.statusCode, headers: response.headers,
+        rawHeaders: response.rawHeaders, body: Readable.toWeb(response) });
     });
     req.once('error', reject); req.end();
   });
 }
 function header(response, name) {
+  // IncomingMessage.headers discards duplicate ETags. Its rawHeaders preserves
+  // original field lines, including duplicates with different casing.
+  if (response.rawHeaders !== undefined) {
+    const raw = response.rawHeaders;
+    if (!Array.isArray(raw) || raw.length % 2) fail('invalid_headers');
+    let found;
+    for (let i = 0; i < raw.length; i += 2) {
+      if (typeof raw[i] !== 'string' || typeof raw[i + 1] !== 'string') fail('invalid_headers');
+      if (raw[i].toLowerCase() !== name) continue;
+      if (found !== undefined) fail('invalid_headers');
+      found = raw[i + 1];
+    }
+    return found;
+  }
   const value = typeof response.headers?.get === 'function' ? response.headers.get(name) : response.headers?.[name];
   if (value === undefined || value === null) return undefined;
   if (typeof value !== 'string') fail('invalid_headers');

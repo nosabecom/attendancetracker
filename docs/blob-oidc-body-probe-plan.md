@@ -5,9 +5,13 @@ requires review of the concrete implementation and this separate allocation.
 No request under this proposal has been made. OIDC1's single LIST is already
 spent and cannot be replayed.
 
-The [implementation](../scripts/probe-blob-oidc-body.mjs) and 51 focused synthetic
-tests are complete; those tests passed. No real credentials or provider calls
-were used during implementation. Code and execution bounds await Astra review.
+The [implementation](../scripts/probe-blob-oidc-body.mjs) is complete. The first
+execution review accepted allocation scope but found that Node's normalized
+headers could hide duplicate ETags. The transport now preserves raw header lines
+and rejects duplicate validator fields before acceptance. All 54 focused tests
+pass, including real `IncomingMessage` boundary regressions for unique,
+conflicting and identical duplicate ETags. No real credentials or provider calls
+were used during implementation. A focused execution recheck remains pending.
 
 ## Purpose
 

@@ -200,6 +200,42 @@ test('private destination guards and CLI prevent secret arguments, paths, conten
 });
 
 const execute = promisify(execFile);
+const headerBoundaryChild = `
+import {mock} from 'node:test'; import {IncomingMessage} from 'node:http';
+import {Socket} from 'node:net'; import {EventEmitter} from 'node:events'; import {join} from 'node:path';
+const [dir,mode]=process.argv.slice(1);let sends=0,collapsed,rawTagCount;
+mock.module('node:https',{namedExports:{request:(url,options,callback)=>{
+ const request=new EventEmitter();request.end=()=>queueMicrotask(()=>{
+  sends++;const message=new IncomingMessage(new Socket());message.statusCode=200;
+  const bytes=Buffer.from(sends===1?${JSON.stringify(JSON.stringify(page))}:${JSON.stringify(body.toString())});
+  message.rawHeaders=['Content-Length',String(bytes.length)];
+  if(sends===2){
+   message.rawHeaders.push('ETag',${JSON.stringify(row.etag)});
+   if(mode!=='unique')message.rawHeaders.push('eTaG',mode==='conflicting'? '"CONFLICTING"':${JSON.stringify(row.etag)});
+  }
+  message._addHeaderLines(message.rawHeaders,message.rawHeaders.length);
+  if(sends===2){collapsed=message.headers.etag;rawTagCount=message.headersDistinct.etag.length;}
+  callback(message);message.push(bytes);message.push(null);
+ });return request;
+}}});
+const {probeBlobOidcBody}=await import(${JSON.stringify(new URL('../scripts/probe-blob-oidc-body.mjs', import.meta.url).href)});
+const result=await probeBlobOidcBody({token:${JSON.stringify(token)},now:()=>${now},outputPath:join(dir,'outcome.json'),attemptPath:join(dir,'attempt.json')});
+console.log(JSON.stringify({result,sends,collapsed,rawTagCount}));
+`;
+for (const mode of ['unique', 'conflicting', 'identical']) test(`production HTTPS boundary preserves ${mode} ETag fields`, async () => {
+  const dir = await temp();
+  try {
+    const { stdout } = await execute(process.execPath, ['--experimental-test-module-mocks', '--input-type=module', '-e', headerBoundaryChild, dir, mode], { timeout: 10_000 });
+    const { result, sends, collapsed, rawTagCount } = JSON.parse(stdout);
+    // Real IncomingMessage hides the second field in .headers, even on conflict.
+    assert.equal(collapsed, row.etag); assert.equal(sends, 2);
+    assert.equal(rawTagCount, mode === 'unique' ? 1 : 2);
+    assert.equal(result.code, mode === 'unique' ? 'body_retrieved' : 'invalid_headers');
+    assert.equal(result.bodyComplete, mode === 'unique');
+    assert.equal(result.status, mode === 'unique' ? 'retrieved' : 'failed');
+    await identical(dir, result);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 const child = `
 import {mock} from 'node:test'; import * as fs from 'node:fs/promises'; import {join} from 'node:path';
 const [dir,mode]=process.argv.slice(1),control=new AbortController(),attempt=join(dir,'attempt.json');let syncs=0,sends=0;
