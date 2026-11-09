@@ -80,6 +80,25 @@ credential; it does not prove a future replacement survives disconnect. One
 explicit CLI capture invocation occurred; its internal control-request count
 was not measured. No export budget was consumed by it.
 
+Astra identified that this first capture could have inherited a local/process
+override. A second baseline capture therefore ran from a newly created empty
+0700 working directory, with an allowlisted process environment containing no
+Blob/OIDC credentials, Vercel selectors, endpoint overrides or Node preload
+options. The command explicitly selected `attendance-tracker`, the existing
+team and `production`. It succeeded, and the captured token privately matched
+the earlier baseline. This was one additional CLI invocation, with zero Blob
+requests and unknown internal control-request count.
+
+The private capture helper now optionally compares a replacement against an
+owner-only baseline file and refuses to save an unchanged token. Use the same
+clean-directory/environment procedure after rotation, with a new destination
+and the clean old baseline as comparison input. Exact store format and file
+permissions are still checked. A different string does not by itself establish
+authorization; require the credential-bound request below before disconnecting.
+Six no-network synthetic checks passed: private initial capture, rejection of
+unchanged replacement, acceptance of a changed fixture, rejection of a public
+baseline, no-overwrite preservation and rejection of a symlink destination.
+
 A follow-up message was sent to the existing support case with the observed
 zero-hour setting and legacy connection UI. It asks for free courtesy eligibility,
 independent default-owner token retrieval, and store-wide OIDC authority/revocation.
@@ -95,6 +114,60 @@ after disconnect); none have been used. OIDC-specific probes need their own
 reviewed bounds and cannot silently consume or increase that allocation. The
 installed CLI's `vercel project token` can obtain a development token, but that
 alone cannot establish production/preview revocation or store authority.
+
+## Credential-bound check preparation
+
+Astra accepted the operational hold and requested an explicit authentication
+transport. `vercel blob get-store` and the dashboard store-metadata endpoint use
+account authentication; their success cannot validate or revoke a Blob bearer.
+
+The supported `vercel project token attendance-tracker --json` command has now
+been invoked once with explicit team scope and the clean environment, capturing
+stdout privately. Decoded claims match the expected project/team and development
+environment, with approximately 12 hours remaining at capture. Signature and
+Blob authority have not been verified. No Blob request was made. The command's
+internal control-request count is unknown; it is separate from the three static
+checks and exporter budget.
+
+Vercel's [SDK authentication documentation](https://vercel.com/docs/vercel-blob/using-blob-sdk#authentication)
+describes explicit OIDC credentials, static credentials and development-token
+lifetime. It does not establish a store-wide disconnect/revocation guarantee.
+Current SDK/source inspection found credential-bound listing and per-object
+metadata reads; no independent credential-validation-only endpoint was found.
+
+The proposed [credential probe](../scripts/probe-blob-credential.mjs) therefore
+uses the installed SDK's documented **list operation with limit 1**, through its
+API-13 HTTP endpoint. It supplies only the chosen bearer and fixed store header,
+with no account/OIDC/static fallback, retries or redirects. It may receive one
+metadata row; it must never persist or display the row, name, URL or raw body.
+No object-body download is part of this operation. This deliberately differs
+from the prior review's no-listing condition and requires explicit review before
+execution. It is preparation, not an approved or completed probe.
+
+The proposed development-only allocation is **one physical list request**,
+separate from all prior checks, the three static checks and export. It has bounded
+response/time limits and a non-reusable private attempt record. HTTP 200 with the
+expected list response proves only that this bearer can list this store at that
+time. Denial, expiry, suspension, timeout or generic error is not global OIDC
+revocation evidence. Development cannot establish production/preview coverage.
+If the probe is not accepted or lacks a valid representative token, stop this
+investigation and use provider evidence; do not invent an API or retry.
+
+Proposed CLI contract (not run, pending review):
+
+```sh
+node scripts/probe-blob-credential.mjs --run \
+  --oidc-json PRIVATE_ACQUISITION_JSON \
+  --output .convex/blob-recovery/development-probe-result.json \
+  --attempt .convex/blob-recovery/development-probe-attempt.json
+```
+
+The probe caps response bodies at 16 KiB, headers and bodies at 15 seconds each,
+and network time at 30 seconds. It takes credentials only from an owner-only
+file and never refreshes the OIDC token. A later expired token or failed attempt
+does not authorize minting another token, choosing a new attempt path or retrying.
+Its 41 focused synthetic tests passed. No live probe has been executed; this
+result establishes local behavior only and does not accept the listing exception.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not
@@ -116,8 +189,10 @@ as a freeze.
    by a deployment created in between. A production traffic pause alone does not
    provide this hold. Do not push commits during this interval.
 4. After that procedure is reviewed, rotate while suspended. Capture the new
-   credential through the existing authenticated production environment path
+   credential through the clean, explicitly selected production environment path
    into an ignored owner-only file; never expose it in arguments or logs.
+   Require it to differ privately from the clean old baseline. Local/process
+   overrides must be absent; store-ID matching alone does not prove freshness.
    Verify the captured key resolves the exact store before disconnecting. Failed
    capture or ambiguous verification leaves suspension intact.
 5. Disconnect every store/project connection so new builds cannot acquire the
@@ -194,13 +269,19 @@ do not delete its evidence or choose a new path to reset the allowance.
 
 ## Current stop point
 
-Do not rotate or remove the store connection yet. Free courtesy eligibility and
-the store-wide OIDC/replacement-credential procedure remain unconfirmed. Keep
-the suspension and recorded operational hold in place until these gates can be
-resolved and the actual freeze sequence reviewed. Git reconnection must not
+Do not rotate or remove the store connection yet: the clean capture and
+credential-bound verification procedure still need their execution review.
+Preparation does not require an independent token-read endpoint or a human reply
+if supported capture/validation works. Free courtesy eligibility and full OIDC
+coverage remain required before unblocking; a supported provider flow can supply
+the former without a human. Keep suspension and the operational hold in place.
+Git reconnection must not
 permit a deployment to acquire a replacement exporter key; restore the repo
 only after that key is isolated, or after a safely canceled recovery with no
-credential rotation. Reconnecting here does not authorize a production switch.
+credential rotation. Verify branch-specific configuration against the preserved
+settings when reconnecting, and account for any deployment it could trigger;
+reconnection cannot create an unallocated preview. Reconnecting here does not
+authorize a production switch or restore an old deployment's revoked token.
 
 ## Separate cutover gates
 
