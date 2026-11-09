@@ -1,9 +1,15 @@
 # One bounded OIDC object-body check
 
-Status: preparation under the owner's existing migration authorization. Execution
-requires review of the concrete implementation and this separate allocation.
-No request under this proposal has been made. OIDC1's single LIST is already
-spent and cannot be replayed.
+Status: **completed and stopped after private origin GET returned 403**. Astra
+accepted one execution at `d7a8a2d`; that exact reviewed code ran once under the
+owner's existing migration authorization. OIDCBODY1 and OIDC1 are now spent.
+Neither may be retried or replaced with a new attempt path.
+
+The [safe outcome](./measurements/blob-oidc-body-probe.json) records LIST 200,
+then object GET 403, one request per stage, no accepted object data and agreeing
+private evidence files. The rejected response body was canceled, not consumed;
+zero consumed object bytes is not a claim of zero response/wire traffic. No
+snapshot or backup was produced. The cause of the 403 is not established.
 
 The [implementation](../scripts/probe-blob-oidc-body.mjs) is complete. The first
 execution review accepted allocation scope but found that Node's normalized
@@ -14,8 +20,9 @@ found Node could still truncate those lines by field count. The request now sets
 `maxHeaderSize`. All 58 focused tests pass, including actual HTTPS/HTTP-parser
 regressions over in-memory sockets for more than 2,100 fields, conflicting and
 identical duplicate ETags, a valid control and an oversized-header rejection.
-No real credentials or provider calls were used during implementation. A focused
-execution recheck remains pending.
+No real credentials or provider calls were used during implementation. Astra's
+focused recheck independently passed all 58 tests and accepted the single live
+attempt. The bounds below describe that completed allocation, not another run.
 
 ## Purpose
 
@@ -29,7 +36,7 @@ The only proposed success claim is: **this development bearer retrieved one
 complete bounded object body from this store at this time**. It does not establish
 general exportability, writes, revocation, snapshot consistency or cutover safety.
 
-## Proposed allocation: OIDCBODY1
+## Completed allocation: OIDCBODY1
 
 - At most two physical application requests: one `LIST limit=1`, followed only
   on valid selection by one private origin GET. No HEAD, pagination, alternate
@@ -54,8 +61,9 @@ general exportability, writes, revocation, snapshot consistency or cutover safet
   fixed diagnostic codes may persist; the selected name, URL, header values and
   body remain transient. No consistent snapshot or backup is produced here.
 
-OIDC1's one request plus this proposal would total at most three OIDC requests:
-two LISTs and one object GET. The original three static-key checks and export's
+OIDC1 and OIDCBODY1 used three OIDC requests total: two LISTs and one object GET.
+No retry, redirect, fallback, extra object or token acquisition occurred. The
+original three static-key checks and export's
 two LISTs plus up to 400 object GETs remain separate and unused. Provider control
 requests from earlier CLI operations remain separately disclosed; this proposal
 does not claim a whole-project billing total.
@@ -65,7 +73,7 @@ validators. Weak tags, unquoted hashes or quote-format differences stop the chec
 That can produce a conservative inconclusive result even if a provider returned
 usable bytes; it does not authorize another read or relaxed validation.
 
-Future CLI contract, not executed:
+Historical CLI contract for the completed attempt; do not run again:
 
 ```sh
 node scripts/probe-blob-oidc-body.mjs --run \
@@ -81,7 +89,22 @@ before dispatch. Do not turn missing evidence into permission to reuse a slot.
 
 ## Stop and handback
 
-Any invalid/empty/oversized listing, expiry, non-200, redirect, timeout,
+The stop is now in effect. Git disconnection was freshly confirmed in the
+dashboard before execution, the manual deployment/environment-copy hold remained
+active, and no credential rotation, store disconnect or unblock was performed.
+Reviewed HEAD and clean tree, matching unexpired captured claims, clean process
+environment and exclusive unused paths were checked; the separate two-request
+allocation was fsynced before invocation. CLI exit code was 2, final private
+records agree, and the spent result was sent to the existing support case.
+That case still awaited a human response when the message was submitted.
+
+There will be no further access-probe cycle. Recovery now needs provider evidence
+for the supported free export/recovery path and complete writer-credential
+freeze, or restoration through the provider's normal access window. No upgrade,
+trial, charge or automatic unblock is authorized. The displayed December 4 date
+remains a reported provider banner, not a guaranteed successful read.
+
+As required by the reviewed plan, any invalid/empty/oversized listing, expiry, non-200, redirect, timeout,
 cancellation, incomplete/mismatched body or evidence-finalization failure ends
 the check. Preserve the attempt. No new path, second object, increased size cap,
 fallback credential or probe cycle is allowed. Report the exact limited result

@@ -17,6 +17,15 @@ authenticated support chat on 2026-11-09 UTC. The dashboard confirmed usage case
 confirmed. A chat-offered courtesy unblock has not been activated; see the
 [recovery preparation](./blob-recovery-preparation.md).
 
+Separately reviewed development OIDC checks also completed: metadata LIST was
+accepted, but the bounded private origin GET returned 403. The
+[body-check evidence](./measurements/blob-oidc-body-probe.json) records two
+requests for that attempt; together with the earlier one-request OIDC check,
+three OIDC requests were used. No object data or backup was saved. Investigation
+has stopped without a further probe cycle; the same support case now contains
+the final result. Git/manual deployment holds remain active. No credentials
+were rotated and no store disconnect, unblock, export or cutover occurred.
+
 A follow-up local diagnostic resolved the actual production environment through
 the installed SDK: read-write authentication selected the expected store, with
 no API URL override. The injected token was the normal read-write format, not an

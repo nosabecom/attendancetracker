@@ -34,6 +34,14 @@ were added to the same case. Support was asked for all-environment OIDC
 revocation semantics and whether a supported OIDC body-export path could work
 during suspension. No such path is established by the successful listing.
 
+The separately reviewed body check subsequently returned LIST 200 followed by
+private origin GET 403. Its two-request allocation is spent; no object data was
+accepted or saved. This final result was sent in the same case, and the access
+investigation has stopped without another probe cycle. Across both OIDC checks,
+there were two LISTs and one object GET, with no retry or token remint. Support
+is now asked to identify the quickest supported free recovery path and complete
+credential freeze. No rotation, store disconnect or unblock has occurred.
+
 See the [recovery preparation](./blob-recovery-preparation.md) for the proposed
 sequence and the provider facts that still need verification. The existing
 December 4 banner remains the fallback date, not a guaranteed successful export.

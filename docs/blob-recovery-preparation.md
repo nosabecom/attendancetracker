@@ -202,8 +202,14 @@ generic error or ambiguous denial leaves the store suspended and stops recovery.
 
 Astra recommended preparing a separately reviewed
 [OIDC LIST + body check](./blob-oidc-body-probe-plan.md). That recommendation did
-not allocate or run another request. OIDC1 remains spent, and no body capability
-has yet been established.
+not itself allocate or run another request. Following code corrections and
+explicit execution acceptance, OIDCBODY1 ran once at `d7a8a2d`: LIST 200, origin
+GET 403, one request per stage. Both private outcome records agree. No object
+data was accepted or saved, and no body capability was established. OIDC1 plus
+OIDCBODY1 have now spent three requests (two LISTs, one object GET); all static
+and export checks remain unused. The access investigation has stopped with no
+retry, alternate object, fallback or remint. The limited result and request for
+supported provider recovery were added to the existing case.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not
