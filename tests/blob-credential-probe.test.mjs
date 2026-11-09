@@ -102,7 +102,7 @@ test('rejects mismatched static credentials locally and never falls back to ambi
   }
 });
 
-test('HTTP denials are scoped and inconclusive; redirects/server errors never resend or read error bodies', async t => {
+test('OIDC denials remain scoped; redirects/server errors never resend or read error bodies', async t => {
   for (const status of [401, 403, 302, 429, 503]) await t.test(String(status), async () => {
     const dir = await temp();
     try {
@@ -110,12 +110,51 @@ test('HTTP denials are scoped and inconclusive; redirects/server errors never re
       const result = await probeBlobCredential(options(dir, async () => {
         calls++;
         return { status, body: new ReadableStream({ pull() { read = true; }, cancel() { canceled = true; } }, { highWaterMark: 0 }) };
-      }));
+      }, [401, 403].includes(status) ? { kind: 'oidc', token: jwt({}) } : {}));
       assert.equal(calls, 1); assert.equal(read, false); assert.equal(canceled, true);
       assert.equal(result.httpStatus, status); assert.equal(result.responseBodyBytes, 0);
       assert.equal(result.code, [401, 403].includes(status) ? 'auth_denied_inconclusive' : status === 302 ? 'redirect_denied' : 'http_status_inconclusive');
       assert.equal(result.status, status === 302 ? 'failed' : 'inconclusive');
       assert.ok(!JSON.stringify(result).includes('revoked'));
+      await identical(dir, result);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});
+
+test('static denial diagnostics preserve only recognized provider codes, never messages or revocation claims', async t => {
+  for (const [label, body, expected] of [
+    ['access denied', { error: { code: 'forbidden', message: `ERROR_SENTINEL ${token}` } }, 'forbidden'],
+    ['suspended', { error: { code: 'store_suspended', message: 'ROW_SENTINEL' } }, 'store_suspended'],
+    ['unknown code', { error: { code: `ERROR_SENTINEL ${token}` } }, 'unrecognized'],
+    ['non-JSON denial', 'ERROR_SENTINEL', 'unrecognized'],
+  ]) await t.test(label, async () => {
+    const dir = await temp(); let calls = 0;
+    try {
+      const result = await probeBlobCredential(options(dir, async () => { calls++; return response(body, 403); }));
+      assert.equal(calls, 1); assert.equal(result.requestAttempts, 1);
+      assert.equal(result.status, 'inconclusive'); assert.equal(result.code, 'auth_denied_inconclusive');
+      assert.equal(result.providerCode, expected); assert.ok(result.responseBodyBytes > 0);
+      assert.ok(!JSON.stringify(result).includes('revoked'));
+      await identical(dir, result);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});
+
+test('static denial bodies retain the same size and deadline bounds without another request', async t => {
+  for (const mode of ['overflow', 'stalled']) await t.test(mode, async () => {
+    const dir = await temp(); let calls = 0, canceled = false;
+    try {
+      const result = await probeBlobCredential(options(dir, async () => {
+        calls++;
+        return mode === 'overflow' ? response(' '.repeat(BLOB_PROBE_LIMITS.bodyBytes + 1), 401) : {
+          status: 403,
+          body: new ReadableStream({ pull() {}, cancel() { canceled = true; } }, { highWaterMark: 0 }),
+        };
+      }, { bodyMs: 5 }));
+      assert.equal(calls, 1); assert.equal(result.status, 'failed');
+      assert.equal(result.code, mode === 'overflow' ? 'response_too_large' : 'body_timeout');
+      assert.equal(result.providerCode, undefined);
+      if (mode === 'stalled') assert.equal(canceled, true);
       await identical(dir, result);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });

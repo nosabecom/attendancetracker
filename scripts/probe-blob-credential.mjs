@@ -14,6 +14,11 @@ export const BLOB_PROBE_TARGET = Object.freeze({
   teamId: 'team_fmwIPLne9w30y7G5JQrs3fzl',
 });
 export const BLOB_PROBE_LIMITS = Object.freeze({ requests: 1, bodyBytes: 16 * 1024, headersMs: 15_000, bodyMs: 15_000, globalMs: 30_000 });
+// Installed SDK getBlobError() distinguishes suspension from access denial.
+// Retain only these fixed codes, never provider messages or discovered values.
+const providerCodes = new Set(['forbidden', 'store_suspended', 'store_not_found',
+  'oidc_environment_not_allowed', 'client_token_expired', 'rate_limited',
+  'service_unavailable', 'not_allowed', 'unknown_error', 'bad_request']);
 const codes = new Set([
   'invalid_options', 'invalid_token', 'store_mismatch', 'oidc_claims', 'oidc_expiry',
   'protocol_version', 'credential_private', 'credential_format', 'destination_private',
@@ -165,6 +170,24 @@ export async function probeBlobCredential({
     ]);
     if (results.some(result => result.status === 'rejected')) fail('attempt_write');
   }
+  async function readBoundedBody(body) {
+    if (!body || typeof body.getReader !== 'function') fail('response_body');
+    const reader = body.getReader(), chunks = [];
+    timer = setTimeout(() => stop(new BlobCredentialProbeError('body_timeout')), bodyMs);
+    try {
+      while (true) {
+        const { done, value } = await abortable(reader.read(), controller.signal);
+        if (done) break;
+        if (!(value instanceof Uint8Array)) fail('response_body');
+        record.responseBodyBytes += value.byteLength;
+        if (record.responseBodyBytes > BLOB_PROBE_LIMITS.bodyBytes) fail('response_too_large');
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks);
+    } catch (error) {
+      stop(error); void reader.cancel().catch(() => {}); throw error;
+    } finally { clearTimeout(timer); reader.releaseLock(); }
+  }
   try {
     await writeRecord(handle, record, 'attempt_write');
     await syncDirectory(parent);
@@ -195,26 +218,20 @@ export async function probeBlobCredential({
       if (!Number.isInteger(response?.status) || response.status < 100 || response.status > 599) fail('invalid_response');
       record.httpStatus = response.status;
       if (response.status !== 200) {
-        void response.body?.cancel().catch(() => {});
+        if (kind === 'rw' && [401, 403].includes(response.status)) {
+          const bytes = await readBoundedBody(response.body);
+          let providerCode;
+          try { providerCode = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))?.error?.code; }
+          catch { /* An unreadable provider error remains inconclusive. */ }
+          record.providerCode = providerCodes.has(providerCode) ? providerCode : 'unrecognized';
+        } else {
+          void response.body?.cancel().catch(() => {});
+        }
         fail([401, 403].includes(response.status) ? 'auth_denied_inconclusive' : response.status >= 300 && response.status < 400 ? 'redirect_denied' : 'http_status_inconclusive', response.status);
       }
-      if (!response.body || typeof response.body.getReader !== 'function') fail('response_body');
-      const reader = response.body.getReader(), chunks = [];
-      timer = setTimeout(() => stop(new BlobCredentialProbeError('body_timeout')), bodyMs);
-      try {
-        while (true) {
-          const { done, value } = await abortable(reader.read(), controller.signal);
-          if (done) break;
-          if (!(value instanceof Uint8Array)) fail('response_body');
-          record.responseBodyBytes += value.byteLength;
-          if (record.responseBodyBytes > BLOB_PROBE_LIMITS.bodyBytes) fail('response_too_large');
-          chunks.push(value);
-        }
-      } catch (error) {
-        stop(error); void reader.cancel().catch(() => {}); throw error;
-      } finally { clearTimeout(timer); reader.releaseLock(); }
+      const bytes = await readBoundedBody(response.body);
       let page;
-      try { page = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))); }
+      try { page = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
       catch { fail('invalid_json'); }
       if (!page || !Array.isArray(page.blobs) || page.blobs.length > 1 || typeof page.hasMore !== 'boolean') fail('invalid_page');
       for (const row of page.blobs) {

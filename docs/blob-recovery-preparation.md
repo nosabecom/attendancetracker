@@ -115,7 +115,7 @@ reviewed bounds and cannot silently consume or increase that allocation. The
 installed CLI's `vercel project token` can obtain a development token, but that
 alone cannot establish production/preview revocation or store authority.
 
-## Credential-bound check preparation
+## Credential-bound development check
 
 Astra accepted the operational hold and requested an explicit authentication
 transport. `vercel blob get-store` and the dashboard store-metadata endpoint use
@@ -124,8 +124,9 @@ account authentication; their success cannot validate or revoke a Blob bearer.
 The supported `vercel project token attendance-tracker --json` command has now
 been invoked once with explicit team scope and the clean environment, capturing
 stdout privately. Decoded claims match the expected project/team and development
-environment, with approximately 12 hours remaining at capture. Signature and
-Blob authority have not been verified. No Blob request was made. The command's
+environment, with approximately 12 hours remaining at capture. At capture, local
+signature and Blob-authority verification had not occurred. The acquisition
+itself made no Blob request; the separate check is recorded below. The command's
 internal control-request count is unknown; it is separate from the three static
 checks and exporter budget.
 
@@ -135,25 +136,30 @@ lifetime. It does not establish a store-wide disconnect/revocation guarantee.
 Current SDK/source inspection found credential-bound listing and per-object
 metadata reads; no independent credential-validation-only endpoint was found.
 
-The proposed [credential probe](../scripts/probe-blob-credential.mjs) therefore
+The [credential probe](../scripts/probe-blob-credential.mjs) therefore
 uses the installed SDK's documented **list operation with limit 1**, through its
 API-13 HTTP endpoint. It supplies only the chosen bearer and fixed store header,
 with no account/OIDC/static fallback, retries or redirects. It may receive one
 metadata row; it must never persist or display the row, name, URL or raw body.
-No object-body download is part of this operation. This deliberately differs
-from the prior review's no-listing condition and requires explicit review before
-execution. It is preparation, not an approved or completed probe.
+No object-body download is part of this operation. Astra explicitly accepted
+this alternative at `3516901`, replacing the earlier no-listing condition only
+for the separately counted OIDC1 development check.
 
-The proposed development-only allocation is **one physical list request**,
+The development-only allocation was **one physical list request**,
 separate from all prior checks, the three static checks and export. It has bounded
 response/time limits and a non-reusable private attempt record. HTTP 200 with the
 expected list response proves only that this bearer can list this store at that
 time. Denial, expiry, suspension, timeout or generic error is not global OIDC
 revocation evidence. Development cannot establish production/preview coverage.
-If the probe is not accepted or lacks a valid representative token, stop this
-investigation and use provider evidence; do not invent an API or retry.
+The actual [OIDC1 evidence](./measurements/blob-development-oidc-probe.json)
+records **HTTP 200**, one validated metadata row, 768 response bytes, exactly one
+request and no object-body requests. Both private evidence files agree and
+finalization succeeded. No row fields were saved or displayed. This establishes
+development LIST capability despite the legacy connection's Upgrade button;
+it does not establish write/body access, production/preview coverage or revocation.
+**OIDC1 is spent. Do not retry or create another attempt path.**
 
-Proposed CLI contract (not run, pending review):
+Historical CLI contract for completed OIDC1; do not rerun:
 
 ```sh
 node scripts/probe-blob-credential.mjs --run \
@@ -166,8 +172,32 @@ The probe caps response bodies at 16 KiB, headers and bodies at 15 seconds each,
 and network time at 30 seconds. It takes credentials only from an owner-only
 file and never refreshes the OIDC token. A later expired token or failed attempt
 does not authorize minting another token, choosing a new attempt path or retrying.
-Its 41 focused synthetic tests passed. No live probe has been executed; this
-result establishes local behavior only and does not accept the listing exception.
+The original 41 focused tests passed before the reviewed live run. The check
+executed exactly that reviewed code; later offline diagnostic changes do not
+alter the retained historical evidence or authorize another request.
+
+Afterward, a message in the same support case reported development LIST acceptance,
+the operational hold and the absence of object-body/write tests. It asks which
+supported control revokes all existing/new OIDC authority across environments,
+and whether a legitimate OIDC export path exists during suspension. If so,
+recovery might avoid courtesy activation, but metadata acceptance is not proof
+that such a body-read path works. The case still awaits a human response.
+
+## Static-revocation diagnostics awaiting review
+
+The original probe discarded every 401/403 body. A subsequent offline change
+retains only allowlisted provider error codes for static-token 401/403 responses,
+under the same 16 KiB/time bounds. Installed SDK `getBlobError()` distinguishes
+`store_suspended` from `forbidden`; arbitrary messages and unrecognized codes are
+discarded. OIDC denial behavior remains unchanged. All denials still have
+inconclusive status; a code alone is not a declaration that credentials were
+revoked or that every writer is frozen.
+
+The new 49-test focused suite passed locally. No static check has been run.
+This change requires review before any future use. In the eventual controlled
+comparison, assess provider codes together with the confirmed immediate rotation,
+explicit old/new credentials and successful fresh-key checks. A suspension,
+generic error or ambiguous denial leaves the store suspended and stops recovery.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not

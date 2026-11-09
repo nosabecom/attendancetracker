@@ -1,0 +1,40 @@
+{
+  "formatVersion": 1,
+  "checkedAt": "2026-11-09T02:22:47.781924+00:00",
+  "sourceHead": "3516901ff5ad2b760b9db8f19fd8d9ba85121d26",
+  "allocation": {
+    "id": "OIDC1",
+    "maxPhysicalRequests": 1,
+    "physicalRequestsUsed": 1,
+    "applicationRetries": 0,
+    "objectBodyRequests": 0,
+    "additionalTokenAcquisitions": 0
+  },
+  "evidenceFilesAgree": true,
+  "outcome": {
+    "status": "accepted",
+    "code": "list_accepted",
+    "httpStatus": 200,
+    "requestAttempts": 1,
+    "responseBodyBytes": 768,
+    "metadataRowsObserved": 1,
+    "credentialKind": "oidc",
+    "scope": "single_credential_store_time",
+    "operation": "list_limit_1_metadata",
+    "claimsValidation": "decoded_not_signature_verified",
+    "signatureVerified": false
+  },
+  "remainingAllocations": {
+    "staticKeyChecksReserved": 3,
+    "staticKeyChecksUsed": 0,
+    "exportMetadataRequestsUsed": 0,
+    "exportObjectRequestsUsed": 0
+  },
+  "limitations": [
+    "Development bearer/store/time LIST capability only.",
+    "JWT claims decoded locally; no local signature verification.",
+    "No object-body or write capability established.",
+    "No production, preview or historical-token coverage established.",
+    "No revocation, rotation, store disconnect, unblock, export or cutover performed."
+  ]
+}

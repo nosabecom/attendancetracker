@@ -27,6 +27,13 @@ free eligibility, replacement-token retrieval independently of deployment
 environments, and all store-authorized OIDC access. The case remains awaiting a
 support-team response; no duplicate case or automatic unblock was requested.
 
+A later accepted, separately bounded development OIDC check received HTTP 200
+from one Blob `LIST limit=1` request. It downloaded no object bodies and saved no
+metadata fields. This finding and the established operational deployment hold
+were added to the same case. Support was asked for all-environment OIDC
+revocation semantics and whether a supported OIDC body-export path could work
+during suspension. No such path is established by the successful listing.
+
 See the [recovery preparation](./blob-recovery-preparation.md) for the proposed
 sequence and the provider facts that still need verification. The existing
 December 4 banner remains the fallback date, not a guaranteed successful export.
