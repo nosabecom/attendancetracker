@@ -21,6 +21,12 @@ backup is available, and how to revoke old credentials while retaining exclusive
 export access. Dedicated CDN / Blob support was plan-gated; the genuine usage
 and suspension enquiry accepted the case without changing the Hobby plan.
 
+A follow-up in that same case reports the inspected zero-hour rotation setting
+and the displayed legacy static-token connection. It asks for confirmation of
+free eligibility, replacement-token retrieval independently of deployment
+environments, and all store-authorized OIDC access. The case remains awaiting a
+support-team response; no duplicate case or automatic unblock was requested.
+
 See the [recovery preparation](./blob-recovery-preparation.md) for the proposed
 sequence and the provider facts that still need verification. The existing
 December 4 banner remains the fallback date, not a guaranteed successful export.

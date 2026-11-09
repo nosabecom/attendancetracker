@@ -36,7 +36,38 @@ deploy hooks. Git remains connected; no deployment hold has been applied. The
 checked application source uses Blob only through `lib/storage.ts` and contains
 no signed/client-token issuance. The checked repository workflows contain no
 deployment command. These observations narrow the inventory; they do not rule
-out externally configured workflows or retained credentials.
+out externally configured workflows or retained credentials. The owner has been
+asked whether any other person, service, script or deployment automation exists.
+
+Further read-only inspection found **Don't build anything** under Ignored Build
+Step, but skipped builds are not proof that deployment creation or environment
+copying is prevented. No supported global creation hold was found in the
+installed CLI/public schema. No partial hold was applied. Git disconnect and
+per-build cancellation remain possible components of an operational hold, with
+manual/external workflows accounted for separately.
+
+The cached first-party OpenAPI also describes a broader project deployment-source
+policy: enabled with an empty source list denies selected production/preview
+sources, but first-party Vercel Apps explicitly bypass that check. Its entitlement
+and queued-build coverage have not been verified. This is a possible component,
+not a demonstrated complete hold, and has not been applied. No independent
+default-owner Blob-token retrieval endpoint was found in the installed CLI or
+cached public API; the visible store **Show secret** control has not been used
+as a replacement retrieval procedure.
+
+The existing authenticated `vercel env run` production path successfully captured
+the current static credential into an ignored 0600 file in a 0700 directory.
+Local validation confirmed the exact expected store and file ownership without
+displaying the credential or making any Blob metadata/object requests. This
+establishes the current capture route and retains a pre-rotation comparison
+credential; it does not prove a future replacement survives disconnect. One
+explicit CLI capture invocation occurred; its internal control-request count
+was not measured. No export budget was consumed by it.
+
+A follow-up message was sent to the existing support case with the observed
+zero-hour setting and legacy connection UI. It asks for free courtesy eligibility,
+independent default-owner token retrieval, and store-wide OIDC authority/revocation.
+The case still says it is awaiting a human response. No second case was opened.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not
@@ -97,8 +128,10 @@ as a freeze.
    sessions, facts and timestamps. Unknown shapes or count/content drift stop
    import. Obtain Astra xhigh review of actual evidence before proceeding.
 
-The recovery-specific [bounded exporter](../scripts/export-blob-bounded.mjs) has
-been implemented locally and awaits Astra review. It leaves the existing generic
+The recovery-specific [bounded exporter](../scripts/export-blob-bounded.mjs) was
+accepted by Astra xhigh at `9700eb5`, following 45 reported passing focused tests.
+The review accepted code/preparation and withheld execution until the deployment,
+capture/revocation, OIDC and free-eligibility gates are satisfied. It leaves the existing generic
 exporter unchanged. It pins the installed Blob 2.8.2 protocol, binds the explicit
 static token to the expected private-store hostname, and uses an owned HTTPS
 transport with no redirects, SDK/OIDC fallback or retries. It stops if the
