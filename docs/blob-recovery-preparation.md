@@ -2,7 +2,9 @@
 
 Status on 2026-11-09 UTC (November 8 Saskatchewan): production remains on Blob;
 the private store is suspended. One bounded origin-read retry returned 403.
-No bulk export, credential rotation, disconnection or unblock has been performed.
+No bulk export, credential rotation, store disconnection or unblock has been
+performed. The Git repository connection has been temporarily removed as part
+of the deployment hold; production's existing deployment remains in place.
 
 The owner authorized contacting support. Usage case `CSE_015biYiwnR3FpTkS` is
 Open, Severity 2. It requests a free recovery path and explicitly prohibits an
@@ -31,20 +33,34 @@ Development, `BLOB_READ_WRITE_TOKEN`, and an **Enable OIDC** action; its menu sa
 upgraded, not proof about every possible external OIDC principal. Do not enable
 OIDC during recovery. The case page says it is awaiting a support-team response.
 
-The project Git settings show a connection to `nosabecom/attendancetracker` and no
-deploy hooks. Git remains connected; no deployment hold has been applied. The
+The project Git settings initially showed a connection to
+`nosabecom/attendancetracker` and no deploy hooks. The
 checked application source uses Blob only through `lib/storage.ts` and contains
 no signed/client-token issuance. The checked repository workflows contain no
 deployment command. These observations narrow the inventory; they do not rule
-out externally configured workflows or retained credentials. The owner has been
-asked whether any other person, service, script or deployment automation exists.
+out externally configured workflows or retained credentials by themselves. The
+owner subsequently confirmed **Only this project and our work here** use the
+production token or deploy the app.
+
+After that confirmation, the existing Git connection was removed through the
+supported **Remove Git Connection** confirmation. The dashboard then stated the
+project is not connected to a Git repository. The dialog said project settings
+and configuration are preserved; branch-specific configuration tied to the repo
+may no longer apply. The prior repo is recorded for later reconnection.
+
+The project-wide Building, Queued, Initializing and Blocked status filters each
+returned **No deployments match the current filters**. No cancellation was needed.
+Latest pre-hold PR deployments, including `391bb65`, were already Ready. Our
+manual deployment and environment-copy hold is active; no other deployer was
+reported. This is an operational hold over the inventoried workflows, not a
+provider guarantee that an owner could not override it. Recheck before rotation.
 
 Further read-only inspection found **Don't build anything** under Ignored Build
 Step, but skipped builds are not proof that deployment creation or environment
 copying is prevented. No supported global creation hold was found in the
-installed CLI/public schema. No partial hold was applied. Git disconnect and
-per-build cancellation remain possible components of an operational hold, with
-manual/external workflows accounted for separately.
+installed CLI/public schema. That skip-build setting was not applied. The Git
+disconnect, empty pending-build checks and manual hold described above cover the
+workflows identified by the owner; they do not freeze existing Blob credentials.
 
 The cached first-party OpenAPI also describes a broader project deployment-source
 policy: enabled with an empty source list denies selected production/preview
@@ -68,6 +84,17 @@ A follow-up message was sent to the existing support case with the observed
 zero-hour setting and legacy connection UI. It asks for free courtesy eligibility,
 independent default-owner token retrieval, and store-wide OIDC authority/revocation.
 The case still says it is awaiting a human response. No second case was opened.
+Two explicit read-only requests to the dashboard-observed store metadata endpoint
+confirmed one connected project and inspected its metadata shape, without
+returning credentials or object names. The response did not expose an OIDC
+authority/revocation flag. These were control reads, not Blob export requests.
+
+The private journal reserves three single-attempt Blob metadata checks for the
+planned static-key comparison (new before disconnect, old after rotation, new
+after disconnect); none have been used. OIDC-specific probes need their own
+reviewed bounds and cannot silently consume or increase that allocation. The
+installed CLI's `vercel project token` can obtain a development token, but that
+alone cannot establish production/preview revocation or store authority.
 
 The installed Vercel CLI describes project pause as production traffic only.
 Storage disconnect removes connections/environment configuration; it does not
@@ -164,6 +191,16 @@ Do not pass token values in command arguments. The CLI prints only fixed error
 codes and aggregate counts. It makes no network requests on import or failed
 preflight. Preserve any failed attempt and review recovery before another run;
 do not delete its evidence or choose a new path to reset the allowance.
+
+## Current stop point
+
+Do not rotate or remove the store connection yet. Free courtesy eligibility and
+the store-wide OIDC/replacement-credential procedure remain unconfirmed. Keep
+the suspension and recorded operational hold in place until these gates can be
+resolved and the actual freeze sequence reviewed. Git reconnection must not
+permit a deployment to acquire a replacement exporter key; restore the repo
+only after that key is isolated, or after a safely canceled recovery with no
+credential rotation. Reconnecting here does not authorize a production switch.
 
 ## Separate cutover gates
 
