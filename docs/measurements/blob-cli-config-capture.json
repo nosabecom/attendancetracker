@@ -1,0 +1,31 @@
+{
+  "formatVersion": 1,
+  "allocation": "CLISOURCECONFIG1",
+  "sourceCommit": "0feeb3beb3f855b436b9a83b68e56942d16bf9fe",
+  "status": "captured",
+  "priorControlCalls": 26,
+  "reservedRequests": 12,
+  "transportCalls": 12,
+  "capturedFiles": 12,
+  "sourceBytes": 183281,
+  "responseBytes": 244524,
+  "cumulativeSourceControls": 38,
+  "originalControlCeiling": 66,
+  "originalFullReservationRetained": true,
+  "independentlyVerifiedFileHashes": 12,
+  "callerCompleted": true,
+  "parentCaptureUnchanged": true,
+  "automaticRetries": 0,
+  "repeatedMetadataRequests": 0,
+  "repeatedTreeRequests": 0,
+  "repeatedPriorContentRequests": 0,
+  "writerFreezeProven": false,
+  "configSafetyReviewed": false,
+  "credentialsRotated": false,
+  "storeDisconnected": false,
+  "productionImported": false,
+  "limitations": [
+    "This preserves previously omitted configurations; source and SDK behavior need a separate independent inspection.",
+    "A successful source capture is not evidence of revoked writer authority or operational drain."
+  ]
+}

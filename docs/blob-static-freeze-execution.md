@@ -22,10 +22,13 @@ found every executable application/library leaf present (8/4/8 across the three
 uploads), with literal SDK options, awaited mutations and no alternate auth,
 environment injection or detached writer. The actual API tree wraps uploaded
 source in `src/` and generated output in `out/`; package/lock/type configuration
-under that wrapper was omitted. Preserve the partial result. Retrieve only the
-12 missing configuration files from retained identifiers under a separately
-reviewed continuation; do not repeat trees, metadata or captured content. See
-the [capture evidence](./measurements/blob-cli-source-capture.json).
+under that wrapper was omitted. The partial result is preserved unchanged. A
+separately reviewed continuation subsequently captured only the twelve missing
+files, using retained identifiers without repeating discovery or prior content.
+All 32 application/configuration files were independently reviewed; the three
+SDKs resolve to the already-verified official 2.8.1 release, closing the known
+source/authentication gap. See the [original partial evidence](./measurements/blob-cli-source-capture.json)
+and [continuation evidence](./measurements/blob-cli-config-capture.json).
 
 One separate preparatory log read (`LOGSCOUT1`) returned seven records in its
 one-day lookback: six static GETs and one function GET. The function returned
@@ -52,11 +55,13 @@ contains `BLOB_STORE_ID`. That is evidence about effective variable names, not
 their values. Public-source inspection covers 47 deployments across 46 commits
 and the two resolved Blob SDK versions. It found no explicit OIDC/store-ID
 selection, signing/client-token issuer, server background writer or build-time
-environment injection. Three dirty CLI uploads remain unresolved: their base
-commit is not proof of the uploaded code.
+environment injection. Three dirty CLI uploads were initially unresolved: their base
+commit is not proof of the uploaded code. Their actual application and
+configuration capture has now closed that source gap; see the
+[independent review](./measurements/blob-known-writer-source-review.json).
 
-Retrieve those three actual source closures through the documented owner APIs,
-using a separate finite read-only allocation and reviewed source-audit helper.
+The three actual source closures were retrieved through the documented owner
+APIs under separately reviewed finite source-only allowances.
 Keep unpublished code private, do not execute it, and do not fetch environment
 or credential files. A partial closure, unknown SDK/auth path, denied request or
 unresolved executable dependency leaves this gate open. Global revocation of

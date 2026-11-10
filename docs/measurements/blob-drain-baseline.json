@@ -1,0 +1,30 @@
+{
+  "formatVersion": 1,
+  "allocation": "DRAINBASELINE1",
+  "status": "preserved",
+  "physicalRequests": 1,
+  "responseBytes": 18645,
+  "rangeStart": "2026-11-09T21:41:15.366Z",
+  "rangeEnd": "2026-11-10T21:41:15.366Z",
+  "rows": 8,
+  "paginationExhausted": true,
+  "noFilters": true,
+  "uniqueRequestIds": 8,
+  "functionRequests": 2,
+  "functionInvocations": 2,
+  "sourceProvenReadOnlyFunctionRequests": 2,
+  "unclassifiedMutationCandidates": 0,
+  "sourceControlCorrelated": true,
+  "sourceControlAllocation": "CONTROLSCOUT1",
+  "sourceControlExpectedStatus": 401,
+  "sourceControlNoCookieOrAuthorizationSent": true,
+  "credentialsRotated": false,
+  "writerFreezeDeclared": false,
+  "finalDrainDeclared": false,
+  "limitations": [
+    "The complete returned day-window and correlated nonwriting control form the pre-isolation operational observation, not the final drain boundary.",
+    "Exact request/invocation IDs, marker, query URLs, returned pages and hashes remain private.",
+    "A post-isolation overlapping pass and fresh control after the runtime window must reconcile all new invocation candidates.",
+    "The provider documentation states request coverage but does not publish a formal ingestion watermark."
+  ]
+}

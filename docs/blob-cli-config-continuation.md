@@ -1,8 +1,14 @@
 # Missing configuration from retained deployment source trees
 
-Status: offline preparation for Astra review. No configuration request has run.
-The full Blob data copy remains preserved privately; this phase reads legacy
-deployment code and does not change the store or production app.
+Status: the separately reviewed continuation succeeded once: twelve GETs,
+twelve independently verified files, and 38 cumulative source controls within
+the retained ceiling of 66. See the [capture evidence](./measurements/blob-cli-config-capture.json)
+and [independent source review](./measurements/blob-known-writer-source-review.json).
+The full Blob data copy remains preserved privately. This source-only work
+changed no credential, store connection or production app.
+
+The preparation below records the accepted scope; it is not an instruction to
+replay the completed continuation.
 
 ## Preserve the first capture
 
