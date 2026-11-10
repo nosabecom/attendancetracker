@@ -6,7 +6,7 @@ export function armBlobOwnerPressCapture(env = globalThis) {
   const doc = env.document;
   const now = () => (env.Date ?? Date).now();
   const deadline = now() + 30000;
-  let state = 'awaiting_reveal', code = 'ok', token, observer, timer;
+  let state = 'awaiting_reveal', code = 'ok', token, observer, timer, downloadAnchor;
   const waiters = new Set();
   const signal = () => { for (const wake of [...waiters]) wake(); };
   const page = () => env.location.origin === 'https://vercel.com' &&
@@ -36,13 +36,17 @@ export function armBlobOwnerPressCapture(env = globalThis) {
       url = env.URL.createObjectURL(blob);
       anchor = doc.createElement('a'); anchor.href = url;
       anchor.download = 'attendance-owner-store-current-20261110.env';
-      anchor.style.display = 'none'; doc.body.append(anchor);
+      anchor.style.display = 'none'; downloadAnchor = anchor; doc.body.append(anchor);
       if (now() >= deadline) { env.URL.revokeObjectURL(url); fail('timeout'); return; }
       anchor.click();
+      // Dispatch can synchronously reach our capture listener. A terminal
+      // failure there must remain terminal for pending and future callers.
+      if (state === 'failed') { env.URL.revokeObjectURL(url); return; }
+      if (now() >= deadline) { env.URL.revokeObjectURL(url); fail('timeout'); return; }
       state = 'download_requested'; cleanup(); signal();
       env.setTimeout(() => env.URL.revokeObjectURL(url), 5000);
     } catch { if (url) env.URL.revokeObjectURL(url); fail('download_failed'); }
-    finally { anchor?.remove(); }
+    finally { downloadAnchor = undefined; anchor?.remove(); }
   };
   const inspect = () => {
     if (state === 'failed' || state === 'download_requested') return;
@@ -74,6 +78,13 @@ export function armBlobOwnerPressCapture(env = globalThis) {
     waiters.add(wake); check(); wake();
   });
   function onClick(event) {
+    if (event.target === downloadAnchor && downloadAnchor) {
+      if (state !== 'awaiting_mask' || now() >= deadline || !page()) {
+        event.preventDefault();
+        fail(now() >= deadline ? 'timeout' : !page() ? 'wrong_page' : 'unexpected_press');
+      }
+      return;
+    }
     if (state === 'failed' || state === 'download_requested') return;
     if (now() >= deadline) return fail('timeout');
     if (!page()) return fail('wrong_page');

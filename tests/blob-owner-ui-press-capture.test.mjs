@@ -17,7 +17,14 @@ function fixture(options = {}) {
       documentElement: {}, body: { append() {} },
       querySelectorAll(kind) { return kind === 'pre' ? options.duplicate ? [block, block] : [block] : shown ? [hide] : [show]; },
       addEventListener(_, fn) { listener = fn; }, removeEventListener() { listener = undefined; },
-      createElement() { return { style: {}, remove() {}, click() { assert.equal(shown, false); downloads++; if (options.downloadFailure) throw Error(secret); } }; },
+      createElement() { return { style: {}, remove() {}, click() {
+        assert.equal(shown, false);
+        time += options.downloadDispatchAdvance ?? 0;
+        let prevented = false;
+        listener?.({ target: this, isTrusted: false, preventDefault() { prevented = true; } });
+        if (!prevented) downloads++;
+        if (options.downloadFailure) throw Error(secret);
+      } }; },
     },
     MutationObserver: class { constructor(fn) { this.fn = fn; } observe() { observers.add(this.fn); } disconnect() { observers.delete(this.fn); } },
     Blob: class { constructor(parts) { payload = parts.join(''); } },
@@ -83,4 +90,15 @@ test('late timer delivery cannot permit a press or download at the deadline', as
   render.press(render.hide); render.advance(30000); render.render(false);
   assert.equal((await render.controller().finish()).code, 'timeout');
   assert.equal(render.counts().downloads, 0);
+});
+test('anchor capture at the deadline prevents download and keeps all finish calls failed', async () => {
+  const f = fixture({ downloadDispatchAdvance: 30000 });
+  arm(f.env); f.press(f.show); f.render(true);
+  const pending = f.controller().finish();
+  f.press(f.hide); f.render(false);
+  const expected = { status: 'failed', code: 'timeout' };
+  assert.deepEqual(await pending, expected);
+  assert.deepEqual(await f.controller().finish(), expected);
+  assert.deepEqual(f.controller().status(), expected);
+  assert.equal(f.counts().downloads, 0);
 });
