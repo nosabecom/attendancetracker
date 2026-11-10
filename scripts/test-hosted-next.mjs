@@ -13,6 +13,8 @@ import { persistHostedReports } from './test-hosted-preview.mjs';
 import * as publisher from './prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, validateContinuationHistory,
   validateContinuationSnapshot, continuationTotals, validateContinuationPublication } from './hosted-next-continuation.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdSnapshot, validateThirdHistory,
+  validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview } from './hosted-next-third.mjs';
 
 export const FINGERPRINT = 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba';
 const TEAM = 'nomokaro625-9385s-projects';
@@ -32,22 +34,29 @@ const record = value => value && typeof value === 'object' && !Array.isArray(val
 
 export function parseArgs(args) {
   const continued = args.length === 6 && args[4] === '--continue-after' && args[5] === CONTINUATION.predecessorDeploymentId;
-  check((args.length === 4 || continued) && args[0] === '--expected-vercel-deployment' &&
+  const third = args.length === 6 && args[4] === '--continue-after' && args[5] === THIRD.predecessorDeploymentId;
+  check((args.length === 4 || continued || third) && args[0] === '--expected-vercel-deployment' &&
     /^dpl_[A-Za-z0-9]+$/.test(args[1]) && args[2] === '--expected-preview' &&
     /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(args[3]), 'invalid_arguments');
-  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}) };
+  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}), ...(third ? { third: true } : {}) };
 }
 
 export function validateManifest(m, expected, now = Date.now()) {
   const v = m?.vercel, b = m?.backend, a = m?.access, c = m?.counters;
   check(m?.version === 1 && m.publication === 'ready' && /^[a-f0-9]{40}$/.test(m.sourceCommit ?? '') &&
     /^attendance-next-[a-f0-9]{32}$/.test(m.runId ?? ''), 'manifest_state');
-  if (expected.continuation) {
+  if (expected.third) {
+    validateThirdSnapshot(m.thirdContinuation); validateThirdPreflight(m.preflight);
+    check(!m.continuation && v?.requireGitSource === true &&
+      ![CONTINUATION.predecessorDeploymentId, THIRD.predecessorDeploymentId].includes(v?.deploymentId) &&
+      v?.deploymentId !== m.preflight.deploymentId &&
+      ![CONTINUATION.predecessorRunId, THIRD.predecessorRunId].includes(m.runId), 'third_reuses_predecessor');
+  } else if (expected.continuation) {
     validateContinuationSnapshot(m.continuation);
     check(v?.deploymentId !== CONTINUATION.predecessorDeploymentId && m.runId !== CONTINUATION.predecessorRunId,
       'continuation_reuses_predecessor');
   }
-  else check(!m.continuation, 'continuation_mode_required');
+  else check(!m.continuation && !m.thirdContinuation, 'continuation_mode_required');
   check(m.environmentVerified?.build === true && m.environmentVerified.runtime === true &&
     m.environmentVerified.credentialOverrides === true, 'environment_not_verified');
   check(v?.teamSlug === TEAM && v.teamId === TEAM_ID && v.projectId === PROJECT &&
@@ -90,17 +99,18 @@ export function validatePriorEvidence(prior, backend, manifest) {
 }
 
 // Counters never reset between the backend rehearsal, publisher and runtime.
-export function createBudget(publisherCounters, { now = () => performance.now(), continuation } = {}) {
+export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
     count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= 2 &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
   if (continuation) validateContinuationSnapshot(continuation);
-  const seed = continuation ? continuationTotals(publisherCounters, 1) : {
+  if (thirdContinuation) { check(!continuation, 'third_budget_mode'); validateThirdSnapshot(thirdContinuation); validateThirdPreflight(preflight); }
+  const seed = thirdContinuation ? thirdTotals(publisherCounters, 1, preflight.controlRequests) : continuation ? continuationTotals(publisherCounters, 1) : {
     calls: 62, nextCalls: 1, controls: 1 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests };
   const totals = { calls: seed.calls, writes: 355, gateway: 7, control: seed.controls,
     hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
-    ...(continuation ? { creations: seed.creations } : {}) };
+    ...(continuation || thirdContinuation ? { creations: seed.creations } : {}) };
   const snapshot = () => ({ ...totals });
   function reserve({ kind, writes = 0, gateway = false, cleanup = false }) {
     const elapsed = now() - start;
@@ -114,8 +124,8 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
     check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= (cleanup ? 700 : 600) &&
-      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (continuation ? 60 : 40) && next.runnerControl <= 19 &&
-      next.hosting <= 100, 'budget_exceeded');
+      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
+      next.hosting <= (thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
     return snapshot();
   }
@@ -480,7 +490,7 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
 }
 
 async function exclusiveAttempt(recordValue, path) {
-  check([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt].includes(path), 'attempt_path');
+  check([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, THIRD_PATHS.attempt].includes(path), 'attempt_path');
   const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try { await file.writeFile(JSON.stringify(recordValue, null, 2) + '\n'); await file.sync(); } finally { await file.close(); }
 }
@@ -501,14 +511,20 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     transport: boundedFetch, createBrowser: createBrowserHarness, createAdmin: createAdminReader,
     ...injected };
   const expected = parseArgs(argv);
-  const paths = expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const paths = expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const manifest = JSON.parse(await deps.readPrivateText(paths.manifest));
   validateManifest(manifest, expected, deps.wallNow());
   const backend = JSON.parse(await deps.readPrivateText(backendPath));
   const prior = JSON.parse(await deps.readPublic(priorPath));
   const previous = validatePriorEvidence(prior, backend, manifest);
-  let continuation;
-  if (expected.continuation) {
+  let continuation, thirdContinuation;
+  if (expected.third) {
+    thirdContinuation = validateThirdHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
+      JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), await deps.readPublic(CONTINUATION_PATHS.publication),
+      JSON.parse(await deps.readPrivateText(CONTINUATION_PATHS.manifest)), manifest.backend);
+    for (const path of [ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, paths.evidence]) await deps.assertAbsent(path);
+    validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
+  } else if (expected.continuation) {
     continuation = validateContinuationHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
       JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), manifest.backend);
     await deps.assertAbsent(ORIGINAL_PATHS.attempt);
@@ -522,15 +538,18 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   check(!deps.git(['ls-files', '--others', '--exclude-standard', '--', ...core, 'proxy.ts', 'next.config.ts', 'vercel.json']).trim(), 'unreviewed_core');
   const quota = await deps.quota(deps.wallNow());
   check(quota.plan === 'CONVEX_BASE', 'free_plan_review');
+  const vercelCreditReview = expected.third ? validateVercelCreditReview(JSON.parse(await deps.readPrivateText(vercelCreditReviewPath)), deps.wallNow()) : undefined;
   const key = (await deps.readPrivateText(env.ATTENDANCE_PREVIEW_KEY_FILE)).trim();
   check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') && key.split('|').length === 2 &&
     !/[\u0000-\u0020\u007f]/.test(key), 'preview_key_scope');
   const vercelToken = await deps.readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
-  const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation });
+  const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation,
+    thirdContinuation, preflight: manifest.preflight });
   const attempt = { version: 1, runId: manifest.runId, sourceCommit: manifest.sourceCommit,
     vercelDeploymentId: expected.deploymentId, backendId: manifest.backend.id,
     backendReference: manifest.backend.reference, fingerprint: FINGERPRINT,
     ...(continuation ? { continuation } : {}),
+    ...(thirdContinuation ? { thirdContinuation } : {}),
     startedAt: new Date(deps.wallNow()).toISOString() };
   // Existing backend runtime-attempt.json and publication records remain untouched.
   await deps.exclusiveAttempt(attempt, paths.attempt);
@@ -538,9 +557,10 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     startedAt: attempt.startedAt, sourceCommit: manifest.sourceCommit, deploymentId: expected.deploymentId,
     deploymentName: expected.backendName, priorBackend: previous,
     ...(continuation ? { continuation } : {}),
+    ...(thirdContinuation ? { thirdContinuation, preflight: { ...manifest.preflight }, vercelCreditReview } : {}),
     bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: 40, writes: 700, ordinaryWrites: 600,
-      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: 100, control: continuation ? 60 : 40,
-      ...(continuation ? { cumulativeCreations: 2 } : {}),
+      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: thirdContinuation ? 80 : continuation ? 60 : 40,
+      ...(continuation || thirdContinuation ? { cumulativeCreations: thirdContinuation ? 3 : 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
     assertions: {}, negativeProbes: [], ipProvenance: { status: 'unverified' },
@@ -655,13 +675,14 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   try {
     const liveVercel = await vercelRequest(`/v13/deployments/${expected.deploymentId}?teamId=${TEAM_ID}`);
     deps.validateDeployment(liveVercel.body, { deploymentId: expected.deploymentId, url: manifest.vercel.url,
-      sourceCommit: manifest.sourceCommit, runId: manifest.runId });
+      sourceCommit: manifest.sourceCommit, runId: manifest.runId, ...(expected.third ? { requireGitSource: true } : {}) });
     const team = (await vercelRequest(`/v2/teams/${TEAM_ID}`)).body;
     assertion('VercelProPlan', team?.id === TEAM_ID && team.slug === TEAM && team.billing?.plan === publisher.EXPECTED.vercelPlan);
     const project = (await vercelRequest(`/v9/projects/${PROJECT}`)).body;
     assertion('VercelProjectProtection', project?.id === PROJECT && project.accountId === TEAM_ID &&
       project.framework === 'nextjs' && project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&
       project.targets?.production?.target === 'production' && project.targets.production.id !== expected.deploymentId);
+    if (expected.third) assertion('GitDisconnectPreserved', project.link == null);
     const actual = await control(`https://api.convex.dev/v1/deployments/${expected.backendName}`, `Bearer ${key}`);
     const canonical = await control(`${manifest.backend.cloudUrl}/api/v1/get_canonical_urls`, `Convex ${backend.adminKey}`);
     publisher.validateLiveIdentity(backend, actual, canonical);

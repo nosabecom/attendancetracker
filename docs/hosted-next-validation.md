@@ -1,5 +1,10 @@
 # Bounded hosted Next validation — both publications stopped at configuration gate
 
+The [third-continuation proposal](./hosted-next-third-validation.md) is prepared
+offline with distinct paths and retained accounting. Its Git-disconnection,
+fresh-credit/quota and Astra execution gates remain open; neither old allocation
+is reusable and no third deployment has run.
+
 ## Offline Pro-plan guard correction — November 10
 
 The owner independently upgraded the existing Vercel team to Pro. Both Next

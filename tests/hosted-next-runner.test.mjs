@@ -6,7 +6,9 @@ import { assertPublicResponse, boundedFetch, compareIpObservations, counterSnaps
   readAdminTable, runHostedNext, validateManifest, validatePriorEvidence, browserOperation } from '../scripts/test-hosted-next.mjs';
 import { persistHostedReports } from '../scripts/test-hosted-preview.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
-import { historyText, originalPublication, readyContinuationPublication } from './fixtures/hosted-next-history.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals } from '../scripts/hosted-next-third.mjs';
+import { historyText, secondHistoryText, originalPublication, secondPublication, readyContinuationPublication,
+  readyThirdPublication, vercelCreditFixture } from './fixtures/hosted-next-history.mjs';
 
 const expected = { deploymentId: 'dpl_fixture', backendName: 'fixture-preview-123' };
 const time = Date.parse('2030-01-01T00:00:00Z');
@@ -56,35 +58,48 @@ function response(body, status = 200, cookies = []) {
 function offlineRun(options = {}) {
   const manifest = fixture(), backend = backendFixture(), prior = priorFixture();
   const original = originalPublication(manifest.backend);
+  const second = secondPublication(manifest.backend);
+  if (options.third) {
+    manifest.thirdContinuation = structuredClone(THIRD);
+    manifest.preflight = { deploymentId:'dpl_existing',status:'passed',controlRequests:2,
+      ownershipVerified:true,sourceVerified:true,environmentShapeCompatible:true };
+    manifest.cumulative = thirdTotals(manifest.counters,1,2);manifest.vercel.requireGitSource=true;
+    options.mutateThird?.(manifest);options.mutateSecond?.(second);
+  }
   if (options.continuation) {
     manifest.continuation = structuredClone(CONTINUATION);
     manifest.cumulative = continuationTotals(manifest.counters, 1);
     options.mutateContinuation?.(manifest);
     options.mutateHistory?.(original);
   }
-  const paths = options.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
-  const publication = options.continuation ? readyContinuationPublication(manifest) : undefined;
+  const paths = options.third ? THIRD_PATHS : options.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const publication = options.third ? readyThirdPublication(manifest) : options.continuation ? readyContinuationPublication(manifest) : undefined;
   options.mutatePublication?.(publication);
   const events = [], persisted = new Map();
   const state = { open: false, checkins: 0, loggedOut: false, exclusive: 0, deleted: false, mutationCalls: 0 };
   const deploy = { id: expected.deploymentId, ownerId: manifest.vercel.teamId, projectId: manifest.vercel.projectId,
     target: null, url: 'fixture.vercel.app', readyState: 'READY', meta: { attendanceValidation: manifest.runId,
-      attendanceSourceCommit: manifest.sourceCommit, githubCommitSha: manifest.sourceCommit } };
+      attendanceSourceCommit: manifest.sourceCommit, githubCommitSha: manifest.sourceCommit },
+    ...(options.third?{gitSource:{type:'github',repoId:1409352117,ref:manifest.sourceCommit,sha:manifest.sourceCommit}}:{}) };
   const dependencies = {
     now: () => options.elapsed?.() ?? 0, wallNow: () => time,
     readPrivateText: async path => {
       if (path === paths.manifest) return JSON.stringify(manifest);
-      if (options.continuation && path === ORIGINAL_PATHS.manifest) return JSON.stringify(original);
+      if ((options.continuation||options.third) && path === ORIGINAL_PATHS.manifest) return JSON.stringify(original);
+      if (options.third && path === CONTINUATION_PATHS.manifest) return JSON.stringify(second);
+      if (path === vercelCreditReviewPath) return JSON.stringify({...vercelCreditFixture(time),...(options.creditPatch||{})});
       if (path?.endsWith('/preview-setup-manifest.json')) return JSON.stringify(backend);
       if (path === 'fixture-key-path') return 'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic-key';
       throw Error('unexpected private fixture path');
     },
     readVercelToken: async path => { assert.equal(path, 'fixture-auth-path'); return 'synthetic-vercel-auth'; },
     readPublic: async path => path === ORIGINAL_PATHS.publication ? historyText + (options.corruptHistory ? '\n' : '') :
-      path === CONTINUATION_PATHS.publication ? JSON.stringify(publication) : JSON.stringify(prior),
+      path === CONTINUATION_PATHS.publication ? options.third?secondHistoryText+(options.corruptSecond?'\n':''):JSON.stringify(publication) :
+      path === THIRD_PATHS.publication ? JSON.stringify(publication) : JSON.stringify(prior),
     assertAbsent: async path => {
-      assert([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.evidence].includes(path));
+      assert([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, CONTINUATION_PATHS.evidence, THIRD_PATHS.evidence].includes(path));
       if (options.originalRuntimeExists && path === ORIGINAL_PATHS.attempt) throw Error('original_runtime_exists');
+      if (options.secondRuntimeExists && path === CONTINUATION_PATHS.attempt) throw Error('second_runtime_exists');
       if (persisted.has(path)) throw Error('continuation_record_exists');
     },
     git: values => values[0] === 'rev-parse' ? manifest.sourceCommit : '',
@@ -97,6 +112,7 @@ function offlineRun(options = {}) {
     exclusiveAttempt: async (record, path) => {
       assert.equal(path, paths.attempt);
       assert.equal(!!record.continuation, !!options.continuation);
+      assert.equal(!!record.thirdContinuation, !!options.third);
       state.exclusive++; events.push('exclusive');
       if (options.existing || state.exclusive > 1) throw Error('EEXIST');
     },
@@ -110,7 +126,8 @@ function offlineRun(options = {}) {
           slug: manifest.vercel.teamSlug, billing: { plan: Object.hasOwn(options,'teamPlan')?options.teamPlan:'pro' } } };
         if (url.pathname.startsWith('/v9/projects/')) return { status: 200, body: { id: manifest.vercel.projectId,
           accountId: manifest.vercel.teamId, framework: 'nextjs', ssoProtection: { deploymentType: 'all_except_custom_domains' },
-          targets: { production: { target: 'production', id: 'dpl_productionFixture' } } } };
+          targets: { production: { target: 'production', id: 'dpl_productionFixture' } },
+          ...(options.gitLinkReturned?{link:{type:'github'}}:{}) } };
         if (init.method === 'PATCH') { assert.equal(state.open, false); events.push('revoke'); return { status: 200, body: {} }; }
         if (init.method === 'DELETE') { assert.equal(state.open, false); state.deleted = true; events.push('delete'); return { status: 200, body: {} }; }
         return { status: state.deleted ? 404 : 200, body: state.deleted ? null : deploy };
@@ -214,7 +231,8 @@ function offlineRun(options = {}) {
     }),
   };
   return { manifest, backend, prior, state, events, persisted, dependencies,
-    run: () => runHostedNext([...args, ...(options.continuation ? ['--continue-after', CONTINUATION.predecessorDeploymentId] : [])],
+    run: () => runHostedNext([...args, ...(options.third ? ['--continue-after', THIRD.predecessorDeploymentId] :
+      options.continuation ? ['--continue-after', CONTINUATION.predecessorDeploymentId] : [])],
       { ATTENDANCE_PREVIEW_KEY_FILE: 'fixture-key-path', ATTENDANCE_VERCEL_AUTH_FILE: 'fixture-auth-path' }, dependencies) };
 }
 
@@ -802,4 +820,50 @@ test('continuation mode cannot be downgraded or chained to a third deployment se
     '--continue-after', CONTINUATION.predecessorDeploymentId]));
   assert.deepEqual(parseArgs([...args, '--continue-after', CONTINUATION.predecessorDeploymentId]),
     { ...expected, continuation: true });
+});
+
+test('third runtime budget retains both spent publications and cannot spend unused control margin',()=>{
+  const preflight={deploymentId:'dpl_existing',status:'passed',controlRequests:2,ownershipVerified:true,sourceVerified:true,environmentShapeCompatible:true};
+  const budget=createBudget(fixture().counters,{thirdContinuation:THIRD,preflight});
+  assert.deepEqual(budget.snapshot(),{calls:64,writes:355,gateway:7,control:55,hosting:2,nextCalls:3,nextGateway:0,runnerControl:0,creations:3});
+  for(let n=0;n<19;n++)budget.reserve({kind:'control'});
+  assert.equal(budget.snapshot().control,74);assert.throws(()=>budget.reserve({kind:'control'}),/budget_exceeded/);
+  for(let n=0;n<48;n++)budget.reserve({kind:'hosting'});
+  assert.throws(()=>budget.reserve({kind:'hosting'}),/budget_exceeded/);
+  assert.throws(()=>createBudget(fixture().counters,{thirdContinuation:THIRD,continuation:CONTINUATION,preflight}),/third_budget_mode/);
+});
+test('third runner requires its new publication, retains cumulative costs and writes only its own records',async()=>{
+  const run=offlineRun({third:true});const report=await run.run();
+  assert.equal(report.passed,true);assert.equal(report.assertions.GitDisconnectPreserved,true);
+  assert.deepEqual(report.thirdContinuation,THIRD);assert.equal(report.counters.creations,3);
+  assert.equal(report.bounds.hosting,50);assert.equal(report.bounds.control,80);
+  assert.equal(report.counters.calls,61+report.counters.nextCalls);
+  assert.equal(report.counters.control,33+2+20+report.counters.runnerControl);
+  assert.equal(report.counters.writes,593);assert.equal(report.cleanup.availabilityClosed,true);
+  assert.deepEqual([...run.persisted.keys()].sort(),[THIRD_PATHS.attempt,THIRD_PATHS.evidence].sort());
+  const sent=run.events.length;await assert.rejects(run.run(),/continuation_record_exists/);
+  assert.deepEqual(run.events.slice(sent),[]);
+});
+test('third runner rejects changed second history, missing preflight, underreporting and credit gaps before provider work',async()=>{
+  for(const options of [{corruptSecond:true},{secondRuntimeExists:true},
+    {mutateSecond:x=>{x.cleanup.deploymentDeleted=false;}},
+    {mutateThird:x=>{x.preflight.ownershipVerified=false;}},
+    {mutateThird:x=>{x.cumulative.calls=63;}},
+    {mutatePublication:x=>{x.gitDisconnectPreserved=false;}},
+    {creditPatch:{usedCreditUsd:20}},{creditPatch:{plan:'hobby'}}]){
+    const run=offlineRun({third:true,...options});await assert.rejects(run.run());
+    assert.deepEqual(run.events,[]);assert.equal(run.state.exclusive,0);assert.equal(run.persisted.size,0);
+  }
+});
+test('third runner rejects any Git reconnection before app requests or mutation',async()=>{
+  const run=offlineRun({third:true,gitLinkReturned:true});const report=await run.run();
+  assert.equal(report.passed,false);assert.equal(report.failureKind,'GitDisconnectPreserved');
+  assert.equal(run.state.mutationCalls,0);assert.equal(report.physicalRequests.hosting,0);
+});
+test('third selector cannot be omitted, downgraded or extended to an unallocated fourth attempt',()=>{
+  const m=fixture();m.thirdContinuation=structuredClone(THIRD);
+  assert.throws(()=>validateManifest(m,expected,time),/continuation_mode_required/);
+  assert.deepEqual(parseArgs([...args,'--continue-after',THIRD.predecessorDeploymentId]),{...expected,third:true});
+  assert.throws(()=>parseArgs([...args,'--continue-after','dpl_fixture']));
+  assert.throws(()=>parseArgs([...args,'--continue-after',THIRD.predecessorDeploymentId,'--continue-after','dpl_fixture']));
 });

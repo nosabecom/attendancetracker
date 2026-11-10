@@ -11,6 +11,9 @@ import { checkVercelPrivateEnv } from './check-vercel-private-env.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS,
   validateContinuationHistory, continuationTotals } from './hosted-next-continuation.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdHistory, thirdTotals,
+  validateCompatibilityDeployment, validateCompatibilityMaps, validateExplicitGitSource,
+  validateVercelCreditReview } from './hosted-next-third.mjs';
 
 export const EXPECTED = Object.freeze({
   teamSlug: 'nomokaro625-9385s-projects', teamId: 'team_fmwIPLne9w30y7G5JQrs3fzl',
@@ -195,6 +198,7 @@ export function validateVercelDeployment(data, expected, { requireReady = true }
   assert(typeof data.url === 'string' && /^[a-z0-9-]+\.vercel\.app$/.test(data.url) &&
     expected.url === `https://${data.url}`, 'vercel_deployment_url');
   if (data.gitSource?.sha !== undefined) assert(data.gitSource.sha === expected.sourceCommit, 'vercel_git_source');
+  if (expected.requireGitSource) validateExplicitGitSource(data, expected.sourceCommit);
   if (requireReady) assert(data.readyState === 'READY', 'vercel_not_ready');
   return true;
 }
@@ -267,6 +271,17 @@ export function productionAliasBindings(value) {
     return { alias: alias.alias, uid: alias.uid, redirect: alias.redirect ?? null };
   }).sort((a, b) => a.alias.localeCompare(b.alias));
 }
+export function validateProjectForPublication(project, { gitDisconnected = false } = {}) {
+  assert(project?.id === EXPECTED.projectId && project.accountId === EXPECTED.teamId &&
+    project.name === 'attendance-tracker' && project.framework === 'nextjs' &&
+    project.nodeVersion === '24.x' && project.buildCommand === null && project.installCommand === null &&
+    project.targets?.production?.target === 'production' && /^dpl_/.test(project.targets.production.id) &&
+    project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&
+    !project.integrations && !project.integrationActions, 'vercel_project');
+  if (gitDisconnected) assert(project.link == null, 'git_repository_connected');
+  else assert(project.link?.type === 'github' && project.link.repoId === 1409352117 &&
+    project.link.org === 'nosabecom' && project.link.repo === 'attendancetracker', 'vercel_project');
+}
 
 export async function prepareHostedNext(args, env = process.env, dependencies = {}) {
   const clock = dependencies.clock ?? Date.now;
@@ -286,7 +301,9 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
   const started = clock(); let phase = 'arguments', manifest, cancelled = false, cleaning = false;
   let cleanupReserved = false, cleanupUsed = 0;
   const continued = args.length === 4 && args[2] === '--continue-after' && args[3] === CONTINUATION.predecessorDeploymentId;
-  const paths = continued ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const third = args.length === 6 && args[2] === '--continue-after' && args[3] === THIRD.predecessorDeploymentId &&
+    args[4] === '--preflight-deployment' && /^dpl_[A-Za-z0-9]+$/.test(args[5]);
+  const paths = third ? THIRD_PATHS : continued ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const path = paths.manifest, evidencePath = paths.publication;
   const cancelledSignal = () => { cancelled = true; failProcess(); };
   const report = { version: 1, startedAt: new Date().toISOString(), passed: false, cancelled: false,
@@ -294,7 +311,9 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     creationRequests: 0, cleanup: {}, productionMutationRequested: false };
   const save = (tolerate = false) => {
     if (!manifest) return;
-    if (continued) { report.cumulative = continuationTotals(report.counters, report.creationRequests);
+    if (third) { report.cumulative = thirdTotals(report.counters, report.creationRequests, report.preflight.controlRequests);
+      manifest.cumulative = report.cumulative; manifest.preflight = { ...report.preflight }; }
+    else if (continued) { report.cumulative = continuationTotals(report.counters, report.creationRequests);
       manifest.cumulative = report.cumulative; }
     try { persist(path, JSON.stringify(manifest, null, 2) + '\n'); }
     catch {
@@ -323,11 +342,25 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     const url = new URL(endpoint, 'https://api.vercel.com'); url.searchParams.set('teamId', EXPECTED.teamId);
     return providerJson(url.href, { ...options, headers: { Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()), fetchImpl });
   };
+  const compatibilityRead = async endpoint => {
+    remaining(); assert(third && report.preflight.controlRequests < 2, 'third_preflight_budget');
+    report.preflight.controlRequests++; save();
+    const url = new URL(endpoint, 'https://api.vercel.com'); url.searchParams.set('teamId', EXPECTED.teamId);
+    return providerJson(url.href, { headers: { Authorization: `Bearer ${token}` },
+      timeoutMs: Math.min(20000, remaining()), fetchImpl });
+  };
   try {
-    assert((args.length === 2 || continued) && args[0] === '--expected-preview', 'publisher_arguments');
+    assert((args.length === 2 || continued || third) && args[0] === '--expected-preview', 'publisher_arguments');
     const backendManifest = JSON.parse(privateText('.convex/hosted-validation/preview-setup-manifest.json'));
     const backend = validateBackendManifest(backendManifest, args[1]);
-    if (continued) {
+    if (third) {
+      phase = 'third continuation history';
+      report.thirdContinuation = validateThirdHistory(publicText(ORIGINAL_PATHS.publication),
+        JSON.parse(privateText(ORIGINAL_PATHS.manifest)), publicText(CONTINUATION_PATHS.publication),
+        JSON.parse(privateText(CONTINUATION_PATHS.manifest)), backend);
+      for (const unused of [ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, ...Object.values(paths)]) absent(unused);
+      report.preflight = { deploymentId: args[5], status: 'pending', controlRequests: 0 };
+    } else if (continued) {
       phase = 'continuation history';
       report.continuation = validateContinuationHistory(publicText(ORIGINAL_PATHS.publication),
         JSON.parse(privateText(ORIGINAL_PATHS.manifest)), backend);
@@ -338,14 +371,18 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     validateSource(sourceCommit, backendManifest.reviewedSourceCommit, dependencies.git);
     validateBuildHooks(publicJson('vercel.json'), publicJson('package.json'));
     phase = 'quota and credentials'; const quota = await (dependencies.readQuotaReview ?? readQuotaReview)();
+    if (third) report.vercelCreditReview = validateVercelCreditReview(JSON.parse(privateText(vercelCreditReviewPath)), clock());
     token = dependencies.vercelToken ?? readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
     const previewKey = privateText(env.ATTENDANCE_PREVIEW_KEY_FILE).trim();
     assert(previewKey.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') &&
       previewKey.split('|').length === 2, 'preview_key_scope');
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     const candidate = { version: 1, runId, sourceCommit, publication: 'preflight', backend,
+      ...(third ? { thirdContinuation: report.thirdContinuation, preflight: { ...report.preflight },
+        cumulative: thirdTotals(report.counters) } : {}),
       ...(continued ? { continuation: report.continuation, cumulative: continuationTotals(report.counters) } : {}),
-      vercel: { teamSlug: EXPECTED.teamSlug, teamId: EXPECTED.teamId, projectId: EXPECTED.projectId, target: 'preview', ready: false },
+      vercel: { teamSlug: EXPECTED.teamSlug, teamId: EXPECTED.teamId, projectId: EXPECTED.projectId, target: 'preview', ready: false,
+        ...(third ? { requireGitSource: true } : {}) },
       cleanupReservation: { controlRequests: 4, automaticResume: false },
       counters: { ...report.counters }, createdAt: new Date().toISOString() };
     persist(path, JSON.stringify(candidate, null, 2) + '\n', { exclusive: true });
@@ -353,6 +390,17 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     Object.assign(report, { runId, sourceCommit, cleanupReservePersisted: true });
     process.on('SIGINT', cancelledSignal); process.on('SIGTERM', cancelledSignal);
     report.quotaReview = { observedAt: quota.observedAt, source: quota.source, sufficientReviewedHeadroom: true };
+    if (third) {
+      phase = 'existing deployment compatibility';
+      const existing = await compatibilityRead(`/v13/deployments/${args[5]}`);
+      validateCompatibilityDeployment(existing.body, args[5], EXPECTED);
+      report.preflight.ownershipVerified = true; report.preflight.sourceVerified = true; save();
+      const compatibility = await compatibilityRead(deploymentEnvironmentPath(args[5]));
+      try { validateCompatibilityMaps(compatibility.body); }
+      catch { throw diagnosticError('third_compatibility_maps', 'missing_or_malformed_maps', compatibility.status,
+        environmentShape(compatibility.body)); }
+      report.preflight.environmentShapeCompatible = true; report.preflight.status = 'passed'; save();
+    }
     phase = 'live identities';
     const convexControl = async (url, credential) => {
       reserveControl(); return (await providerJson(url, { headers: { Authorization: credential }, timeoutMs: Math.min(20000, remaining()), fetchImpl })).body;
@@ -378,19 +426,13 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     const team = (await vercel(`/v2/teams/${EXPECTED.teamId}`)).body;
     assert(team?.id === EXPECTED.teamId && team.slug === EXPECTED.teamSlug && team.billing?.plan === EXPECTED.vercelPlan, 'vercel_team_plan');
     const project = (await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
-    assert(project?.id === EXPECTED.projectId && project.accountId === EXPECTED.teamId &&
-      project.name === 'attendance-tracker' && project.framework === 'nextjs' &&
-      project.nodeVersion === '24.x' && project.buildCommand === null && project.installCommand === null &&
-      project.link?.type === 'github' && project.link.repoId === 1409352117 &&
-      project.link.org === 'nosabecom' && project.link.repo === 'attendancetracker' &&
-      project.targets?.production?.target === 'production' && /^dpl_/.test(project.targets.production.id) &&
-      project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&
-      !project.integrations && !project.integrationActions, 'vercel_project');
+    validateProjectForPublication(project, { gitDisconnected: third });
     const productionId = project.targets.production.id;
     const aliasesBefore = productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body);
     phase = 'single deployment creation'; manifest.publication = 'creation submitted or uncertain';
     manifest.creationState = 'submitted; outcome uncertain'; save();
     if (continued) continuationTotals(report.counters, report.creationRequests + 1);
+    if (third) thirdTotals(report.counters, report.creationRequests + 1, report.preflight.controlRequests);
     report.creationRequests++;
     const created = (await vercel('/v13/deployments', { method: 'POST',
       body: deploymentBody(backendManifest, sourceCommit, runId), allowedStatuses: [200, 201] })).body;
@@ -398,6 +440,8 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
       manifest.vercel.deploymentId = created.id; report.deploymentId = created.id;
       manifest.creationState = 'returned ID; ownership unverified'; save();
     }
+    if (third) assert(![CONTINUATION.predecessorDeploymentId, THIRD.predecessorDeploymentId,
+      report.preflight.deploymentId].includes(created?.id), 'third_reuses_deployment');
     assert(manifest.vercel.deploymentId && typeof created.url === 'string' &&
       /^[a-z0-9-]+\.vercel\.app$/.test(created.url), 'created_identity');
     manifest.vercel.url = `https://${created.url}`; save();
@@ -412,6 +456,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     validateVercelDeployment(deployment, { ...manifest.vercel, sourceCommit, runId });
     manifest.vercel.ready = true; manifest.creationState = 'ownership verified'; save();
     const projectAfter = (await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
+    if (third) { validateProjectForPublication(projectAfter, { gitDisconnected: true }); report.gitDisconnectPreserved = true; }
     assert(projectAfter?.targets?.production?.id === project.targets.production.id &&
       projectAfter.buildCommand === project.buildCommand && projectAfter.installCommand === project.installCommand &&
       projectAfter.ssoProtection?.deploymentType === project.ssoProtection.deploymentType, 'project_state_changed');

@@ -5,7 +5,8 @@ import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLi
   validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext,
   safePublisherDiagnostic, validateEffectiveEnvironment, deploymentEnvironmentPath } from '../scripts/prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
-import { historyText, originalPublication } from './fixtures/hosted-next-history.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals } from '../scripts/hosted-next-third.mjs';
+import { historyText, secondHistoryText, originalPublication, secondPublication, vercelCreditFixture } from './fixtures/hosted-next-history.mjs';
 
 const name = 'fixture-preview-123';
 function fixture() {
@@ -127,12 +128,18 @@ test('provider transport disables redirects/retries and bounds streamed bytes', 
 
 async function publicationScenario(options={}) {
   const backend=fixture(), writes=new Map(), calls=[], logs=[];
-  const paths=options.continuation?CONTINUATION_PATHS:ORIGINAL_PATHS;
+  const paths=options.third?THIRD_PATHS:options.continuation?CONTINUATION_PATHS:ORIGINAL_PATHS;
   const original=originalPublication(validateBackendManifest(backend,name));
-  if(options.continuation){
+  const second=secondPublication(validateBackendManifest(backend,name));
+  if(options.continuation||options.third){
     options.mutateHistory?.(original);
     writes.set(ORIGINAL_PATHS.manifest,structuredClone(original));
     writes.set(ORIGINAL_PATHS.publication,JSON.parse(historyText));
+  }
+  if(options.third){
+    options.mutateSecond?.(second);
+    writes.set(CONTINUATION_PATHS.manifest,structuredClone(second));
+    writes.set(CONTINUATION_PATHS.publication,JSON.parse(secondHistoryText));
   }
   const historical=JSON.stringify([...writes]);
   const sha='a'.repeat(40); let createdBody, deleted=false, diskFailed=false, aliasReads=0, exitFailures=0;
@@ -140,7 +147,9 @@ async function publicationScenario(options={}) {
     nodeVersion:'24.x',buildCommand:null,installCommand:null,
     link:{type:'github',repoId:1409352117,org:'nosabecom',repo:'attendancetracker'},
     targets:{production:{id:'dpl_production',target:'production'}},ssoProtection:{deploymentType:'all_except_custom_domains'}};
-  const deployment=()=>({...deploymentFixture(),meta:{...createdBody.meta,githubCommitSha:sha}});
+  if(options.third)delete project.link;
+  const deployment=()=>({...deploymentFixture(),meta:{...createdBody.meta,githubCommitSha:sha},
+    ...(options.third?{gitSource:{...createdBody.gitSource}}:{})});
   const json=(body,status=200)=>new Response(body===null?null:JSON.stringify(body),{status});
   const deps={
     vercelToken:'synthetic-api-token',
@@ -149,19 +158,26 @@ async function publicationScenario(options={}) {
       if(options.quotaFailure)throw Error('Insufficient reviewed team allowance.');
       return{observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'};
     },
-    readPrivateText:path=>path===ORIGINAL_PATHS.manifest&&options.continuation?JSON.stringify(original):
+    readPrivateText:path=>path===ORIGINAL_PATHS.manifest&&(options.continuation||options.third)?JSON.stringify(original):
+      path===CONTINUATION_PATHS.manifest&&options.third?JSON.stringify(second):
+      path===vercelCreditReviewPath?JSON.stringify({...vercelCreditFixture(),...(options.creditPatch||{})}):
       path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
         'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
-    readPublicText:path=>{assert.equal(path,ORIGINAL_PATHS.publication);return historyText+(options.corruptHistory?'\n':'');},
+    readPublicText:path=>{
+      if(options.third&&path===CONTINUATION_PATHS.publication)return secondHistoryText+(options.corruptSecond?'\n':'');
+      assert.equal(path,ORIGINAL_PATHS.publication);return historyText+(options.corruptHistory?'\n':'');
+    },
     assertAbsent:path=>{
-      assert([ORIGINAL_PATHS.attempt,...Object.values(CONTINUATION_PATHS)].includes(path));
+      assert([ORIGINAL_PATHS.attempt,...Object.values(CONTINUATION_PATHS),...Object.values(THIRD_PATHS)].includes(path));
       if(options.originalRuntimeExists&&path===ORIGINAL_PATHS.attempt)throw Error('original_runtime_exists');
+      if(options.secondRuntimeExists&&path===CONTINUATION_PATHS.attempt)throw Error('second_runtime_exists');
       if(writes.has(path))throw Error('continuation_record_exists');
     },
     readPublicJson:path=>path==='vercel.json'?{framework:'nextjs',installCommand:'pnpm install --frozen-lockfile',buildCommand:'pnpm build'}:
       {scripts:{build:'node --version && next build'}},
     persist:(path,contents,settings={})=>{
-      if(options.continuation)assert(!Object.values(ORIGINAL_PATHS).includes(path));
+      if(options.continuation||options.third)assert(!Object.values(ORIGINAL_PATHS).includes(path));
+      if(options.third)assert(!Object.values(CONTINUATION_PATHS).includes(path));
       if(diskFailed || options.failEvidence && path.startsWith('docs/'))throw Object.assign(Error('synthetic disk full'),{code:'ENOSPC'});
       if(settings.exclusive && (options.existingAttempt || writes.has(path)))throw Object.assign(Error('synthetic existing'),{code:'EEXIST'});
       writes.set(path,JSON.parse(contents));
@@ -169,13 +185,28 @@ async function publicationScenario(options={}) {
     failProcess:()=>{exitFailures++;},output:value=>logs.push(JSON.parse(value)),sleep:async()=>{},
     fetch:async(input,init={})=>{
       const url=new URL(String(input)), method=init.method??'GET';calls.push({host:url.host,path:url.pathname,method});
+      if(options.third&&url.pathname==='/v13/deployments/dpl_existing'){
+        assert.equal(method,'GET');assert.equal(writes.get(THIRD_PATHS.manifest).preflight.controlRequests,1);
+        const value={id:'dpl_existing',ownerId:EXPECTED.teamId,projectId:EXPECTED.projectId,readyState:'READY',
+          meta:{githubCommitSha:'c'.repeat(40)},gitSource:{type:'github',repoId:1409352117,sha:'c'.repeat(40)}};
+        if(options.cancelOnPreflight)process.emit('SIGTERM');
+        options.mutateExisting?.(value);return json(value);
+      }
+      if(options.third&&url.pathname==='/v3/env/pull/dpl_existing'){
+        assert.equal(method,'GET');assert.equal(url.searchParams.get('source'),'vercel-cli:env:pull');
+        assert.equal(writes.get(THIRD_PATHS.manifest).preflight.controlRequests,2);
+        return json(options.preflightMaps??{env:{synthetic:'fixture'},buildEnv:{}},options.preflightStatus??200);
+      }
       if(url.host==='api.convex.dev')return json(backend.managementIdentity);
       if(url.pathname==='/api/v1/get_canonical_urls')return json({convexCloudUrl:backend.cloudUrl,convexSiteUrl:backend.siteUrl});
       if(url.pathname==='/api/v1/list_usage_limits')return json({usageLimits:[{metric:'functionCalls',window:'day',limitType:'disable',limit:1000,enabled:true}]});
       if(url.pathname==='/api/query')return json({status:'success',value:{readsEnabled:false,writesEnabled:false}});
       if(url.pathname.startsWith('/v2/teams/'))return json({id:EXPECTED.teamId,slug:'nomokaro625-9385s-projects',
         billing:{plan:Object.hasOwn(options,'teamPlan')?options.teamPlan:'pro'}});
-      if(url.pathname.startsWith('/v9/projects/'))return json(project);
+      if(url.pathname.startsWith('/v9/projects/')){
+        if(options.third&&options.gitLinkReturned&&createdBody)project.link={type:'github'};
+        return json(project);
+      }
       if(url.pathname==='/v2/deployments/dpl_production/aliases'){
         aliasReads++;return json({aliases:[{alias:options.changeAliases&&aliasReads>1?'changed.example':'production.example',uid:'stable-alias'}]});
       }
@@ -210,7 +241,8 @@ async function publicationScenario(options={}) {
       throw Error('Unexpected offline request');
     },
   };
-  const args=['--expected-preview',name,...(options.continuation?['--continue-after',CONTINUATION.predecessorDeploymentId]:[])];
+  const args=['--expected-preview',name,...(options.third?['--continue-after',THIRD.predecessorDeploymentId,'--preflight-deployment','dpl_existing']:
+    options.continuation?['--continue-after',CONTINUATION.predecessorDeploymentId]:[])];
   const run=()=>prepareHostedNext(args,{
     ATTENDANCE_VALIDATION_SOURCE_COMMIT:sha,ATTENDANCE_PREVIEW_KEY_FILE:'synthetic-key-file',
   },deps);
@@ -402,4 +434,69 @@ test('continuation environment rejection retains both creations and all prior co
   assert.deepEqual(result.report.cumulative,{calls:63,nextCalls:2,controls:31,hosting:0,writes:355,gateway:7,creations:2});
   assert.equal(result.report.cleanup.deploymentDeleted,true);
   assert.equal(JSON.stringify([...result.writes].filter(([path])=>Object.values(ORIGINAL_PATHS).includes(path))),result.historical);
+});
+
+test('third publication proves existing-target compatibility before creating once with Git disconnected',async()=>{
+  const r=await publicationScenario({third:true});
+  assert.equal(r.report.passed,true);assert.equal(r.report.gitDisconnectPreserved,true);
+  assert.equal(r.report.preflight.controlRequests,2);assert.equal(r.report.preflight.status,'passed');
+  assert.deepEqual(r.report.cumulative,thirdTotals(r.report.counters,1,2));
+  assert.equal(r.report.cumulative.calls,64);assert.equal(r.report.cumulative.nextCalls,3);
+  assert.equal(r.report.cumulative.creations,3);assert.equal(r.report.cumulative.controls,35+r.report.counters.controlRequests);
+  assert.deepEqual(r.calls.slice(0,2).map(x=>x.path),['/v13/deployments/dpl_existing','/v3/env/pull/dpl_existing']);
+  assert.equal(r.calls.filter(x=>x.path==='/v13/deployments'&&x.method==='POST').length,1);
+  const current=r.writes.get(THIRD_PATHS.manifest);assert.equal(current.vercel.requireGitSource,true);
+  const historical=JSON.stringify([...r.writes].filter(([path])=>[...Object.values(ORIGINAL_PATHS),...Object.values(CONTINUATION_PATHS)].includes(path)));
+  assert.equal(historical,r.historical);
+  const sent=r.calls.length,record=structuredClone(current);const again=await r.run();
+  assert.equal(again.passed,false);assert.equal(r.calls.length,sent);assert.deepEqual(r.writes.get(THIRD_PATHS.manifest),record);
+});
+test('third HTTP400 compatibility failure spends two preflight reads and creates nothing',async()=>{
+  const r=await publicationScenario({third:true,preflightStatus:400});
+  assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'existing deployment compatibility');
+  assert.equal(r.report.failure.category,'http_status');assert.equal(r.report.failure.httpStatus,400);
+  assert.equal(r.report.creationRequests,0);assert.deepEqual(r.report.counters,{controlRequests:0,hostingRequests:0,applicationCalls:0});
+  assert.deepEqual(r.report.cumulative,{calls:63,nextCalls:2,controls:35,hosting:0,writes:355,gateway:7,creations:2});
+  assert.equal(r.calls.length,2);assert.equal(r.deleted,false);
+  assert.equal(r.calls.some(x=>x.method!=='GET'),false);
+});
+test('third compatibility ownership/source mismatch stops before environment read and creation',async()=>{
+  for(const mutateExisting of [x=>{x.ownerId='other';},x=>{x.projectId='other';},x=>{x.gitSource.repoId=1;},x=>{delete x.gitSource.sha;}]){
+    const r=await publicationScenario({third:true,mutateExisting});
+    assert.equal(r.report.passed,false);assert.equal(r.report.preflight.controlRequests,1);
+    assert.equal(r.calls.length,1);assert.equal(r.report.creationRequests,0);assert.equal(r.deleted,false);
+  }
+});
+test('third requires unchanged second history, no prior runtime, and sufficient genuine-review fields before requests',async()=>{
+  for(const options of [{corruptSecond:true},{secondRuntimeExists:true},{mutateSecond:x=>{x.cleanup.deploymentDeleted=false;}},
+    {creditPatch:{usedCreditUsd:20}},{creditPatch:{plan:'hobby'}}]){
+    const r=await publicationScenario({third:true,...options});
+    assert.equal(r.report.passed,false);assert.equal(r.calls.length,0);assert(!r.writes.has(THIRD_PATHS.manifest));
+    assert.equal(JSON.stringify([...r.writes]),r.historical);
+  }
+});
+test('third detects any returned Git reconnection and deletes only its new deployment',async()=>{
+  const r=await publicationScenario({third:true,gitLinkReturned:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.gitDisconnectPreserved,undefined);
+  assert.equal(r.report.cleanup.deploymentDeleted,true);assert.equal(r.deleted,true);
+  assert(r.calls.filter(x=>x.method==='DELETE').every(x=>x.path==='/v13/deployments/dpl_fixture'));
+});
+test('third preflight cancellation stops before the second request or any creation',async()=>{
+  const r=await publicationScenario({third:true,cancelOnPreflight:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.cancelled,true);
+  assert.equal(r.calls.length,1);assert.equal(r.report.preflight.controlRequests,1);assert.equal(r.report.creationRequests,0);
+});
+test('third malformed compatibility maps keep only fixed shape diagnostics and spend no creation',async()=>{
+  const sentinel='synthetic-private-sentinel';
+  const r=await publicationScenario({third:true,preflightMaps:{env:{[sentinel]:sentinel},buildEnv:null}});
+  assert.equal(r.report.passed,false);assert.equal(r.report.failure.category,'missing_or_malformed_maps');
+  assert.equal(r.report.failure.httpStatus,200);assert.equal(r.calls.length,2);assert.equal(r.report.creationRequests,0);
+  assert(!JSON.stringify({report:r.report,logs:r.logs,writes:[...r.writes]}).includes(sentinel));
+});
+test('third storage failure after creation keeps its cleanup reserve and immutable earlier records',async()=>{
+  const r=await publicationScenario({third:true,diskFailureAfterCreation:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.persistenceFailed,true);
+  assert.equal(r.report.cleanup.deploymentDeleted,true);assert.equal(r.report.preflight.controlRequests,2);
+  assert.equal(r.report.cumulative.creations,3);assert(r.report.counters.controlRequests<=20);
+  assert.equal(JSON.stringify([...r.writes].filter(([path])=>[...Object.values(ORIGINAL_PATHS),...Object.values(CONTINUATION_PATHS)].includes(path))),r.historical);
 });

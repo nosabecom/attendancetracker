@@ -13,8 +13,9 @@ both files are owner-only, use distinct inodes, and are local rather than offsit
 
 The preparation below records the reviewed allocation and its limits.
 Nosa now requires the full historical migration by Wednesday, November 11,
-rather than a fresh-class launch. Only one captured 56-student revision has been
-rescued. Keep current Pro access active until the full required backup is verified.
+rather than a fresh-class launch. Before this attempt, only one captured
+56-student revision had been rescued. Keep current Pro access active until the
+full required backup is verified.
 
 ## Preserve the failure honestly
 
