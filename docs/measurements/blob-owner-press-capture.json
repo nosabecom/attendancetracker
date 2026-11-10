@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "allocation": "OWNERPRESS1",
+  "sourceCommit": "8ecd06df2af96dda38d6b8df12081395913a45cf",
+  "status": "stopped",
+  "stoppedStage": "ready",
+  "code": "readiness_result_not_obtained",
+  "showClickAttempts": 1,
+  "hideClickAttempts": 0,
+  "credentialDownloadsRequested": 0,
+  "credentialCaptured": false,
+  "originalStaticChecksUsed": 0,
+  "ownedTabClosed": true,
+  "causeEstablished": false,
+  "privateDownloadPreflightUsed": 1,
+  "rotationRetried": false,
+  "connectionChanged": false,
+  "writerFreezeDeclared": false,
+  "allReservationsRetained": true,
+  "cumulativeEngineeringReservationsUsd": 0.81,
+  "productionSwitched": false
+}

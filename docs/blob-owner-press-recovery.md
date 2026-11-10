@@ -1,6 +1,14 @@
 # Ordinary browser press for the store-owner control
 
-Status: offline proposal after the accepted stopped `OWNERCAPTURE1` attempt.
+Status: Astra accepted the corrected helper at `8ecd06d`; the single scoped
+execution then stopped while awaiting its safe token-ready result. One ordinary
+Show click was attempted; the readiness call did not produce a verified result.
+No Hide click, credential download/import or Blob check followed. The owned tab
+was closed immediately. The cause is not established; no authentication
+challenge or provider denial was observed during that run.
+See the [stopped evidence](./measurements/blob-owner-press-capture.json).
+
+The original offline proposal followed the accepted stopped `OWNERCAPTURE1` attempt.
 That attempt remains spent: one programmatic reveal invocation, no returned
 credential, download or Blob probe. No retry or allocation reset has occurred.
 
@@ -19,7 +27,7 @@ strictly validated snippet privately. No React internals, request interception,
 credential API, clipboard, script-dispatched press or timer extension of the
 spent attempt is proposed.
 
-## Proposed `OWNERPRESS1` execution contract
+## Historical `OWNERPRESS1` contract — attempt spent
 
 Obtain Astra review of the completed helper/tests and this exact contract before
 execution. Root must verify reviewed clean HEAD, fresh owned Pro credit, the
@@ -76,3 +84,29 @@ Return the actual result to Astra. A successful different current key plus the
 earlier old-key forbidden result addresses the controlled comparison; connection
 containment and the final overlapping log/drain reconciliation remain separate
 gates. The other store's Preview/Development binding remains untouched.
+
+## Missing current credential
+
+Do not repeat either automated capture or try the unused CLI slot as fallback.
+Both automated reveal allocations remain spent, all three original static checks
+remain unused, and the full provisional backups remain preserved.
+
+The next proposed input is the current target-store `BLOB_READ_WRITE_TOKEN`
+supplied by Nosa through T3's secure file prompt, never ordinary chat. This is a
+missing credential the agent's supported UI automation could not retrieve; it
+is not renewed permission for migration or evidence of a human-only challenge.
+Use the exact production Blob store's Getting Started → `.env.local` control,
+not a Convex deployment key or the other Preview/Development Blob store.
+
+Before accepting the input, obtain the actual-evidence milestone review. For
+the separately recorded human-input path, require owner-only input file, bounded
+size, strict expected-store token format, private comparison showing difference
+from the retained baseline, and new exclusive synchronized 0600 storage in a
+0700 directory. Never print the token or put it in argv. A failed or unchanged
+input stops rather than triggering another automatic request/capture.
+
+Only verified private input permits the original replacement-before-removal
+LIST check: unchanged default transport and limits, exact target store, explicit
+credential, durable original-slot reservation, and returned/persisted accepted
+200 agreement. No new probe allocation, other original slot, rotation,
+connection mutation, final export or cutover follows from supplying a key.
