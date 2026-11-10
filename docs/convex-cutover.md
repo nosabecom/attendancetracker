@@ -6,6 +6,16 @@ Do not enable Convex against an empty target or discard the old data.
 
 ## External prerequisites
 
+**2026-11-10 update:** the owner upgraded Vercel; the dashboard now shows Pro and
+no suspension banner. One newly authorized production origin GET returned HTTP
+200 and a complete 2,694-byte class revision containing 56 students. The
+[safe evidence](./measurements/blob-post-upgrade-access.json) records the bounded
+check; no roster body or complete backup was saved. Waiting for suspension expiry
+or a courtesy unblock is superseded. Writer freeze/drain, consistent export,
+private backup, reconciliation, remaining hosted checks and final Astra approval
+are still required. The historical denied checks below retain their original
+scope and accounting.
+
 The production Blob store was inspected on 2026-11-04. Its state was
 `limits-exceeded-suspended`, with `usageQuotaExceeded: true`; a bounded private
 read returned 403. Inventory showed 298 objects, approximately 31.69 KB. Metadata

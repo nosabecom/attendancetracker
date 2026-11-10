@@ -1,4 +1,34 @@
-# Recovering the suspended Blob snapshot
+# Recovering the Blob snapshot
+
+## Current update — 2026-11-10 UTC
+
+The owner reported upgrading Vercel and requested a new access check. The
+dashboard now identifies the team as **Pro** and no longer displays the store's
+suspension banner. A separately reserved, single production static-token origin
+GET (`POSTUPGRADE1`) returned HTTP 200 and 2,694 bytes of complete JSON: the
+selected class revision contains 56 students. Only aggregate evidence was saved;
+the response body was transient. See the
+[access evidence](./measurements/blob-post-upgrade-access.json).
+
+This establishes access to that roster at that time, not a complete backup or
+writer freeze. The earlier OIDC attempts remain spent and their historical 403
+results are unchanged. Dashboard navigation/background traffic is separate from
+this one explicit HTTPS request and was not independently metered. No agent plan
+change, rotation, store disconnect, bulk export or production switch occurred.
+
+The owner's upgrade supersedes waiting for suspension expiry or a free courtesy
+unblock. The previous suspended-store sequence below is historical preparation,
+not an instruction to assume the store is still suspended. Before a consistent
+export, recheck the deployment/environment-copy hold, establish how to freeze
+all known live writers now that access has returned, and drain admitted work.
+The project Git settings were rechecked after the successful read and still
+explicitly say the project is not connected to a Git repository; no deploy hooks
+can be configured in that state. This does not pause existing deployments.
+The outstanding static/OIDC freeze questions and separate hosted/cutover gates
+are not resolved by HTTP 200. Obtain Astra xhigh review of the changed recovery
+sequence before executing credential changes or claiming a consistent snapshot.
+
+## Historical suspension and recovery investigation
 
 Status on 2026-11-09 UTC (November 8 Saskatchewan): production remains on Blob;
 the private store is suspended. One bounded origin-read retry returned 403.
@@ -309,7 +339,7 @@ codes and aggregate counts. It makes no network requests on import or failed
 preflight. Preserve any failed attempt and review recovery before another run;
 do not delete its evidence or choose a new path to reset the allowance.
 
-## Current stop point
+## Historical suspended-store stop point
 
 Do not rotate or remove the store connection yet: the clean capture and
 credential-bound verification procedure still need their execution review.
