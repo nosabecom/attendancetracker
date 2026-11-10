@@ -87,6 +87,16 @@ gates. The other store's Preview/Development binding remains untouched.
 
 ## Missing current credential
 
+**Resolved after scoped acceptance at `8375c62`:** Nosa supplied the current key
+through T3's secure file prompt. Root privately validated the expected store,
+difference from the baseline, exclusive private persistence and byte agreement.
+The original replacement-before-removal check then returned accepted/200 once,
+with 768 consumed response-body bytes and API/attempt/output agreement. No
+other original check, CLI capture or connection mutation was consumed. See the
+[current-key comparison](./measurements/blob-current-key-comparison.json).
+The following text records the accepted input contract, rather than an outstanding
+request for another key.
+
 Do not repeat either automated capture or try the unused CLI slot as fallback.
 Both automated reveal allocations remain spent, all three original static checks
 remain unused, and the full provisional backups remain preserved.
