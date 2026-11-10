@@ -27,9 +27,22 @@ This is a possible supported owner-only retrieval path if the project retained
 the old credential. It has not been used as a fallback or proven to retrieve the
 new generation. Protected Vercel Secret readback/conversion remains prohibited.
 
-## Smallest proposed next operation
+## Completed diagnostic
 
-Obtain scoped Astra review for **one separately reserved old-credential
+`ROTATIONDIAG1` completed once: one LIST, HTTP 403, allowlisted provider code
+`forbidden`, and 57 consumed response-body bytes. The helper conservatively
+reports `auth_denied_inconclusive`. Root verified agreement between its returned
+record, private attempt/result, and root outcome. No original static check was
+consumed. The additional $0.01 engineering reservation brings retained planning
+reservations to $0.81; this is not a billing cap. This diagnostic does not prove
+the current credential, writer freeze or permission for a rotation retry.
+
+See the [diagnostic evidence](./measurements/blob-rotation-old-key-diagnostic.json)
+and the [owner-UI capture proposal](./blob-owner-key-recovery.md).
+
+## Historical diagnostic proposal
+
+The accepted proposal was **one separately reserved old-credential
 LIST(limit=1)** using the unchanged `probeBlobCredential` API/default transport,
 the retained clean production RW baseline, and exact target store. Use new
 exclusive owner-only attempt/output paths and persist its entire one-request

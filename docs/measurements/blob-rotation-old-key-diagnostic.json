@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "allocation": "ROTATIONDIAG1",
+  "sourceCommit": "fbda56ea10ddc1abb199525e84b8aec65dee81f4",
+  "status": "diagnostic_completed",
+  "requestAttempts": 1,
+  "httpStatus": 403,
+  "probeStatus": "inconclusive",
+  "probeCode": "auth_denied_inconclusive",
+  "providerCode": "forbidden",
+  "responseBodyBytes": 57,
+  "originalStaticChecksUsed": 0,
+  "cumulativeEngineeringReservationsUsd": 0.81,
+  "credentialGenerationConfirmed": false,
+  "writerFreezeDeclared": false,
+  "rotationRetried": false,
+  "connectionChanged": false,
+  "productionSwitched": false
+}

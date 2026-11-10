@@ -1,9 +1,10 @@
 # One final isolation and frozen capture
 
-Status: preparation for Astra execution review. All 50 known deployment
-source/configuration/authentication paths are reviewed. No Blob credential has
-been rotated and the store remains connected. The full provisional data copy is
-preserved independently in two private local files.
+Status: the initial execution stopped at a provider conflict. All 50 known
+deployment source/configuration/authentication paths are reviewed. One rotation
+was submitted; the store's credential generation remains unconfirmed and the
+store remains connected. The full provisional data copy is preserved
+independently in two private local files.
 
 The first execution preflight stopped locally after one owned-project GET and
 before mutation because its timeout predicate used the wrong project field.
@@ -87,8 +88,9 @@ changes, paid features, hosted creation or support action are part of this phase
 3. In the owned store's supported dialog, choose zero hours, verify the explicit
    immediate-expiration statement, type the exact store name and submit once.
    Preserve acknowledgement and timestamps. An uncertain submission is not
-   retried. This starts legacy-app maintenance: its immutable deployments keep
-   revoked credentials and cannot accept further Blob attendance.
+   retried. Warn Nosa about legacy-app maintenance before submission. Only a
+   successful controlled replacement/old-key comparison establishes that the
+   known static production writers retain revoked credentials.
 4. Invoke the already-tested clean production `vercel env run` path once from
    the empty private cwd, with an allowlisted environment and explicit team and
    project ID. The child capture helper saves only `BLOB_READ_WRITE_TOKEN` to a
