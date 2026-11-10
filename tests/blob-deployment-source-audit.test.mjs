@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, chmod, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, chmod, readFile, readdir, rm, stat, symlink, writeFile, open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { auditDeploymentSources, validateSourceAuditManifest, selectDeploymentSources, checkSourceClosure,
@@ -76,6 +76,46 @@ test('captures all three actual uploaded source closures privately after durable
     await assert.rejects(auditDeploymentSources(options(dir, transport)), e => e.code === 'occupied_path');
     assert.equal(state.calls.length, previousCalls);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a failed reservation write stops queued dispatch before its rejection propagates', async () => {
+  const dir = await directory();
+  const probe = await open(join(dir, 'prototype-probe'), 'wx', 0o600);
+  const prototype = Object.getPrototypeOf(probe), originalWrite = prototype.write;
+  await probe.close(); await rm(join(dir, 'prototype-probe'));
+  let writes = 0;
+  prototype.write = async function (...args) {
+    if (++writes === 3) throw Error('PERSISTENCE_SECRET_SENTINEL');
+    return Reflect.apply(originalWrite, this, args);
+  };
+  try {
+    const { state, transport } = fixture(dir);
+    const result = await auditDeploymentSources(options(dir, transport));
+    assert.equal(result.status, 'failed');
+    assert.equal(result.code, 'persistence_failed');
+    assert.equal(result.treeRequests, 2);
+    assert.equal(result.contentRequests, 0);
+    assert.equal(state.calls.length, 1);
+    assert.equal((await attempt(dir)).code, 'persistence_failed');
+    assert.ok(!JSON.stringify(result).includes('PERSISTENCE_SECRET_SENTINEL'));
+  } finally {
+    prototype.write = originalWrite;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('uncaptured Babel/SWC configuration and package hooks cannot satisfy source closure', () => {
+  for (const name of ['.babelrc', '.babelrc.json', 'babel.config.js', 'babel.config.cjs', '.swcrc']) {
+    const selection = selectDeploymentSources([{name, type:'file', uid:'unread_configuration'}]);
+    assert.equal(selection.files.length, 0);
+    assert.ok(selection.concerns.includes('unread_execution_configuration'));
+  }
+  for (const patch of [{babel:{plugins:['./unseen-loader.js']}},{workspaces:['packages/*']},
+    {pnpm:{patchedDependencies:{'@vercel/blob@2.8.1':'patches/blob.patch'}}},{pnpm:{hooks:{}}}]) {
+    const files=baseFiles();
+    files['package.json']=JSON.stringify({...JSON.parse(files['package.json']),...patch});
+    assert.ok(checkSourceClosure(Object.entries(files).map(([path,content])=>({path,content}))).includes('config_resolution'));
+  }
 });
 
 test('60 total source files succeed; 61-plus never dispatches content reads or silently truncates', async t => {

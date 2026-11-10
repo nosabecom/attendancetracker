@@ -118,6 +118,7 @@ export function selectDeploymentSources(tree) {
       const path = prefix + item.name;
       if (paths.has(path)) fail('invalid_tree'); paths.add(path);
       if ((!prefix && /^(?:\.env(?:\..*)?|\.npmrc|\.next|\.vercel|node_modules|dist|build|outputs?)$/.test(item.name) && item.name !== '.env.example')) concerns.push('unread_execution_configuration');
+      if (/^(?:\.babelrc(?:\..*)?|babel\.config\..+|\.swcrc(?:\..*)?)$/.test(item.name)) concerns.push('unread_execution_configuration');
       if (item.type === 'directory') walk(item.children ?? [], `${path}/`, depth + 1);
       else if (eligible(path)) {
         if (item.type !== 'file' || !/^[A-Za-z0-9_-]{1,160}$/.test(item.uid)) concerns.push('unsupported_source_entry');
@@ -147,6 +148,7 @@ export function checkSourceClosure(files, treeConcerns = []) {
   let pkg;
   try { pkg = JSON.parse(byPath.get('package.json')); } catch { concerns.add('package_missing'); return [...concerns]; }
   if (!byPath.has('pnpm-lock.yaml') && !byPath.has('package-lock.json')) concerns.add('lock_missing');
+  if (Object.hasOwn(pkg, 'babel') || Object.hasOwn(pkg, 'workspaces') || pkg.pnpm?.patchedDependencies || pkg.pnpm?.hooks || byPath.has('pnpm-workspace.yaml')) concerns.add('config_resolution');
   const scripts = pkg.scripts ?? {};
   if (!['next build', 'node --version && next build'].includes(scripts.build) || Object.keys(scripts).some(name => /^(?:(?:pre|post)(?:build|install|start)|install|prepare)$/.test(name))) concerns.add('unsupported_build_hook');
   for (const name of ['vercel.json', 'vercel.jsonc']) if (byPath.has(name)) {
@@ -241,7 +243,8 @@ export async function auditDeploymentSources({ manifest, token, outputDirectory,
       if (controller.signal.aborted) throw controller.signal.reason;
       const key = kind === 'tree' ? 'treeRequests' : 'contentRequests', cap = kind === 'tree' ? 3 : 60;
       if (record[key] >= cap) fail('request_budget'); record[key]++;
-      await writeAll(handle, Buffer.from(JSON.stringify(record) + '\n'));
+      try { await writeAll(handle, Buffer.from(JSON.stringify(record) + '\n')); }
+      catch { stop('persistence_failed'); fail('persistence_failed'); }
     });
     queue = work.catch(() => {}); await work;
   }
