@@ -15,6 +15,8 @@ ceiling of 40 pages would give 55 application calls through confirmed read-only
 state and 774 logical document writes, using the reviewed formulas
 `K + V + 8` and `2D + 2K + V + 6`. This is a **separate future production
 allocation**, not permission to spend a preview ledger's unused margin.
+The current importer's verification loop does not enforce that proposed ceiling;
+the reviewed execution wrapper must reserve and enforce it before any dispatch.
 Publication, configuration, independent reconciliation, provider retries and
 authentication/hosting traffic are excluded and need their own accounting.
 Recompute every count and byte size from the final frozen snapshot before

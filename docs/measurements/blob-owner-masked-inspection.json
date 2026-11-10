@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "scope": "masked_ui_inspection_only",
+  "sourceCommit": "2299afe5474a2cec6704d6c1bd77d49030fd5606",
+  "snippetMasked": true,
+  "showControlEnabled": true,
+  "showControlVisible": true,
+  "showControlType": "submit",
+  "showControlInsideForm": false,
+  "reactAriaPressableAttributePresent": true,
+  "visibleAuthenticationChallenges": 0,
+  "visibleDialogs": 0,
+  "visibleAlerts": 0,
+  "hoverInstructions": 0,
+  "secretRevealInvocations": 0,
+  "credentialReads": 0,
+  "blobRequests": 0,
+  "configurationChanges": 0,
+  "ownedTabClosed": true,
+  "priorTimeoutCauseEstablished": false,
+  "browserBackgroundPhysicalRequests": "unknown"
+}
