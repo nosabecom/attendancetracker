@@ -1,6 +1,13 @@
 # Contain known writers without changing the other store's binding
 
-Status: proposed alternative, not an executed freeze. The supported current key
+Status: the partial execution passed the key and selected-credential comparisons
+but stopped on an incorrect project-name predicate. Six management reads remain
+spent; no drain timer or final freeze was declared. The
+[narrow correction](./blob-containment-project-correction.md) proposes one
+explicit repeated project read and a nine-page log limit, retaining the eighteen
+total. The following contract records the original reviewed amendment.
+
+The supported current key
 was supplied privately by Nosa, differs from the retained baseline, and passed
 the original slot-1 LIST once. The earlier old-key diagnostic was 403/forbidden.
 Neither result alone establishes the final source boundary.
