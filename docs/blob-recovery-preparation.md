@@ -2,6 +2,11 @@
 
 ## Current update — 2026-11-10 UTC
 
+**Latest:** one 56-student class roster, captured revision 2, is now preserved in
+two independently verified private local files. A private CSV also round-trips
+all captured names, student codes and internal IDs exactly. These are provisional
+copies, not a complete frozen snapshot; no import or production switch occurred.
+
 The owner reported upgrading Vercel and requested a new access check. The
 dashboard now identifies the team as **Pro** and no longer displays the store's
 suspension banner. A separately reserved, single production static-token origin
@@ -38,12 +43,24 @@ object requests and zero consumed body bytes. No snapshot was published. The
 [failed-attempt evidence](./measurements/blob-provisional-rescue.json) preserves
 the accounting; the cause and provider-side processing remain unknown. Do not
 retry this attempt, reset its files or claim any roster backup was saved.
-Any smaller known-roster rescue requires its own reviewed code and separate
-allocation; none has executed. The original frozen export remains unstarted.
-The [one-roster plan](./known-roster-rescue.md) and offline-tested helper are
-prepared for that separate review. A
-[project-firewall containment candidate](./blob-firewall-freeze-plan.md) is also
-documented; only non-mutating UI/source inspection has occurred.
+After separate Astra xhigh execution acceptance at `cb76cc8`, `ROSTERRESCUE1`
+ran once under a fresh one-GET / $0.05 engineering-credit allocation and current
+team headroom review. The default transport returned HTTP 200 and a complete
+2,694-byte roster with 56 students. Root verified the private attempt/provenance
+agreement, two byte/hash-identical 0600 local files with distinct inodes, and
+their owner-only directories. Neither file is an offsite backup. The
+[safe outcome](./measurements/blob-known-roster-rescue.json) and
+[one-roster record](./known-roster-rescue.md) preserve the separate accounting.
+This allocation is spent; it must not be replayed. The frozen export remains
+unstarted, and the captured revision is not proof of globally latest coverage.
+
+The [project-firewall containment candidate](./blob-firewall-freeze-plan.md)
+received a bounded read-only inventory, with
+[seven explicit reads](./measurements/blob-firewall-readonly-inventory.json).
+An initial CLI 403 was retained; owner-dashboard reads succeeded. The supported
+CLI refreshed its expired stored access capability, and one further identity
+read succeeded. CLI-internal refresh calls and browser background traffic are
+separate and unmetered. No firewall rule or credential rotation was applied.
 
 ## Historical suspension and recovery investigation
 

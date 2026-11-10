@@ -1,5 +1,26 @@
 # One known roster: private provisional preservation
 
+## Completed once — November 10
+
+Astra accepted one execution at `cb76cc8`, subject to root's fresh target,
+source, allowance and private-path checks. Root verified those checks and
+reserved `ROSTERRESCUE1` separately. The default transport made one GET and no
+LIST: HTTP 200, 2,694 bytes, complete JSON, captured revision 2, 56 students.
+See the [aggregate outcome](./measurements/blob-known-roster-rescue.json).
+
+The exact raw file and a second private local copy were independently checked
+for byte/hash equality, distinct inodes, owner-only directories and 0600 file
+permissions. Attempt/provenance records agreed, including the backup provenance.
+The copies are not offsite. A derived private CSV was validated through the app's
+parser: names, codes and internal IDs all round-trip exactly for this captured
+roster. It has not been imported and creates no authority to assign a teacher or
+merge historical attendance. Normal class creation would still create a new
+class/session identity.
+
+The allocation is spent. Do not rerun it or treat the known class revision as the
+globally latest roster across all classes. Preserve the failed `PROVISIONAL1`
+and all prior probe accounting. The original frozen export is still unstarted.
+
 ## Why this is separate
 
 `POSTUPGRADE1` established a readable immutable class revision after the owner's
@@ -17,10 +38,10 @@ frozen-export allowance remains unused.
 This proposed smaller operation preserves only the previously observed class
 revision. It performs no directory listing, does not select another object and
 does not establish the globally latest roster or a complete migration snapshot.
-It needs separate Astra xhigh code/execution review and a distinct private
-`ROSTERRESCUE1` allocation before execution.
+It received separate Astra xhigh code/execution acceptance and a distinct private
+`ROSTERRESCUE1` allocation before the completed execution above.
 
-## Proposed bounds
+## Reviewed bounds
 
 - Exactly one explicit static-token GET; no LIST, HEAD, redirect, retry, OIDC,
   credential fallback, alternate object or remint.
@@ -44,7 +65,12 @@ work. Root supplies the existing private production static credential directly
 in memory, without environment fallback or a command-line secret. Public output
 contains only fixed status/error categories and aggregate counts.
 
-## Accounting and next action
+The body cap limits accepted payload, not all wire traffic: a rejected chunk
+can push the recorded received count beyond it. Deadline handling cannot
+forcibly interrupt filesystem finalization. Engineering credit reservations
+are planning headroom, not provider billing caps.
+
+## Accounting and remaining work
 
 The current team Usage page was reviewed for the November 10–December 10 Pro
 period, including included credit, Blob operations and other infrastructure

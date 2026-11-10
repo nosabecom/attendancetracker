@@ -88,8 +88,12 @@ function offlineRun(options = {}) {
       if (persisted.has(path)) throw Error('continuation_record_exists');
     },
     git: values => values[0] === 'rev-parse' ? manifest.sourceCommit : '',
-    quota: async () => ({ plan: 'CONVEX_BASE', source: 'convex-dashboard-user-report', observedAt: new Date(time).toISOString(),
-      plannedHeadroom: { functionCalls: 1000 } }),
+    quota: async () => {
+      if(options.quotaFailure)throw Error('Insufficient reviewed team allowance.');
+      return { plan: Object.hasOwn(options,'convexPlan')?options.convexPlan:'CONVEX_BASE',
+        source: 'convex-dashboard-user-report', observedAt: new Date(time).toISOString(),
+        plannedHeadroom: { functionCalls: 1000 } };
+    },
     exclusiveAttempt: async (record, path) => {
       assert.equal(path, paths.attempt);
       assert.equal(!!record.continuation, !!options.continuation);
@@ -103,7 +107,7 @@ function offlineRun(options = {}) {
         assert.equal(url.searchParams.get('teamId'), manifest.vercel.teamId);
         assert.equal(init.headers.Authorization, 'Bearer synthetic-vercel-auth');
         if (url.pathname.startsWith('/v2/teams/')) return { status: 200, body: { id: manifest.vercel.teamId,
-          slug: manifest.vercel.teamSlug, billing: { plan: 'hobby' } } };
+          slug: manifest.vercel.teamSlug, billing: { plan: Object.hasOwn(options,'teamPlan')?options.teamPlan:'pro' } } };
         if (url.pathname.startsWith('/v9/projects/')) return { status: 200, body: { id: manifest.vercel.projectId,
           accountId: manifest.vercel.teamId, framework: 'nextjs', ssoProtection: { deploymentType: 'all_except_custom_domains' },
           targets: { production: { target: 'production', id: 'dpl_productionFixture' } } } };
@@ -472,6 +476,7 @@ test('admin transport counts registration, blocks second connection and exposes 
 test('complete offline fixture exercises real orchestration, bounded cleanup and safe artifact without services', async () => {
   const run = offlineRun(); const report = await run.run();
   assert.equal(report.passed, true); assert.equal(report.functionalFlowCompleted, true);
+  assert.equal(report.assertions.VercelProPlan,true);
   assert.equal(report.counters.writes, 593); assert.equal(report.counters.calls, 61 + report.counters.nextCalls);
   assert.equal(report.counters.control, 1 + 20 + report.counters.runnerControl);
   assert.equal(report.browser.checkinRequests, 3); assert.equal(report.ipProvenance.status, 'verified');
@@ -485,6 +490,25 @@ test('complete offline fixture exercises real orchestration, bounded cleanup and
   for (const privateValue of [jwt, 'synthetic-bypass', 'synthetic-refresh', 'synthetic-admin-capability',
     '198.51.100.71', '203.0.113.82', 'd'.repeat(64), 'c'.repeat(64)]) assert(!artifact.includes(privateValue));
   assert.equal(JSON.parse(artifact).passed, true);
+});
+
+test('runtime rejects a wrong or missing Vercel plan before hosting probes or application writes',async()=>{
+  for(const teamPlan of ['hobby','enterprise','unknown','PRO','',null,undefined]){
+    const run=offlineRun({teamPlan});const report=await run.run();
+    assert.equal(report.passed,false);assert.equal(report.failedPhase,'live preflight');
+    assert.equal(report.failureKind,'VercelProPlan');assert.equal(report.assertions.VercelProPlan,false);
+    assert.equal(run.state.open,false);assert.equal(run.state.mutationCalls,0);assert.equal(run.state.checkins,0);
+    assert.equal(report.physicalRequests.hosting,0);assert.equal(report.signupSubmitted,undefined);
+    assert.equal(run.events.some(event=>event.startsWith('rpc:')),false);
+  }
+});
+test('Vercel Pro does not admit paid or missing Convex plans or an insufficient quota review',async()=>{
+  for(const convexPlan of ['CONVEX_PRO','CONVEX_STARTER','unknown',null,undefined]){
+    const run=offlineRun({convexPlan});await assert.rejects(run.run(),/free_plan_review/);
+    assert.deepEqual(run.events,[]);assert.equal(run.state.exclusive,0);assert.equal(run.state.mutationCalls,0);
+  }
+  const run=offlineRun({quotaFailure:true});await assert.rejects(run.run(),/Insufficient reviewed team allowance/);
+  assert.deepEqual(run.events,[]);assert.equal(run.state.exclusive,0);assert.equal(run.state.mutationCalls,0);
 });
 
 test('missing bounded admin observable produces honest unverified result while full flow and closure still execute', async () => {

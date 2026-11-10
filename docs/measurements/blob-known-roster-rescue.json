@@ -1,0 +1,46 @@
+{
+  "sourceCommit": "cb76cc8125268a812f3b7e3320daa2132e12dcd8",
+  "helperSha256": "95b37a0e40201b5b35f0b8e2ce7d50e5519b3b8cc3d18ea789444bcf595dabab",
+  "allocation": "ROSTERRESCUE1",
+  "classification": [
+    "UNFROZEN",
+    "PROVISIONAL",
+    "NON-CANONICAL",
+    "NOT CUTOVER-READY"
+  ],
+  "startedAt": "2026-11-10T19:15:52.209Z",
+  "finishedAt": "2026-11-10T19:15:52.784Z",
+  "status": "rescued_with_verified_local_backup",
+  "httpStatus": 200,
+  "actual": {
+    "metadataRequests": 0,
+    "objectAttempts": 1,
+    "receivedBodyBytes": 2694
+  },
+  "capturedRevision": 2,
+  "studentCount": 56,
+  "bodyComplete": true,
+  "rescueComplete": true,
+  "verifiedLocalCopies": 2,
+  "verification": {
+    "attemptProvenanceAgreement": true,
+    "backupProvenanceAgreement": true,
+    "byteAndHashAgreement": true,
+    "distinctInodes": true,
+    "privatePermissions": true,
+    "offsite": false
+  },
+  "privateCsvPrepared": true,
+  "csvNamesCodesAndInternalIdsRoundTripExactly": true,
+  "usableForCutover": false,
+  "importExecuted": false,
+  "blobCredentialRotation": false,
+  "firewallMutation": false,
+  "limitations": [
+    "One captured class revision; globally latest/all-class coverage is not established",
+    "This unfrozen provisional capture is not a consistent historical migration snapshot",
+    "Two independently verified local files are not an offsite backup",
+    "The accepted payload bound does not cap all wire traffic or provider billing",
+    "Prior failed and spent allocations remain retained; frozen export is unstarted"
+  ]
+}

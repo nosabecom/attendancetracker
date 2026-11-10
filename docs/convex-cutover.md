@@ -20,7 +20,11 @@ The subsequent separately allocated private provisional preservation attempt
 timed out on its first LIST before headers, with zero object requests and no
 published backup. Its [failure record](./measurements/blob-provisional-rescue.json)
 is retained without retry. A smaller known-roster rescue is prepared for separate
-review; neither that rescue nor the proposed firewall containment has executed.
+review. That smaller rescue subsequently succeeded: one GET saved the captured
+56-student revision and two private local files were verified independently;
+see [the outcome](./measurements/blob-known-roster-rescue.json). This is
+provisional roster preservation, not a complete historical snapshot. Read-only
+firewall inventory completed, but no firewall containment has been activated.
 
 The production Blob store was inspected on 2026-11-04. Its state was
 `limits-exceeded-suspended`, with `usageQuotaExceeded: true`; a bounded private

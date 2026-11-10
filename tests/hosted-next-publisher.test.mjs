@@ -145,7 +145,10 @@ async function publicationScenario(options={}) {
   const deps={
     vercelToken:'synthetic-api-token',
     git:args=>args[0]==='rev-parse'?sha:'',
-    readQuotaReview:async()=>({observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'}),
+    readQuotaReview:async()=>{
+      if(options.quotaFailure)throw Error('Insufficient reviewed team allowance.');
+      return{observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'};
+    },
     readPrivateText:path=>path===ORIGINAL_PATHS.manifest&&options.continuation?JSON.stringify(original):
       path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
         'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
@@ -170,7 +173,8 @@ async function publicationScenario(options={}) {
       if(url.pathname==='/api/v1/get_canonical_urls')return json({convexCloudUrl:backend.cloudUrl,convexSiteUrl:backend.siteUrl});
       if(url.pathname==='/api/v1/list_usage_limits')return json({usageLimits:[{metric:'functionCalls',window:'day',limitType:'disable',limit:1000,enabled:true}]});
       if(url.pathname==='/api/query')return json({status:'success',value:{readsEnabled:false,writesEnabled:false}});
-      if(url.pathname.startsWith('/v2/teams/'))return json({id:EXPECTED.teamId,slug:'nomokaro625-9385s-projects',billing:{plan:'hobby'}});
+      if(url.pathname.startsWith('/v2/teams/'))return json({id:EXPECTED.teamId,slug:'nomokaro625-9385s-projects',
+        billing:{plan:Object.hasOwn(options,'teamPlan')?options.teamPlan:'pro'}});
       if(url.pathname.startsWith('/v9/projects/'))return json(project);
       if(url.pathname==='/v2/deployments/dpl_production/aliases'){
         aliasReads++;return json({aliases:[{alias:options.changeAliases&&aliasReads>1?'changed.example':'production.example',uid:'stable-alias'}]});
@@ -223,6 +227,20 @@ test('publication orchestration validates effective maps and leaves an owned pro
   assert(r.report.counters.controlRequests<=16);
   assert.equal(r.calls.filter(call=>call.path==='/v13/deployments'&&call.method==='POST').length,1);
   assert.equal(r.writes.get('.convex/hosted-validation/next-preview-manifest.json').publication,'ready');
+});
+test('publication requires the owned team to be on the explicitly expected Pro plan before creation',async()=>{
+  for(const teamPlan of ['hobby','enterprise','unknown','PRO','',null,undefined]){
+    const r=await publicationScenario({teamPlan});
+    assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'live identities');
+    assert.equal(r.report.creationRequests,0);assert.equal(r.report.counters.hostingRequests,0);
+    assert.equal(r.calls.filter(call=>call.path==='/v13/deployments'&&call.method==='POST').length,0);
+    assert.equal(r.calls.filter(call=>call.path.startsWith('/v9/projects/')).length,0);
+  }
+});
+test('Pro publication still rejects an insufficient quota review before any provider request or creation',async()=>{
+  const r=await publicationScenario({quotaFailure:true});
+  assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'quota and credentials');
+  assert.equal(r.report.creationRequests,0);assert.equal(r.calls.length,0);assert.equal(r.writes.size,0);
 });
 for(const option of ['blobEnvironment','inheritedCredential','redactedGateway'])test(`orchestration rejects ${option} and cleans up before any access probe`,async()=>{
   const r=await publicationScenario({[option]:true});

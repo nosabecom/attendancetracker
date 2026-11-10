@@ -15,6 +15,8 @@ import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS,
 export const EXPECTED = Object.freeze({
   teamSlug: 'nomokaro625-9385s-projects', teamId: 'team_fmwIPLne9w30y7G5JQrs3fzl',
   projectId: 'prj_uOMK1a4PLAgsDr1A16InuImM1M3q',
+  // The owner upgraded this exact team. This expectation grants no new attempt or spending allocation.
+  vercelPlan: 'pro',
   fingerprint: 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba',
 });
 const assert = (condition, code) => { if (!condition) throw Error(code); };
@@ -374,7 +376,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     client.setAdminAuth(backendManifest.adminKey); client.setDebug(false);
     validateClosedState(await client.query(makeFunctionReference('operations:availability'), { fingerprint: EXPECTED.fingerprint }));
     const team = (await vercel(`/v2/teams/${EXPECTED.teamId}`)).body;
-    assert(team?.id === EXPECTED.teamId && team.slug === EXPECTED.teamSlug && team.billing?.plan === 'hobby', 'vercel_team_plan');
+    assert(team?.id === EXPECTED.teamId && team.slug === EXPECTED.teamSlug && team.billing?.plan === EXPECTED.vercelPlan, 'vercel_team_plan');
     const project = (await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
     assert(project?.id === EXPECTED.projectId && project.accountId === EXPECTED.teamId &&
       project.name === 'attendance-tracker' && project.framework === 'nextjs' &&

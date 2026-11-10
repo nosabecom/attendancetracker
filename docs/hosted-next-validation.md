@@ -1,5 +1,25 @@
 # Bounded hosted Next validation — both publications stopped at configuration gate
 
+## Offline Pro-plan guard correction — November 10
+
+The owner independently upgraded the existing Vercel team to Pro. Both Next
+tools now require the exact existing team identity and the explicitly pinned
+`pro` plan. Hobby, Enterprise, missing and unknown plan values fail closed; no
+environment flag can broaden the expectation. The runtime assertion is named
+`VercelProPlan`. Historical artifacts and their actual Hobby observations retain
+their original bytes and hashes.
+
+This is an offline compatibility correction only. Convex remains required to be
+Free, and current quota/headroom, source, ownership, configuration and cleanup
+checks remain. A Pro plan is not a billing cap; current Vercel credit/headroom
+must be reviewed in any separately prepared continuation. This correction adds
+no credit receipt or spending allowance. Both existing creations are spent. No
+paths, predecessor hashes, cumulative ledgers or request/write limits changed.
+No third attempt or live execution is allocated. A future continuation still
+needs its own reviewed allocation and fresh live gates before any hosted request.
+
+## Historical hosted attempts
+
 The backend-only rehearsal passed and Astra accepted its evidence at ce861715.
 Astra accepted the corrected Next rehearsal code at aa2b25d and the retained-cost
 continuation at 53b7965. Both hosted publication attempts built disposable Vercel

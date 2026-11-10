@@ -657,7 +657,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     deps.validateDeployment(liveVercel.body, { deploymentId: expected.deploymentId, url: manifest.vercel.url,
       sourceCommit: manifest.sourceCommit, runId: manifest.runId });
     const team = (await vercelRequest(`/v2/teams/${TEAM_ID}`)).body;
-    assertion('VercelHobbyPlan', team?.id === TEAM_ID && team.slug === TEAM && team.billing?.plan === 'hobby');
+    assertion('VercelProPlan', team?.id === TEAM_ID && team.slug === TEAM && team.billing?.plan === publisher.EXPECTED.vercelPlan);
     const project = (await vercelRequest(`/v9/projects/${PROJECT}`)).body;
     assertion('VercelProjectProtection', project?.id === PROJECT && project.accountId === TEAM_ID &&
       project.framework === 'nextjs' && project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&

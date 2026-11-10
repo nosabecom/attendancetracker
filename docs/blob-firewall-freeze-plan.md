@@ -1,8 +1,29 @@
 # Candidate: freeze known HTTP writers with the project firewall
 
-Status: research and design proposal only. No firewall rule has been saved,
+Status: read-only inventory completed; containment remains a design proposal.
+No firewall rule has been saved,
 staged or activated by this work. A new-rule form was inspected and closed.
 This is not evidence of a completed writer freeze or permission to cut over.
+
+## Read-only inventory — November 10
+
+After Astra accepted a maximum of 12 explicit inventory requests, root used
+seven: an initial CLI-authenticated project read returned 403, five controlled
+owner-dashboard reads returned 200, then a refreshed-CLI identity read returned
+200. The initial failure and all seven reservations remain in one private
+ledger. The existing CLI performed one supported authentication-refresh/query
+invocation; its internal control calls are separately unknown. Browser
+navigation/background traffic is also separate and unmetered. See the
+[safe inventory](./measurements/blob-firewall-readonly-inventory.json).
+
+The returned pages were complete: 50 Ready deployments, 14 aliases and one
+project domain, with every alias's deployment present in the deployment list.
+The exact owned project/team matched, Git remained disconnected, project cron
+definitions were empty and no project protection-bypass entry was observed.
+The firewall endpoint returned no active custom configuration or pending draft.
+This does not prove platform-wide exception absence, WAF execution on every
+URL, historical runtime limits or completion of downstream writes. No rule was
+saved, staged or activated. No mutation/verification/rollback allocation exists.
 
 ## Evidence and scope
 
@@ -39,7 +60,8 @@ but historical runtime environment/SDK evidence remains incomplete.
 
 ## Smallest proposed continuation
 
-Before any mutation, obtain Astra review of this candidate and reserve a
+The inventory above implements the bounded read-only portion. Before any mutation,
+obtain separate Astra review of an exact execution plan. The original proposal was to reserve a
 separate bounded read-only control inventory (proposed maximum 12 explicit
 requests, no retries or redirects). Bind requests to the exact owned team and
 project using existing authentication privately. Read project identity, current
@@ -57,7 +79,9 @@ The read-only phase must establish:
    including relevant bypass conditions. A response from deployment protection
    is not evidence that the new firewall rule executed.
 4. A justified upper bound for admitted requests and detached work to finish
-   after ingress closes. No elapsed-time guess substitutes for this bound.
+   after ingress closes, including already-admitted downstream Blob writes.
+   Function termination alone does not establish downstream completion. No
+   elapsed-time guess substitutes for this bound.
 
 Then prepare an exact, separately reviewed mutation/probe/rollback allocation
 based on that inventory. The intended rule is one temporary, highest-priority
