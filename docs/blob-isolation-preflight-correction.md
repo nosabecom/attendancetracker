@@ -16,7 +16,9 @@ credential probe occurred.
 Correct only that predicate:
 
 ```js
-const timeout = project.defaultResourceConfig?.functionDefaultTimeout;
+const timeout =
+  project.resourceConfig?.functionDefaultTimeout ??
+  project.defaultResourceConfig?.functionDefaultTimeout;
 if (timeout !== 300) stop();
 ```
 
