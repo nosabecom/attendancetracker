@@ -18,7 +18,7 @@ and the effective project timeout was 300 seconds. Known immutable deployment
 runtime/source evidence was reused rather than described as a new source audit.
 The latest containment confirmation was 23:33:50.018 UTC on November 10.
 
-The source-proven nonwriting control started 311,842 milliseconds after that
+The source-proven nonwriting control started more than 300 seconds after that
 confirmation and returned the exact expected 401 JSON with no Cookie or
 Authorization header. Root allowed a further 30 seconds before the single
 unfiltered log pass. Its fixed interval overlaps the preserved baseline by ten
