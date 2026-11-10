@@ -13,6 +13,39 @@ Keep the Git disconnection and manual deployment/environment-copy hold until
 credential isolation is complete. Recheck queued/building work and the complete
 deployment inventory immediately before rotation. Stop on an unexpected writer.
 
+## Current source and log observations
+
+The separately reserved source-only capture used three fresh ownership reads,
+three tree reads and 20 content reads: 26 explicit controls under a retained
+66-request ceiling. All captured source hashes verified. Independent inspection
+found every executable application/library leaf present (8/4/8 across the three
+uploads), with literal SDK options, awaited mutations and no alternate auth,
+environment injection or detached writer. The actual API tree wraps uploaded
+source in `src/` and generated output in `out/`; package/lock/type configuration
+under that wrapper was omitted. Preserve the partial result. Retrieve only the
+12 missing configuration files from retained identifiers under a separately
+reviewed continuation; do not repeat trees, metadata or captured content. See
+the [capture evidence](./measurements/blob-cli-source-capture.json).
+
+One separate preparatory log read (`LOGSCOUT1`) returned seven records in its
+one-day lookback: six static GETs and one function GET. The function returned
+500, but its recorded public-metadata query and exact deployed source establish
+a read-only branch. It is not an observed failed mutation. No mutation request
+appears in the returned page, and pagination was exhausted. The actual function
+event also reports a 300-second limit. Exact query timestamps were not separately
+persisted; this observation is not the final drain boundary. See the
+[log evidence](./measurements/blob-pre-freeze-log-scout.json).
+
+Vercel documents runtime logs for function invocations in production and preview,
+including request IDs, invocation details and response status. Ordinary Pro
+retains one day; upgrading does not supply older days beyond that retention.
+Its [runtime-log reference](https://vercel.com/docs/logs/runtime) and
+[first-party tutorial](https://vercel.com/academy/vercel-foundations/logs)
+describe request coverage and real-time streaming, but do not specify an
+ingestion watermark or maximum delay. Do not equate page exhaustion with that
+unprovided guarantee. There is no identified unresolved mutation in the observed
+page; do not misclassify its read-only500 as a pending write.
+
 The owner-scoped metadata inventory covers 50 Ready deployments: every returned
 runtime/build environment name list contains the static Blob token and none
 contains `BLOB_STORE_ID`. That is evidence about effective variable names, not
