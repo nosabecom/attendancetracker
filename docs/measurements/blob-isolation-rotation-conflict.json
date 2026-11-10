@@ -1,0 +1,29 @@
+{
+  "formatVersion": 1,
+  "allocation": "ISOLATION1",
+  "status": "stopped_after_rotation_submission",
+  "httpStatus": 422,
+  "rotationSubmissions": 1,
+  "providerConnectionUpdatesSucceeded": 0,
+  "providerConnectionUpdatesTotal": 1,
+  "providerReason": "conflicting_environment_variables",
+  "storeCredentialGenerationState": "unconfirmed",
+  "managementReadRequestsUsed": 4,
+  "staticListChecksUsed": 0,
+  "captureCliInvocations": 0,
+  "connectionRemovalSubmissions": 0,
+  "environmentBindingObservation": {
+    "productionVariableReferencesTargetStore": true,
+    "previewAndDevelopmentVariableReferenceDifferentStore": true,
+    "connectionUiAdvertisesAllThreeEnvironments": true
+  },
+  "configurationUpdateDialogInspected": true,
+  "configurationUpdateNotSubmitted": true,
+  "removeConnectionNotSubmitted": true,
+  "rotationNotRetried": true,
+  "allReservationsRetained": true,
+  "backupPreserved": true,
+  "writerFreezeDeclared": false,
+  "finalDrainDeclared": false,
+  "productionSwitched": false
+}

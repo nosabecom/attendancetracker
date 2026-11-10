@@ -10,6 +10,12 @@ before mutation because its timeout predicate used the wrong project field.
 The [narrow correction](./blob-isolation-preflight-correction.md) retains that
 request and proposes one additional read; it does not reset this allocation.
 
+The corrected preflight subsequently passed, retaining four management reads
+including the original stop. The first zero-grace rotation submission then
+returned 422 with a project-environment conflict. Execution stopped; credential
+generation state remains unconfirmed. The [recovery proposal](./blob-rotation-conflict-recovery.md)
+preserves that submission and requests no automatic retry.
+
 ## Completed prerequisites
 
 - The [twelve-file continuation](./measurements/blob-cli-config-capture.json)
