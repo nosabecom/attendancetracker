@@ -6,6 +6,18 @@ Do not enable Convex against an empty target or discard the old data.
 
 ## External prerequisites
 
+**Latest preservation result, November 10:** all 298 listed Blob objects are
+preserved in two verified private local copies. An independent offline comparison
+matched the three account credentials, seven sessions and their historical
+rosters, 180 check-in timestamps, 18 excuses, closure and sharing. See the
+[copy evidence](./measurements/blob-provisional2-rescue.json) and
+[independent comparison](./measurements/blob-provisional2-offline-reconciliation.json).
+These are unfrozen provisional JSON-value captures, not original-body archives
+or an offsite backup. Writer freeze/drain, a final frozen capture, hosted checks,
+production import/reconciliation and final Astra approval remain incomplete.
+The earlier access investigation below records its historical scope.
+
+
 **2026-11-10 update:** the owner upgraded Vercel; the dashboard now shows Pro and
 no suspension banner. One newly authorized production origin GET returned HTTP
 200 and a complete 2,694-byte class revision containing 56 students. The
@@ -121,8 +133,11 @@ expiry behavior on the hosted runtime before cutover.
    Verify old writers are rejected; wait for in-flight operations to settle.
    If the supported provider freeze/credential procedure is unavailable, stop
    here rather than relying on two listings to establish consistency.
-4. Export using `scripts/export-blob.mjs` into an exclusive private file under
-   `.migration-backups`. Keep the raw snapshot and an independent private backup.
+4. Export with the reviewed `scripts/export-blob-bounded.mjs` API, an explicit
+   retained static credential, and the unused final frozen-export allocation
+   (at most two LISTs and 400 GETs). Use exclusive private attempt/output paths;
+   preserve any failure without resetting its allowance. Keep the complete
+   JSON-value snapshot and an independently verified private backup.
    Do not log names, codes, credentials or raw validation payloads.
 5. Run `scripts/import-blob.mjs --input PRIVATE_RAW --url TARGET` for a dry run.
    Review counts, the canonical fingerprint and source anomalies. Unknown or
