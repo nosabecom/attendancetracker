@@ -2,10 +2,14 @@
 
 ## Current update — 2026-11-10 UTC
 
-**Latest:** one 56-student class roster, captured revision 2, is now preserved in
-two independently verified private local files. A private CSV also round-trips
-all captured names, student codes and internal IDs exactly. These are provisional
-copies, not a complete frozen snapshot; no import or production switch occurred.
+**Latest:** the separately reviewed `PROVISIONAL2` attempt preserved all 298
+listed objects in two independently verified private local files. Offline
+transformation validated 3 accounts, 2 classes, 7 attendance sessions, 180
+check-ins and 18 excuses, with zero reported relationship reconciliation gaps.
+See the [complete-copy evidence](./measurements/blob-provisional2-rescue.json).
+The copy preserves parsed JSON values. It remains **UNFROZEN / PROVISIONAL /
+NON-CANONICAL / NOT CUTOVER-READY**; no import or production switch occurred.
+The independently rescued 56-student roster and CSV remain preserved as well.
 
 The owner reported upgrading Vercel and requested a new access check. The
 dashboard now identifies the team as **Pro** and no longer displays the store's
@@ -20,7 +24,8 @@ writer freeze. OIDC1 returned LIST 200; OIDCBODY1 returned LIST 200 / GET 403.
 Both earlier allocations remain spent. Dashboard navigation/background traffic
 is separate from this one explicit HTTPS request and was not independently
 metered. No agent plan
-change, rotation, store disconnect, bulk export or production switch occurred.
+change, rotation, store disconnect or production switch occurred. The subsequent
+provisional full-store copy is recorded separately above.
 
 The owner's upgrade supersedes waiting for suspension expiry or a free courtesy
 unblock. The previous suspended-store sequence below is historical preparation,

@@ -1,0 +1,99 @@
+{
+  "formatVersion": 1,
+  "allocation": "PROVISIONAL2",
+  "sourceCommit": "b718a479dccca23e71293e093eb524cbf91fcc08",
+  "status": "saved_with_verified_local_backup",
+  "captureStartedAt": "2026-11-10T20:44:01.561Z",
+  "captureFinishedAt": "2026-11-10T20:44:37.394Z",
+  "classification": [
+    "UNFROZEN",
+    "PROVISIONAL",
+    "NON-CANONICAL",
+    "NOT CUTOVER-READY"
+  ],
+  "serialization": "Parsed JSON values; original Blob body bytes are not preserved",
+  "requests": {
+    "metadataAttempts": 2,
+    "objectAttempts": 298,
+    "automaticRetries": 0,
+    "redirectsFollowed": 0,
+    "ambientOidcUsed": false
+  },
+  "consumedResponseBodyBytes": 311183,
+  "snapshotBytes": 72222,
+  "objects": 298,
+  "inventoryDriftCheckPassed": true,
+  "privateCopies": {
+    "count": 2,
+    "bytesAndHashAgree": true,
+    "distinctInodes": true,
+    "ownerOnlyFilesAndDirectories": true,
+    "offsite": false
+  },
+  "offlineValidation": {
+    "status": "transformed",
+    "summary": {
+      "valid": true,
+      "inventory": {
+        "blobs": 298,
+        "records": {
+          "accounts": 3,
+          "loginSessions": 5,
+          "claims": 0,
+          "imports": 0,
+          "throttleAttempts": 74,
+          "sessions": 7,
+          "ownerReferences": 7,
+          "classRevisions": 2,
+          "sharedReferences": 1,
+          "excuses": 18,
+          "checkins": 180,
+          "closures": 1
+        },
+        "canonical": {
+          "accounts": 3,
+          "legacyClaims": 0,
+          "legacyImports": 0,
+          "classes": 2,
+          "rosterVersions": 3,
+          "sessions": 7,
+          "attendance": 198
+        },
+        "archived": {
+          "loginSessions": 5,
+          "throttleAttempts": 74
+        }
+      },
+      "reconciliation": {
+        "staleSharedReferences": 0,
+        "sessionsWithoutOwnerReference": 0,
+        "teachersWithoutSharedReference": 0,
+        "claimsWithoutImportReference": 0,
+        "unclaimedOwners": 0,
+        "closureTimestampFallbacks": 0
+      }
+    }
+  },
+  "engineeringHeadroomReservationUsd": 0.25,
+  "providerBillingCap": false,
+  "predecessor": {
+    "allocation": "PROVISIONAL1",
+    "status": "failed",
+    "metadataAttempts": 1,
+    "objectAttempts": 0,
+    "cause": "headers_timeout",
+    "historicalEvidenceUnchanged": true
+  },
+  "frozenExportAllocationUntouched": true,
+  "writerFreezeEstablished": false,
+  "canonical": false,
+  "cutoverReady": false,
+  "imported": false,
+  "productionSwitched": false,
+  "limitations": [
+    "Matching inventories detect metadata drift; they do not establish snapshot consistency while writers remain possible.",
+    "The snapshot preserves parsed JSON values, not byte-for-byte original Blob bodies.",
+    "Two verified local files are not an offsite backup.",
+    "Complete validation and final frozen reconciliation remain required before cutover."
+  ]
+}
