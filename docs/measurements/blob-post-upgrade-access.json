@@ -11,6 +11,7 @@
   "receivedBodyBytes": 2694,
   "status": "readable",
   "studentCount": 56,
+  "observedClassRevision": 2,
   "completeJson": true,
   "responseBodyPersisted": false,
   "dashboardPlan": "Pro",

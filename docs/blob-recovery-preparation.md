@@ -11,9 +11,10 @@ the response body was transient. See the
 [access evidence](./measurements/blob-post-upgrade-access.json).
 
 This establishes access to that roster at that time, not a complete backup or
-writer freeze. The earlier OIDC attempts remain spent and their historical 403
-results are unchanged. Dashboard navigation/background traffic is separate from
-this one explicit HTTPS request and was not independently metered. No agent plan
+writer freeze. OIDC1 returned LIST 200; OIDCBODY1 returned LIST 200 / GET 403.
+Both earlier allocations remain spent. Dashboard navigation/background traffic
+is separate from this one explicit HTTPS request and was not independently
+metered. No agent plan
 change, rotation, store disconnect, bulk export or production switch occurred.
 
 The owner's upgrade supersedes waiting for suspension expiry or a free courtesy
@@ -27,6 +28,22 @@ can be configured in that state. This does not pause existing deployments.
 The outstanding static/OIDC freeze questions and separate hosted/cutover gates
 are not resolved by HTTP 200. Obtain Astra xhigh review of the changed recovery
 sequence before executing credential changes or claiming a consistent snapshot.
+
+Astra accepted a separate **private provisional preservation** attempt before
+writer freeze, explicitly distinguishing it from a final consistent snapshot.
+After reviewing current team credit and reserving `PROVISIONAL1` separately from
+the unused frozen-export allowance, the unchanged bounded exporter ran once.
+Its first LIST timed out before response headers: one metadata attempt, zero
+object requests and zero consumed body bytes. No snapshot was published. The
+[failed-attempt evidence](./measurements/blob-provisional-rescue.json) preserves
+the accounting; the cause and provider-side processing remain unknown. Do not
+retry this attempt, reset its files or claim any roster backup was saved.
+Any smaller known-roster rescue requires its own reviewed code and separate
+allocation; none has executed. The original frozen export remains unstarted.
+The [one-roster plan](./known-roster-rescue.md) and offline-tested helper are
+prepared for that separate review. A
+[project-firewall containment candidate](./blob-firewall-freeze-plan.md) is also
+documented; only non-mutating UI/source inspection has occurred.
 
 ## Historical suspension and recovery investigation
 
