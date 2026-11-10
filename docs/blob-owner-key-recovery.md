@@ -1,8 +1,12 @@
 # Retrieve the current key through the store owner's UI
 
-Status: proposed narrow recovery after the stopped HTTP 422 rotation and the
-single old-key `403 / forbidden` diagnostic. No second rotation, connection edit,
-current-key capture or writer-freeze declaration has occurred.
+Status: the scoped attempt was accepted by Astra at `3658f64` and then stopped
+with `reveal_timeout`. One Show-secret invocation did not produce an available
+credential within the helper's five-second bound. The helper returned only that
+fixed category; root immediately closed its owned tab without a DOM snapshot.
+No download, credential capture or replacement LIST occurred. The cause remains
+unknown. No second rotation, connection edit or writer-freeze declaration has
+occurred. See the [stopped outcome](./measurements/blob-owner-key-capture.json).
 
 The authenticated target store's Quickstart `.env.local` snippet has ordinary
 Show/Hide secret controls. This is a supported store-owner read, not protected
@@ -18,7 +22,7 @@ revealed or downloaded. Browser-generated filenames are opaque local paths;
 the credential must never appear in returned values, URLs, tool arguments,
 stdout, error text, screenshots, clipboard contents, hashes or committed files.
 
-## Proposed `OWNERCAPTURE1` operation
+## Historical `OWNERCAPTURE1` contract — attempt spent
 
 Require scoped Astra acceptance of this exact helper and procedure, reviewed
 clean HEAD, the continuous deployment/environment-copy/operator hold, and fresh
@@ -63,6 +67,24 @@ variables lack the new key, that the connection can be removed safely, or that
 all admitted writes have drained. Return the actual capture/comparison evidence
 to Astra before connection removal, any configuration change or final export.
 The unused CLI capture is not consumed or silently substituted as a retry.
+
+## Next decision after the stop
+
+Preserve the spent reveal and all original static checks. Do not rerun the
+helper, extend its timer on the live store, reveal on another tab, or spend the
+unused CLI capture as an automatic fallback. Root has not established whether
+the owner control requires additional authentication, was denied, or was slow.
+The timeout alone establishes none of those explanations.
+
+Obtain Astra's actual-evidence review before further recovery. A smallest
+non-mutating continuation is inspection of the ordinary masked owner UI and its
+supported authentication/help controls, without another reveal, credential read
+or data-plane call. If a human-only authentication challenge is established,
+request that specific assistance through the harness; do not ask Nosa to supply
+access the authenticated agent already has. A new capture, connection operation
+or authority-isolation alternative requires its own concrete reviewed contract
+and retained accounting. Production import preparation can continue offline;
+neither this timeout nor the preserved provisional copy authorizes cutover.
 
 Offline tests cover successful remasking-before-download, no replay, wrong page,
 ambiguous snippets, wrong-store/malformed tokens, reveal/mask timeouts and static
