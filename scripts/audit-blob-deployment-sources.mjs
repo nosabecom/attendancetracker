@@ -101,10 +101,11 @@ function abortable(work, signal) {
 const sourceExtension = /\.(?:[cm]?[jt]sx?|json)$/i;
 const assetExtension = /\.(?:css|scss|sass|less|svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|eot|otf)$/i;
 const rootSource = /^(?:(?:next|postcss|tailwind)\.config\.[cm]?[jt]s|(?:instrumentation(?:-client)?|middleware|proxy|server)\.[cm]?[jt]sx?|next-env\.d\.ts)$/;
+const srcEntrypoint = /^src\/(?:instrumentation(?:-client)?|middleware|proxy)\.[cm]?[jt]sx?$/;
 const rootData = /^(?:package\.json|package-lock\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|(?:tsconfig|jsconfig)(?:\.[\w-]+)?\.json|vercel\.jsonc?)$/;
 const forbidden = /(?:^|\/)(?:\.env(?:\.[^/]*)?|credentials?(?:\.[^/]*)?|secrets?(?:\.[^/]*)?|\.npmrc|node_modules|public|\.next|\.vercel|dist|build|outputs?|assets)(?:\/|$)/i;
 const sourceRoot = /^(?:app|lib|pages|src\/(?:app|lib|pages))\//;
-function eligible(path) { return !forbidden.test(path) && (rootSource.test(path) || rootData.test(path) || (sourceRoot.test(path) && sourceExtension.test(path))); }
+function eligible(path) { return !forbidden.test(path) && (rootSource.test(path) || srcEntrypoint.test(path) || rootData.test(path) || (sourceRoot.test(path) && sourceExtension.test(path))); }
 
 export function selectDeploymentSources(tree) {
   if (!Array.isArray(tree)) fail('invalid_tree');

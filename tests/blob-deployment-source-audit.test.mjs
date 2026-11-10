@@ -118,6 +118,16 @@ test('uncaptured Babel/SWC configuration and package hooks cannot satisfy source
   }
 });
 
+test('Next entrypoints under src are captured without relying on an application import', () => {
+  const paths=['src/instrumentation.ts','src/proxy.ts','src/middleware.ts','src/instrumentation-client.ts'];
+  const files={...baseFiles(),...Object.fromEntries(paths.map(path=>[path,'export const marker=1;']))};
+  const selected=selectDeploymentSources(treeFrom(files));
+  for(const path of paths)assert.ok(selected.files.some(file=>file.path===path));
+  const missing=checkSourceClosure([{path:'package.json',content:files['package.json']},{path:'package-lock.json',content:'{}'},
+    {path:'src/instrumentation.ts',content:"import './unseen-hook';"}]);
+  assert.ok(missing.includes('unresolved_import'));
+});
+
 test('60 total source files succeed; 61-plus never dispatches content reads or silently truncates', async t => {
   for (const extra of [15, 16]) await t.test(String(extra), async () => {
     const dir = await directory();
