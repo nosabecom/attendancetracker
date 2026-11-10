@@ -1,7 +1,9 @@
 # Production import preparation
 
 Status: offline planning only. No production Convex key, publication, data import
-or traffic switch was performed. The final frozen source is still pending.
+or traffic switch was performed. The [final frozen source](./blob-final-frozen-export.md)
+is now preserved; its recalculated plan confirms the same counts and bytes below.
+Production execution is still pending its own reviewed, enforced allocation.
 
 The preserved provisional snapshot produces seven deterministic import chunks,
 357 target documents and 723 retained documents including migration receipts,
