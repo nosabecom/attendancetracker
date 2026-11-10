@@ -5,6 +5,11 @@ source/configuration/authentication paths are reviewed. No Blob credential has
 been rotated and the store remains connected. The full provisional data copy is
 preserved independently in two private local files.
 
+The first execution preflight stopped locally after one owned-project GET and
+before mutation because its timeout predicate used the wrong project field.
+The [narrow correction](./blob-isolation-preflight-correction.md) retains that
+request and proposes one additional read; it does not reset this allocation.
+
 ## Completed prerequisites
 
 - The [twelve-file continuation](./measurements/blob-cli-config-capture.json)

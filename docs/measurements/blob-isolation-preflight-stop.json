@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "allocation": "ISOLATION1",
+  "status": "stopped_before_mutation",
+  "reviewedSourceCommit": "d49746b6fb5639c7e9d831181bbf70200d5ae2a0",
+  "explicitManagementReadsUsed": 1,
+  "rotationSubmissions": 0,
+  "connectionRemovalSubmissions": 0,
+  "captureCliInvocations": 0,
+  "staticChecksUsed": 0,
+  "failure": "local_preflight_runtime_field_mismatch",
+  "incorrectProjectFields": [
+    "resourceConfig.functionTimeout",
+    "defaultResourceConfig.functionTimeout"
+  ],
+  "correctProjectDefaultField": "defaultResourceConfig.functionDefaultTimeout",
+  "historicalDeploymentField": "config.functionTimeout",
+  "priorObservedProjectDefault": 300,
+  "freshCorrectFieldConfirmationPending": true,
+  "oldAppCredentialsChanged": false,
+  "entireOriginalReservationsRetained": true,
+  "automaticRetry": false,
+  "reset": false,
+  "plannedOriginalReadCeiling": 17,
+  "proposedAdditionalRead": 1,
+  "proposedCumulativeReadCeiling": 18
+}
