@@ -149,6 +149,44 @@ export const OWNED_DEVELOPMENT_PATHS = freeze({
   attempt: '.convex/owned-development-validation/runtime-attempt.json',
   evidence: 'docs/measurements/hosted-owned-development-verification.json',
 });
+export const AUTOMATION_PATHS = freeze({
+  backend: OWNED_DEVELOPMENT_PATHS.backend,
+  manifest: '.convex/owned-development-validation/automation-next-manifest.json',
+  publication: 'docs/measurements/hosted-automation-next-setup.json',
+  attempt: '.convex/owned-development-validation/automation-runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-automation-next-verification.json',
+});
+export const OWNED_FAILED_SHA256 = 'fe88f962830b821fd9f4836a71951473a0cf4900f68927d01e27d94b95390201';
+export function validateOwnedFailed(text) {
+  check(createHash('sha256').update(text).digest('hex') === OWNED_FAILED_SHA256, 'owned_failed_hash');
+  const p = JSON.parse(text);
+  check(p.passed === false && p.cancelled === false && p.failedPhase === 'readiness' &&
+    p.cleanup?.ownershipVerified === true && p.cleanup.deploymentDeleted === true &&
+    p.cleanup.capabilityInvalidatedByDeletion === true && p.cleanup.capabilityRevoked === false &&
+    JSON.stringify(p.cumulative) === JSON.stringify({calls:91,nextCalls:3,controls:60,hosting:1,writes:381,gateway:7,creations:3}), 'owned_failed_evidence');
+  return p;
+}
+export function validateAutomationProbe(p) {
+  // Generation and confirmed revocation establish the supported mechanism.
+  // Only signed readiness on the new candidate can establish its header access.
+  check(p?.version === 1 && p.cancelled === false &&
+    p.projectId === 'prj_uOMK1a4PLAgsDr1A16InuImM1M3q' && p.teamId === 'team_fmwIPLne9w30y7G5JQrs3fzl' &&
+    p.protocol === 'project-automation-v1' && Number.isSafeInteger(p.controls) && p.controls > 0 && p.controls <= 7 && p.hosting === 2 &&
+    ['baselineProtected','revocationConfirmed','preservedUnrelated','noResourceCreation'].every(k => p[k] === true) &&
+    ((p.passed === true && p.headerAccepted === true && !p.failedPhase) ||
+     (p.passed === false && p.headerAccepted === false && p.failedPhase === 'header')), 'automation_probe');
+  return p;
+}
+export function validateFailedAutomationProbe(text) {
+  check(createHash('sha256').update(text).digest('hex')==='db2b976648734a665275a28d7d170b9dca8cd95907668ff0b89265d46ee0f105','failed_automation_probe_hash');
+  const p=JSON.parse(text);check(p.passed===false&&p.cancelled===false&&p.controls===4&&p.hosting===1&&p.failedPhase==='generate'&&p.noResourceCreation===true,'failed_automation_probe');return p;
+}
+export function automationTotals(c, probe, creations = 1) {
+  validateAutomationProbe(probe);
+  check(count(c?.controlRequests,20) && count(c?.hostingRequests,3) && count(c?.applicationCalls,1) && count(creations,1), 'automation_counts');
+  return {calls:91+c.applicationCalls,nextCalls:3+c.applicationCalls,controls:64+probe.controls+c.controlRequests,
+    hosting:2+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:3+creations};
+}
 export const OWNED_STOPPED_SHA256 = 'd0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7';
 export function validateOwnedStopped(text) {
   check(createHash('sha256').update(text).digest('hex') === OWNED_STOPPED_SHA256, 'owned_stopped_hash');
@@ -169,7 +207,7 @@ export function validateOwnedBackend(m, sourceCommit) {
     m.cloudUrl === i.deploymentUrl && m.siteUrl === 'https://amicable-koala-816.convex.site' &&
     m.fingerprint === 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba' &&
     m.publication === 'succeeded' && m.environmentConfigured === true && m.limitVerified === true &&
-    m.adminCapabilityVerified === true && m.availabilityClosed === true && m.reviewedSourceCommit === sourceCommit &&
+    m.adminCapabilityVerified === true && m.availabilityClosed === true && /^[a-f0-9]{40}$/.test(m.reviewedSourceCommit ?? '') &&
     /^[a-f0-9]{40}$/.test(sourceCommit ?? '') && count(u?.controlRequests, 20) && count(u?.applicationCalls, 40) &&
     count(u?.logicalWriteReservations, 40) && u.controlRequests > 0 && u.applicationCalls > 0 && u.logicalWriteReservations > 0 && typeof m.adminKey === 'string' && m.adminKey.length > 0 && m.adminKey.length <= 16384 &&
     !/[\u0000-\u001f\u007f]/.test(m.adminKey) && typeof m.config?.ATTENDANCE_GATEWAY_KEY === 'string' &&
@@ -179,10 +217,12 @@ export function validateOwnedBackend(m, sourceCommit) {
     cloudUrl: m.cloudUrl, siteUrl: m.siteUrl, fingerprint: m.fingerprint };
 }
 export function validateOwnedCompatibility(sourceCommit, backendCommit, git = args => execFileSync('git', args, { encoding: 'utf8' })) {
-  check(/^[a-f0-9]{40}$/.test(sourceCommit ?? '') && backendCommit === sourceCommit &&
+  check(/^[a-f0-9]{40}$/.test(sourceCommit ?? '') && /^[a-f0-9]{40}$/.test(backendCommit ?? '') &&
     git(['rev-parse', 'HEAD']).trim() === sourceCommit, 'owned_backend_commit');
   git(['diff', '--exit-code', backendCommit, sourceCommit, '--', 'app', 'convex', 'lib', 'patches', 'package.json',
     'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'vercel.json', 'tsconfig.json']);
+  git(['diff', '--exit-code', sourceCommit, '--', 'app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'vercel.json', 'tsconfig.json']);
+  check(!git(['ls-files', '--others', '--exclude-standard', '--', 'app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'vercel.json', 'tsconfig.json']).trim(), 'owned_untracked_core');
   return { backendCommit, sourceCommit, runtimeBytesEqual: true, backendDependencyClosureEqual: true, ownedDevelopment: true };
 }
 export function validateOwnedCanonical(canonical, backend) {

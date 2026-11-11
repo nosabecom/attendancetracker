@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "protocol": "project-automation-v1",
+  "projectId": "prj_uOMK1a4PLAgsDr1A16InuImM1M3q",
+  "teamId": "team_fmwIPLne9w30y7G5JQrs3fzl",
+  "passed": false,
+  "cancelled": false,
+  "controls": 4,
+  "hosting": 1,
+  "noResourceCreation": true,
+  "baselineProtected": true,
+  "headerAccepted": false,
+  "revocationConfirmed": false,
+  "preservedUnrelated": false,
+  "deploymentId": "dpl_CehR9Pm1ryBqR6XDVdayyqAWBnb7",
+  "failedPhase": "generate",
+  "cleanupUncertain": true,
+  "finishedAt": "2026-11-11T03:29:48.586Z"
+}

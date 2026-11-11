@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { AUTOMATION_PATH, automationRevokeBody, verifyAutomationRevoked } from './vercel-automation-access.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, automationTotals } from './hosted-next-third.mjs';
 // Opt-in, one-attempt verification. Importing this file performs no I/O.
 import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -44,13 +46,14 @@ const record = value => value && typeof value === 'object' && !Array.isArray(val
 export function parseArgs(args) {
   const continued = args.length === 6 && args[4] === '--continue-after' && args[5] === CONTINUATION.predecessorDeploymentId;
   const third = args.length === 6 && args[4] === '--continue-after' && args[5] === THIRD.predecessorDeploymentId;
-  const owned = args.length === 6 && args[4] === '--owned-development-release' && /^[a-f0-9]{40}$/.test(args[5]);
+  const automation = args.length === 6 && args[4] === '--automation-owned-release' && /^[a-f0-9]{40}$/.test(args[5]);
+  const owned = automation || args.length === 6 && args[4] === '--owned-development-release' && /^[a-f0-9]{40}$/.test(args[5]);
   const prebuilt = owned || (args.length === 6 && args[4] === '--prebuilt-release' && /^[a-f0-9]{40}$/.test(args[5]));
   check((args.length === 4 || continued || third || prebuilt) && args[0] === '--expected-vercel-deployment' &&
     /^dpl_[A-Za-z0-9]+$/.test(args[1]) && args[2] === '--expected-preview' &&
     /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(args[3]), 'invalid_arguments');
   check(!owned || args[3] === 'amicable-koala-816', 'owned_target');
-  return { deploymentId: args[1], backendName: args[3], ...(owned ? { ownedDevelopment: true } : {}), ...(continued ? { continuation: true } : {}), ...(third || prebuilt ? { third: true } : {}), ...(prebuilt ? { prebuilt: true, sourceCommit: args[5] } : {}) };
+  return { deploymentId: args[1], backendName: args[3], ...(owned ? { ownedDevelopment: true } : {}), ...(automation ? { automationOwnedRelease: true } : {}), ...(continued ? { continuation: true } : {}), ...(third || prebuilt ? { third: true } : {}), ...(prebuilt ? { prebuilt: true, sourceCommit: args[5] } : {}) };
 }
 
 export function validateManifest(m, expected, now = Date.now()) {
@@ -93,7 +96,7 @@ export function validateManifest(m, expected, now = Date.now()) {
     b.cloudUrl === `https://${b.name}.convex.cloud` && b.siteUrl === `https://${b.name}.convex.site` &&
     b.fingerprint === FINGERPRINT, 'backend_binding');
   const expiry = Date.parse(a?.expiresAt);
-  check(a?.kind === 'deployment-shareable' && typeof a.token === 'string' && a.token.length > 0 &&
+  check((expected.automationOwnedRelease ? a?.kind === 'project-automation' && a.projectId === PROJECT && /^[a-f0-9]{32}$/.test(a.token ?? '') && a.providerExpires === false && m.automationOwnedRelease === true : a?.kind === 'deployment-shareable') && typeof a.token === 'string' && a.token.length > 0 &&
     a.token.length <= 16384 && !/[\u0000-\u0020\u007f]/.test(a.token) &&
     Number.isFinite(expiry) && expiry > now + 180000 && expiry <= now + 900000 &&
     a.headerVerified === true, 'access_binding');
@@ -121,7 +124,7 @@ export function validateStoppedThird(text, manifest) {
     JSON.stringify(r.cumulative) === JSON.stringify({ calls: 63, nextCalls: 2, controls: 35, hosting: 0, writes: 355, gateway: 7, creations: 2 }), 'prebuilt_stopped_evidence');
   return true;
 }
-export function validatePrebuiltPublication(report, manifest, ownedDevelopment = false) {
+export function validatePrebuiltPublication(report, manifest, ownedDevelopment = false, automation = false) {
   check(report?.version === 1 && report.passed === true && report.cancelled === false && !report.failedPhase &&
     report.runId === manifest.runId && report.sourceCommit === manifest.sourceCommit &&
     report.deploymentId === manifest.vercel.deploymentId && report.uniqueUrl === manifest.vercel.url &&
@@ -136,9 +139,10 @@ export function validatePrebuiltPublication(report, manifest, ownedDevelopment =
     JSON.stringify(report.counters) === JSON.stringify(manifest.counters) &&
     JSON.stringify(report.cumulative) === JSON.stringify(manifest.cumulative), 'prebuilt_publication_evidence');
   const c = manifest.counters;
-  check(JSON.stringify(manifest.cumulative) === JSON.stringify(ownedDevelopment ? ownedTotals(c, manifest.setupUsage) : { calls: 63 + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
+  check(JSON.stringify(manifest.cumulative) === JSON.stringify(automation ? automationTotals(c, manifest.automationProbe) : ownedDevelopment ? ownedTotals(c, manifest.setupUsage) : { calls: 63 + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
     controls: 35 + c.controlRequests, hosting: c.hostingRequests, writes: 355, gateway: 7, creations: 3 }), 'prebuilt_cumulative');
   if (ownedDevelopment) check(report.ownedDevelopment === true && report.previousPrebuiltSha256 === OWNED_STOPPED_SHA256 && manifest.previousPrebuiltSha256 === OWNED_STOPPED_SHA256 && /^[a-f0-9]{64}$/.test(manifest.backendManifestSha256 ?? '') && report.backendManifestSha256 === manifest.backendManifestSha256 && JSON.stringify(report.setupUsage) === JSON.stringify(manifest.setupUsage), 'owned_publication_binding');
+  if (automation) check(report.automationOwnedRelease === true && report.previousOwnedFailedSha256 === OWNED_FAILED_SHA256 && manifest.previousOwnedFailedSha256 === OWNED_FAILED_SHA256 && JSON.stringify(report.automationProbe) === JSON.stringify(manifest.automationProbe) && report.providerExpires === false, 'automation_publication_binding');
   validateThirdSnapshot(report.thirdContinuation);
   return true;
 }
@@ -171,14 +175,14 @@ export function validatePriorEvidence(prior, backend, manifest) {
 }
 
 // Counters never reset between the backend rehearsal, publisher and runtime.
-export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false, ownedDevelopment = false, setupUsage } = {}) {
+export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false, ownedDevelopment = false, setupUsage, automation = false, probe } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
     count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= (prebuilt ? 3 : 2) &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
   if (continuation) validateContinuationSnapshot(continuation);
   if (thirdContinuation) { check(!continuation, 'third_budget_mode'); validateThirdSnapshot(thirdContinuation); if (prebuilt) validatePrebuiltPreflight(preflight); else validateThirdPreflight(preflight); }
-  const seed = ownedDevelopment ? ownedTotals(publisherCounters, setupUsage) : thirdContinuation ? (prebuilt ? { calls: 63 + publisherCounters.applicationCalls, nextCalls: 2 + publisherCounters.applicationCalls, controls: 35 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests, creations: 3 } : thirdTotals(publisherCounters, 1, preflight.controlRequests)) : continuation ? continuationTotals(publisherCounters, 1) : {
+  const seed = automation ? automationTotals(publisherCounters, probe) : ownedDevelopment ? ownedTotals(publisherCounters, setupUsage) : thirdContinuation ? (prebuilt ? { calls: 63 + publisherCounters.applicationCalls, nextCalls: 2 + publisherCounters.applicationCalls, controls: 35 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests, creations: 3 } : thirdTotals(publisherCounters, 1, preflight.controlRequests)) : continuation ? continuationTotals(publisherCounters, 1) : {
     calls: 62, nextCalls: 1, controls: 1 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests };
   const totals = { calls: seed.calls, writes: ownedDevelopment ? seed.writes : 355, gateway: 7, control: seed.controls,
     hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
@@ -197,8 +201,8 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
       if (gateway) { next.gateway++; next.nextGateway++; } }
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
-    check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= (ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
-      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
+    check(next.calls <= 200 && next.nextCalls <= (automation ? 45 : 40) && next.writes <= (ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
+      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (automation ? 110 : ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
       next.hosting <= (ownedDevelopment || thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
     ordinaryWrites = nextOrdinaryWrites; cleanupWrites = nextCleanupWrites;
@@ -626,7 +630,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     shortJwt: createShortJwtFixture, wait: (ms, signal) => sleep(ms, undefined, { signal }),
     ...injected };
   const expected = parseArgs(argv);
-  const paths = expected.ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : expected.prebuilt ? PREBUILT_PATHS : expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const paths = expected.automationOwnedRelease ? AUTOMATION_PATHS : expected.ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : expected.prebuilt ? PREBUILT_PATHS : expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const manifest = JSON.parse(await deps.readPrivateText(paths.manifest));
   validateManifest(manifest, expected, deps.wallNow());
   const backendText = await deps.readPrivateText(expected.ownedDevelopment ? paths.backend : backendPath);
@@ -650,7 +654,8 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       validateStoppedThird(await deps.readPublic(THIRD_PATHS.publication), manifest);
       await deps.assertAbsent(THIRD_PATHS.attempt);
       if (expected.ownedDevelopment) validateOwnedStopped(await deps.readPublic(PREBUILT_PATHS.publication));
-      validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest, expected.ownedDevelopment);
+      if (expected.automationOwnedRelease) { validateOwnedFailed(await deps.readPublic(OWNED_DEVELOPMENT_PATHS.publication));validateFailedAutomationProbe(await deps.readPublic('docs/measurements/vercel-automation-access-probe.json')); const probe = validateAutomationProbe(JSON.parse(await deps.readPublic('docs/measurements/vercel-automation-access-probe-32.json'))); check(JSON.stringify(probe) === JSON.stringify(manifest.automationProbe), 'automation_probe_binding'); }
+      validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest, expected.ownedDevelopment, expected.automationOwnedRelease);
     } else validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
   } else if (expected.continuation) {
     continuation = validateContinuationHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
@@ -675,7 +680,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     !/[\u0000-\u0020\u007f]/.test(key), 'preview_key_scope');
   const vercelToken = await deps.readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
   const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation,
-    thirdContinuation, preflight: manifest.preflight, prebuilt: expected.prebuilt, ownedDevelopment: expected.ownedDevelopment, setupUsage: manifest.setupUsage });
+    thirdContinuation, preflight: manifest.preflight, prebuilt: expected.prebuilt, ownedDevelopment: expected.ownedDevelopment, setupUsage: manifest.setupUsage, automation: expected.automationOwnedRelease, probe: manifest.automationProbe });
   const attempt = { version: 1, runId: manifest.runId, sourceCommit: manifest.sourceCommit,
     vercelDeploymentId: expected.deploymentId, backendId: manifest.backend.id,
     backendReference: manifest.backend.reference, fingerprint: FINGERPRINT,
@@ -689,9 +694,10 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     deploymentName: expected.backendName, priorBackend: previous,
     ...(continuation ? { continuation } : {}),
     ...(thirdContinuation ? { thirdContinuation, preflight: { ...manifest.preflight }, vercelCreditReview } : {}),
-    bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: 40, writes: expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.ownedDevelopment ? 650 : 600,
-      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
-      ...(continuation || thirdContinuation ? { cumulativeCreations: thirdContinuation ? 3 : 2 } : {}),
+    ...(expected.automationOwnedRelease ? { automationOwnedRelease:true, providerExpires:false } : {}),
+    bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: expected.automationOwnedRelease ? 45 : 40, writes: expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.ownedDevelopment ? 650 : 600,
+      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: expected.automationOwnedRelease ? 110 : expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
+      ...(continuation || thirdContinuation ? { cumulativeCreations: expected.automationOwnedRelease ? 4 : thirdContinuation ? 3 : 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
     assertions: {}, negativeProbes: [], ipProvenance: { status: 'unverified' },
@@ -751,7 +757,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     check(path.startsWith('/') && !path.startsWith('//') && !/[\r\n]/.test(path), 'vercel_request_target');
     const target = new URL(path, 'https://api.vercel.com'); target.searchParams.set('teamId', TEAM_ID);
     check([`/v13/deployments/${expected.deploymentId}`, `/v2/teams/${TEAM_ID}`, `/v9/projects/${PROJECT}`,
-      `/aliases/${expected.deploymentId}/protection-bypass`].includes(target.pathname), 'vercel_request_target');
+      ...(expected.automationOwnedRelease ? [AUTOMATION_PATH] : [`/aliases/${expected.deploymentId}/protection-bypass`])].includes(target.pathname), 'vercel_request_target');
     reserve('control'); report.physicalRequests.control++;
     return deps.providerJson(target.href, { ...options,
       headers: { Authorization: `Bearer ${vercelToken}` }, timeoutMs: remaining() });
@@ -1007,13 +1013,16 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
         const identity = await vercelRequest(`/v13/deployments/${expected.deploymentId}`);
         validatePrebuiltDeployment(identity.body, manifest, { requireReady: false });
         let capabilityRevoked = false;
-        try { await vercelRequest(`/aliases/${expected.deploymentId}/protection-bypass`, {
-          method: 'PATCH', body: { revoke: { secret: manifest.access.token, regenerate: false } } }); capabilityRevoked = true; } catch {}
+        try { const revoked = await vercelRequest(expected.automationOwnedRelease ? AUTOMATION_PATH : `/aliases/${expected.deploymentId}/protection-bypass`, {
+          method: 'PATCH', body: expected.automationOwnedRelease ? automationRevokeBody(manifest.access.token) : { revoke: { secret: manifest.access.token, regenerate: false } } });
+          if (expected.automationOwnedRelease) verifyAutomationRevoked((await vercelRequest(`/v9/projects/${PROJECT}`)).body, manifest.access.token, manifest.access.baseline);
+          capabilityRevoked = true; } catch {}
         await vercelRequest(`/v13/deployments/${expected.deploymentId}`, { method: 'DELETE', allowedStatuses: [200, 204] });
         const confirmed = await vercelRequest(`/v13/deployments/${expected.deploymentId}`, { allowedStatuses: [404] });
-        result = { capabilityRevoked: capabilityRevoked || confirmed.status === 404, deploymentDeleted: confirmed.status === 404 };
+        result = { capabilityRevoked: capabilityRevoked || (!expected.automationOwnedRelease && confirmed.status === 404), deploymentDeleted: confirmed.status === 404 };
       } else result = await deps.cleanupVercel({ manifest, request: vercelRequest });
       report.cleanup.capabilityRevoked = result.capabilityRevoked === true;
+      if (expected.automationOwnedRelease) report.cleanup.providerExpires = false;
       report.cleanup.vercelDeleted = result.deploymentDeleted === true;
     } catch { report.cleanup.vercelCleanupUncertain = true; }
     report.cancelled = cancelled;

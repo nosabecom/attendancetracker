@@ -8,6 +8,8 @@ import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import * as old from './prepare-hosted-next.mjs';
 import { validateVercelCreditReview, validatePreviewBackendCompatibility, OWNED_DEVELOPMENT_PATHS, OWNED_STOPPED_SHA256, validateOwnedStopped, validateOwnedBackend, validateOwnedCompatibility, validateOwnedCanonical, ownedTotals } from './hosted-next-third.mjs';
+import { AUTOMATION_PATH, newAutomationSecret, automationGenerateBody, automationRevokeBody, verifyAutomationGenerated, verifyAutomationRevoked } from './vercel-automation-access.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, automationTotals } from './hosted-next-third.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { signReadinessRequest, verifyReadinessResponse } from '../lib/release-readiness.mjs';
 
@@ -47,6 +49,7 @@ export function persistPrebuiltSuccess(report,{save,persistEvidence}) {
   try { save();persistEvidence(); }
   catch(error) {report.passed=false;report.persistenceFailed=true;throw error;}
 }
+const automationRevokeBodyFor = access => access.kind === 'project-automation' ? automationRevokeBody(access.token) : {revoke:{secret:access.token,regenerate:false}};
 export async function cleanupPrebuiltOwned(m,request) {
   const result={};
   const d=(await request(`/v13/deployments/${m.vercel.deploymentId}`)).body;
@@ -54,19 +57,20 @@ export async function cleanupPrebuiltOwned(m,request) {
   validatePrebuiltDeployment(d,m,false);result.ownershipVerified=true;
   result.capabilityRevoked=!m.access?.token&&!m.shareCapabilitySubmitted;
   if(m.access?.token) {
-    try {await request(`/aliases/${m.vercel.deploymentId}/protection-bypass`,{method:'PATCH',body:{revoke:{secret:m.access.token,regenerate:false}}});result.capabilityRevoked=true;}
+    try {const response=await request(m.access.kind === 'project-automation' ? AUTOMATION_PATH : `/aliases/${m.vercel.deploymentId}/protection-bypass`,{method:'PATCH',body:automationRevokeBodyFor(m.access)}); if(m.access.kind === 'project-automation') verifyAutomationRevoked((await request(`/v9/projects/${old.EXPECTED.projectId}`)).body,m.access.token,m.access.baseline); result.capabilityRevoked=true;}
     catch {result.capabilityRevocationUncertain=true;}
   }
   // Failed capability revocation must never skip the independently owned deletion.
   await request(`/v13/deployments/${m.vercel.deploymentId}`,{method:'DELETE',allowedStatuses:[200,204]});
   result.deploymentDeleted=(await request(`/v13/deployments/${m.vercel.deploymentId}`,{allowedStatuses:[404]})).status===404;
-  result.capabilityInvalidatedByDeletion=result.deploymentDeleted;
+  result.capabilityInvalidatedByDeletion=m.access?.kind === 'project-automation' ? false : result.deploymentDeleted;
+  if(m.access?.kind === 'project-automation') result.providerExpires=false;
   return result;
 }
 
-export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, ownedDevelopment = false }, injected = {}) {
-  const paths = ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : PREBUILT_PATHS;
-  let setupUsage;
+export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, ownedDevelopment = false, automation = false }, injected = {}) {
+  const paths = automation ? AUTOMATION_PATHS : ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : PREBUILT_PATHS;
+  let setupUsage, probe;
   const transport = injected.providerJson ?? old.providerJson;
   const privateText = injected.privateText ?? old.readPrivateText;
   const output = injected.output ?? console.log;
@@ -77,12 +81,13 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
   const stop = () => { stopped = true; report.cancelled = true; };
   function decorateReport() {
     report.cancelled=stopped; report.persistenceFailed=failedPersistence;
-    report.cumulative=ownedDevelopment && setupUsage ? ownedTotals(report.counters, setupUsage, report.creationRequests) : {calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
+    report.cumulative=automation && probe ? automationTotals(report.counters, probe, report.creationRequests) : ownedDevelopment && setupUsage ? ownedTotals(report.counters, setupUsage, report.creationRequests) : {calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
       controls:35+report.counters.controlRequests,hosting:report.counters.hostingRequests,writes:355,gateway:7,creations:2+report.creationRequests};
     report.finishedAt=new Date().toISOString();
     if(m){m.cumulative=report.cumulative;Object.assign(report,{runId:m.runId,previousStoppedPublicationSha256:m.previousStoppedPublicationSha256,
       sourcePrebuilt:m.vercel.sourcePrebuilt,backendCompatibility:m.backendCompatibility,preflight:m.preflight,thirdContinuation:m.thirdContinuation,
       ...(ownedDevelopment ? { ownedDevelopment: true, setupUsage, previousPrebuiltSha256: m.previousPrebuiltSha256, backendManifestSha256: m.backendManifestSha256 } : {}),
+      ...(automation ? { automationOwnedRelease: true, previousOwnedFailedSha256: OWNED_FAILED_SHA256, automationProbe: probe, providerExpires: false } : {}),
       uniqueUrl:m.vercel.url,productionTargetUnchanged:report.passed,productionAliasBindingsUnchanged:report.passed,gitDisconnectPreserved:report.passed});}
   }
   function persistEvidence() {
@@ -93,7 +98,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const left = (cleaning ? 600000 : 550000) - (Date.now() - started);
     check(left > 0 && (cleaning || !stopped), 'prebuilt_stopped'); return Math.min(left, 20000);
   };
-  const ledger = ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
+  const ledger = automation ? '.convex/owned-development-validation/automation-publication-ledger' : ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
   function save() {
     if (!m) return;
     m.counters = { ...report.counters };
@@ -105,7 +110,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
   async function control(url, options = {}) {
     duration();
     const n = report.counters.controlRequests + 1;
-    check(n <= (cleaning ? 20 : 16), 'prebuilt_control_budget');
+    check(n <= (cleaning ? 20 : automation ? 15 : 16), 'prebuilt_control_budget');
     report.counters.controlRequests = n;
     try { writeFileSync(`${ledger}/request-${String(n).padStart(2,'0')}.json`, JSON.stringify({ ordinal: n, cleaning, reservedAt: new Date().toISOString() }), { mode: 0o400, flag: 'wx', flush: true }); }
     catch { failedPersistence = true; if (!cleaning) throw Error('prebuilt_reservation'); }
@@ -113,17 +118,19 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     return transport(url, { ...options, timeoutMs: duration() });
   }
   const vercel = (path, options = {}) => {
-    check(/^\/(?:v2\/(?:teams|deployments)\/|v9\/projects\/|v13\/deployments(?:\?|\/|$)|v2\/files$|aliases\/)/.test(path), 'prebuilt_endpoint');
+    check((automation && path === AUTOMATION_PATH) || /^\/(?:v2\/(?:teams|deployments)\/|v9\/projects\/|v13\/deployments(?:\?|\/|$)|v2\/files$|aliases\/)/.test(path), 'prebuilt_endpoint');
     const url = new URL(path, 'https://api.vercel.com'); url.searchParams.set('teamId', old.EXPECTED.teamId);
     return control(url.href, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` } });
   };
   let phase = 'local gates';
   try {
+    check(!automation || ownedDevelopment, 'automation_requires_owned');
     check(/^[a-f0-9]{40}$/.test(sourceCommit) && execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim() === sourceCommit, 'prebuilt_source');
     for (const p of Object.values(paths).filter(p => p !== paths.backend)) check(!existsSync(p), 'prebuilt_existing_attempt');
     const predecessor = readFileSync('docs/measurements/hosted-next-third-preview-setup.json','utf8');
     const predecessorHash = validateStoppedPrebuiltPredecessor(predecessor);
     if (ownedDevelopment) validateOwnedStopped(readFileSync(PREBUILT_PATHS.publication, 'utf8'));
+    if (automation) { validateOwnedFailed(readFileSync(OWNED_DEVELOPMENT_PATHS.publication, 'utf8'));validateFailedAutomationProbe(readFileSync('docs/measurements/vercel-automation-access-probe.json','utf8')); probe = validateAutomationProbe(JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'))); }
     const backendText = privateText(ownedDevelopment ? paths.backend : `${DIR}/preview-setup-manifest.json`);
     const backend = JSON.parse(backendText);
     const binding = ownedDevelopment ? validateOwnedBackend(backend, sourceCommit) : old.validateBackendManifest(backend, 'prestigious-jaguar-360');
@@ -142,12 +149,13 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     if (!ownedDevelopment) check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|'), 'prebuilt_preview_key');
     mkdirSync(ledger, { mode: 0o700 });
     writeFileSync(`${ledger}/ALLOCATION.json`, JSON.stringify({ version: 1, sourceCommit, predecessorHash,
-      prior: ownedDevelopment ? ownedTotals({controlRequests: 0, applicationCalls: 0, hostingRequests: 0}, setupUsage, 0) : { calls: 63, controls: 35, writes: 355, gateway: 7, creations: 2 }, maximumControls: 20,
-      cleanupControls: 4, maximumCreations: 1, maximumHosting: 3, maximumApplicationCalls: 1,
+      prior: automation ? automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},probe,0) : ownedDevelopment ? ownedTotals({controlRequests: 0, applicationCalls: 0, hostingRequests: 0}, setupUsage, 0) : { calls: 63, controls: 35, writes: 355, gateway: 7, creations: 2 }, maximumControls: 20,
+      cleanupControls: automation ? 5 : 4, maximumCreations: 1, maximumHosting: 3, maximumApplicationCalls: 1,
       quotaObservedAt: quota.observedAt, creditObservedAt: credit.observedAt }), { mode: 0o400, flag: 'wx', flush: true });
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     m = { version: 1, runId, sourceCommit, publication: 'preflight', backend: binding,
       ...(ownedDevelopment ? { ownedDevelopment: true, setupUsage, previousPrebuiltSha256: OWNED_STOPPED_SHA256, backendManifestSha256: hash(backendText) } : {}),
+      ...(automation ? { automationOwnedRelease:true, previousOwnedFailedSha256:OWNED_FAILED_SHA256, automationProbe:probe } : {}),
       previousStoppedPublicationSha256: predecessorHash,
       backendCompatibility: compatibility,
       preflight: { deploymentId: JSON.parse(predecessor).preflight.deploymentId, status: 'replaced-by-signed-runtime', controlRequests: 2 },
@@ -213,10 +221,21 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const challenged = await fetch(m.vercel.url, { redirect: 'manual', signal: AbortSignal.timeout(duration()) });
     await challenged.body?.cancel();
     check([302,303,307,308,401,403].includes(challenged.status), 'prebuilt_unprotected');
-    m.shareCapabilitySubmitted=true;save();
-    const capability = (await vercel(`/aliases/${created.id}/protection-bypass`, { method: 'PATCH', body: { ttl: 900 } })).body;
-    check(typeof capability === 'string' && capability.length > 0 && capability.length <= 16384 && !/[\u0000-\u0020\u007f]/.test(capability), 'prebuilt_scoped_capability');
-    m.access = { kind: 'deployment-shareable', token: capability, expiresAt: new Date(Date.now()+900000).toISOString(), headerVerified: false }; save();
+    let capability;
+    if (automation) {
+      capability = newAutomationSecret();
+      const baseline = after.protectionBypass ?? {};
+      m.access = { kind:'project-automation', projectId:old.EXPECTED.projectId, token:capability,
+        expiresAt:new Date(Date.now()+900000).toISOString(), providerExpires:false, headerVerified:false, baseline }; save();
+      const generated = (await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationGenerateBody(capability)})).body;
+      verifyAutomationGenerated(generated,capability,baseline);
+      await sleep(Math.min(1000, duration()));
+    } else {
+      m.shareCapabilitySubmitted=true;save();
+      capability = (await vercel(`/aliases/${created.id}/protection-bypass`, { method: 'PATCH', body: { ttl: 900 } })).body;
+      check(typeof capability === 'string' && capability.length > 0 && capability.length <= 16384 && !/[\u0000-\u0020\u007f]/.test(capability), 'prebuilt_scoped_capability');
+      m.access = { kind: 'deployment-shareable', token: capability, expiresAt: new Date(Date.now()+900000).toISOString(), headerVerified: false }; save();
+    }
     const request = signReadinessRequest({ version: 1, release: sourceCommit, origin: m.vercel.url,
       audience: backend.config.ATTENDANCE_GATEWAY_AUDIENCE, cloudUrl: binding.cloudUrl, siteUrl: binding.siteUrl,
       issuedAt: Date.now(), nonce: randomBytes(32).toString('hex') }, backend.config.ATTENDANCE_GATEWAY_KEY);
