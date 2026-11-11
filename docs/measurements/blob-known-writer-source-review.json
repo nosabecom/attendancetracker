@@ -1,0 +1,41 @@
+{
+  "formatVersion": 1,
+  "sourceCommit": "0feeb3beb3f855b436b9a83b68e56942d16bf9fe",
+  "reviewedAt": "2026-11-10T21:47:50.098Z",
+  "scope": "Known application deployment source/configuration and authentication selection; not credential revocation",
+  "knownDeployments": 50,
+  "publicCommitDeployments": 47,
+  "dirtyCliDeployments": 3,
+  "cliFilesIndependentlyReviewed": 32,
+  "cliCodeFiles": 20,
+  "cliConfigurationFiles": 12,
+  "cliFileHashesVerified": true,
+  "allTreeEntriesCompared": true,
+  "sdkVersions": [
+    {
+      "version": "2.8.2",
+      "deployments": 42
+    },
+    {
+      "version": "2.8.1",
+      "deployments": 8
+    }
+  ],
+  "sdkRegistryAndIntegrityVerified": true,
+  "allKnownSdkCallersUseStaticRw": true,
+  "allRuntimeAndBuildNameArraysExcludeBlobStoreId": true,
+  "noExplicitOidcStoreIdOrAlternativeTokenSelection": true,
+  "noUnreadExecutionConfiguration": true,
+  "noDetachedServerWritersFound": true,
+  "serverMutationsAwaitedOrReturned": true,
+  "knownSourceAuthenticationGapClosed": true,
+  "credentialsRotated": false,
+  "storeDisconnected": false,
+  "writerFreezeDeclared": false,
+  "operationalDrainDeclared": false,
+  "limitations": [
+    "Independent private source/configuration and original runtime-name-array agreement are root/delegate attestations; no private contents are published.",
+    "Historical dashboard-lease GET code can mutate; classify invocation paths and control flow rather than assuming every GET is read-only.",
+    "Known-writer authority, deployment/environment-copy hold, revocation verification and operational drain remain separate execution gates."
+  ]
+}

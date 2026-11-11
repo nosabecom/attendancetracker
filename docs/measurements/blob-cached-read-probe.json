@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-11-05T03:28:24.713Z",
+  "cachedReadOnly": true,
+  "scriptRetries": 0,
+  "sdkMetadataCalls": 1,
+  "sdkGetCalls": 1,
+  "objectBodiesSaved": false,
+  "expectedStoreConfirmed": true,
+  "cachedReadStatus": 403,
+  "completed": true,
+  "limitations": [
+    "One listed object was probed; no object bodies were saved.",
+    "SDK calls are counted; underlying SDK metadata retries are not independently measured.",
+    "This result does not prove every provider-side export route is unavailable."
+  ]
+}

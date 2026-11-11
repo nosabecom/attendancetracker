@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "sourceCommit": "ff8a8553e8d4ee04dd48349a011350db2fab1083",
+  "startedAt": "2026-11-11T03:03:06.937Z",
+  "passed": false,
+  "cancelled": false,
+  "counters": {
+    "controlRequests": 15,
+    "hostingRequests": 1,
+    "applicationCalls": 1
+  },
+  "creationRequests": 1,
+  "cleanup": {
+    "ownershipVerified": true,
+    "capabilityRevoked": false,
+    "deploymentDeleted": true,
+    "capabilityInvalidatedByDeletion": true
+  },
+  "productionMutationRequested": false,
+  "deploymentId": "dpl_GafG7wvf8QxHff5CtNx5jsjZoGDY",
+  "failedPhase": "readiness",
+  "failure": {
+    "category": "unclassified"
+  },
+  "persistenceFailed": false,
+  "cumulative": {
+    "calls": 91,
+    "nextCalls": 3,
+    "controls": 60,
+    "hosting": 1,
+    "writes": 381,
+    "gateway": 7,
+    "creations": 3
+  },
+  "finishedAt": "2026-11-11T03:03:30.558Z",
+  "runId": "attendance-next-bbf40701002009d33692ec6087f6c90e",
+  "previousStoppedPublicationSha256": "5529e1af2f30e5fdd7e79f6bee1fe05f62c027c6c4e2c2274ace6a76121fecdd",
+  "sourcePrebuilt": {
+    "sourceCommit": "ff8a8553e8d4ee04dd48349a011350db2fab1083",
+    "outputSha256": "18bf1b610bd6380d28e55a4082c2c268b5c4d24eb3ce24f31b689be53a9d6d79",
+    "target": "preview"
+  },
+  "backendCompatibility": {
+    "backendCommit": "ff8a8553e8d4ee04dd48349a011350db2fab1083",
+    "sourceCommit": "ff8a8553e8d4ee04dd48349a011350db2fab1083",
+    "runtimeBytesEqual": true,
+    "backendDependencyClosureEqual": true,
+    "ownedDevelopment": true
+  },
+  "preflight": {
+    "deploymentId": "dpl_5BMDwDHU3mp1k1RCMBjExsAr5mdj",
+    "status": "replaced-by-signed-runtime",
+    "controlRequests": 2
+  },
+  "thirdContinuation": {
+    "version": 1,
+    "predecessorRunId": "attendance-next-c46801e578baa2c52e070b25c05cfa6a",
+    "predecessorSourceCommit": "53b7965cb594407cf1dea3d5d2a5e04b38f03a32",
+    "predecessorDeploymentId": "dpl_4AAsug64RaRxhbVDToFQMhBUEVwQ",
+    "firstEvidenceSha256": "7ff21650d0c963bccb7e71edf8b222af7756b434053a747c44fa569788c53ae4",
+    "secondEvidenceSha256": "96bc6bfd508fd0cebdf0023f6cf0195d9b76a6639d0e03c0f47559e1a680c3b0",
+    "spent": {
+      "calls": 63,
+      "nextCalls": 2,
+      "controls": 33,
+      "hosting": 0,
+      "writes": 355,
+      "gateway": 7,
+      "creations": 2
+    },
+    "limits": {
+      "controls": 80,
+      "creations": 3,
+      "preflightControls": 2,
+      "publisherControls": 20,
+      "runtimeControls": 19,
+      "hosting": 50
+    },
+    "creditReservationUsd": 1,
+    "minimumOtherReservationsUsd": 0.81
+  },
+  "ownedDevelopment": true,
+  "setupUsage": {
+    "controlRequests": 9,
+    "applicationCalls": 27,
+    "logicalWriteReservations": 26
+  },
+  "previousPrebuiltSha256": "d0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7",
+  "backendManifestSha256": "a9873432bda92ad440ec3a42eeae40a4964c71a7abaa5020a4f3e9f040ca58f2",
+  "uniqueUrl": "https://attendance-tracker-er3lwtumu-nomokaro625-9385s-projects.vercel.app",
+  "productionTargetUnchanged": false,
+  "productionAliasBindingsUnchanged": false,
+  "gitDisconnectPreserved": false
+}

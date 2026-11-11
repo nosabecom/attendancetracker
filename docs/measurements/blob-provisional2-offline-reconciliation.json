@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "status": "matched",
+  "method": "Independent direct source-to-candidate field comparisons; transformer not called",
+  "checks": {
+    "sourceRecordCount": 298,
+    "accountCredentials": 3,
+    "sessionOwnershipAndMetadata": 7,
+    "historicalStudentRows": 320,
+    "currentStudentRows": 76,
+    "checkinTimestamps": 180,
+    "excuseTimestampsAndActors": 18,
+    "closures": 1,
+    "sharingMemberships": 1
+  },
+  "provisional": true,
+  "writerFreezeEstablished": false,
+  "imported": false,
+  "cutoverReady": false,
+  "observedAt": "2026-11-10T20:52:31.481Z",
+  "sourceCommit": "a68c3f0f8c6f7bc872c7ff2f0bfb34ce12509996",
+  "sourceEvidence": "blob-provisional2-rescue.json",
+  "limitations": [
+    "This verifies direct field preservation in the provisional local capture, not a frozen live-store snapshot.",
+    "Historical student rows include the same stable students across separate sessions; they are not a unique-student count.",
+    "No live Convex import or production reconciliation has occurred."
+  ]
+}

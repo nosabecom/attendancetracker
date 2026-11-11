@@ -1,0 +1,658 @@
+{
+  "version": 2,
+  "localOnly": true,
+  "method": "Actual application registered handlers; administrative synthetic identity",
+  "transactionMetricsAvailable": true,
+  "samples": [
+    {
+      "operation": "viewer-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1594,
+        "bytesWritten": 0,
+        "databaseQueries": 25,
+        "documentsRead": 7,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 141
+    },
+    {
+      "operation": "classes-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 4038,
+        "bytesWritten": 0,
+        "databaseQueries": 31,
+        "documentsRead": 19,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 513
+    },
+    {
+      "operation": "session-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 267
+    },
+    {
+      "operation": "roster-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 10096,
+        "bytesWritten": 0,
+        "databaseQueries": 28,
+        "documentsRead": 39,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2512
+    },
+    {
+      "operation": "history-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 9092,
+        "bytesWritten": 0,
+        "databaseQueries": 26,
+        "documentsRead": 32,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 5005
+    },
+    {
+      "operation": "exportSnapshot-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 16345,
+        "bytesWritten": 0,
+        "databaseQueries": 29,
+        "documentsRead": 67,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2518
+    },
+    {
+      "operation": "bucket-30-0",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 8189,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 36,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2355
+    },
+    {
+      "operation": "checkinNew-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1751,
+        "bytesWritten": 201,
+        "databaseQueries": 26,
+        "documentsRead": 6,
+        "documentsWritten": 1,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 29
+    },
+    {
+      "operation": "checkinDuplicate-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1952,
+        "bytesWritten": 0,
+        "databaseQueries": 26,
+        "documentsRead": 7,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 44
+    },
+    {
+      "operation": "excuseNew-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 2458,
+        "bytesWritten": 243,
+        "databaseQueries": 29,
+        "documentsRead": 10,
+        "documentsWritten": 1,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 11
+    },
+    {
+      "operation": "excuseDuplicate-30",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 2701,
+        "bytesWritten": 0,
+        "databaseQueries": 29,
+        "documentsRead": 11,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 11
+    },
+    {
+      "operation": "viewer-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1594,
+        "bytesWritten": 0,
+        "databaseQueries": 25,
+        "documentsRead": 7,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 141
+    },
+    {
+      "operation": "classes-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 4038,
+        "bytesWritten": 0,
+        "databaseQueries": 31,
+        "documentsRead": 19,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 513
+    },
+    {
+      "operation": "session-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 270
+    },
+    {
+      "operation": "roster-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 273982,
+        "bytesWritten": 0,
+        "databaseQueries": 28,
+        "documentsRead": 1009,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 88894
+    },
+    {
+      "operation": "history-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 26,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 392
+    },
+    {
+      "operation": "exportSnapshot-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 296559,
+        "bytesWritten": 0,
+        "databaseQueries": 29,
+        "documentsRead": 1109,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 85858
+    },
+    {
+      "operation": "bucket-1000-0",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 24517,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 108,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 8603
+    },
+    {
+      "operation": "bucket-1000-1",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-2",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-3",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-4",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-5",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-6",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-7",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-8",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "bucket-1000-9",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1940,
+        "bytesWritten": 0,
+        "databaseQueries": 27,
+        "documentsRead": 8,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 2
+    },
+    {
+      "operation": "checkinNew-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1763,
+        "bytesWritten": 203,
+        "databaseQueries": 26,
+        "documentsRead": 6,
+        "documentsWritten": 1,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 31
+    },
+    {
+      "operation": "checkinDuplicate-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1966,
+        "bytesWritten": 0,
+        "databaseQueries": 26,
+        "documentsRead": 7,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 46
+    },
+    {
+      "operation": "excuseNew-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 2468,
+        "bytesWritten": 245,
+        "databaseQueries": 29,
+        "documentsRead": 10,
+        "documentsWritten": 1,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 11
+    },
+    {
+      "operation": "excuseDuplicate-1000",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 2713,
+        "bytesWritten": 0,
+        "databaseQueries": 29,
+        "documentsRead": 11,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "applicationJsonBytes": 11
+    },
+    {
+      "operation": "admissionCold",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 935,
+        "bytesWritten": 915,
+        "databaseQueries": 27,
+        "documentsRead": 3,
+        "documentsWritten": 4,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "maintenanceDeletes": 0,
+      "applicationJsonBytes": 4
+    },
+    {
+      "operation": "admissionNew",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1485,
+        "bytesWritten": 915,
+        "databaseQueries": 28,
+        "documentsRead": 5,
+        "documentsWritten": 4,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "maintenanceDeletes": 0,
+      "applicationJsonBytes": 4
+    },
+    {
+      "operation": "admissionReplay",
+      "sampleExecutions": 1,
+      "database": {
+        "bytesRead": 1101,
+        "bytesWritten": 0,
+        "databaseQueries": 22,
+        "documentsRead": 4,
+        "documentsWritten": 0,
+        "fileReadBytes": 0,
+        "fileWriteBytes": 0,
+        "filesRead": 0,
+        "filesWritten": 0,
+        "functionsScheduled": 0,
+        "scheduledFunctionArgsBytes": 0
+      },
+      "maintenanceDeletes": 0,
+      "applicationJsonBytes": 5
+    }
+  ],
+  "illustrativeScenario": {
+    "sessions30": 200,
+    "sessions1000": 4,
+    "studentOperations": 10000,
+    "exports30": 0,
+    "exports1000": 0,
+    "historyCount": 40,
+    "teachers": 2,
+    "resumesPerTeacherPerSession": 2,
+    "arithmeticAssumingEveryQueryExecutes": {
+      "bytesRead": 574401160,
+      "bytesWritten": 11160000,
+      "documentsRead": 2477312,
+      "documentsWritten": 50000,
+      "applicationJsonBytes": 187886128,
+      "handlerExecutions": 48784
+    },
+    "assumptions": [
+      "No server cache reuse or burst coalescing assumed.",
+      "Explicit exports use exports30/exports1000 counts, both zero by default; sampled export facts populate only the first bucket and are not a maximum-facts cost bound.",
+      "Each open/resume fetches all selected-session buckets and roster again.",
+      "Student database check-in cost uses the 30-student sample; updates use the populated 100-student bucket sample.",
+      "Owner authorization sampled; a shared teacher may need additional membership reads.",
+      "One warm successful security admission per check-in; initial expired-record cleanup and later TTL maintenance are reported separately and are not fully projected."
+    ]
+  },
+  "unmeasured": [
+    "JWT verification/signing, password work and auth rotation",
+    "HMAC/HTTP-action invocation, Next ingress and hosting",
+    "Actual WebSocket framing/compression, cache reuse and coalescing",
+    "Other team deployments, retained storage/index growth and cleanup",
+    "Production row sizes and actual traffic; this is synthetic workload arithmetic"
+  ],
+  "monthlyDollars": "NOT_COMPUTED",
+  "freeQuotaGuarantee": false
+}

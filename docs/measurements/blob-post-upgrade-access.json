@@ -1,0 +1,26 @@
+{
+  "sourceCommit": "545b0c18e04e8dfeaf68b7704cd8aeac6fb11501",
+  "allocation": "POSTUPGRADE1",
+  "startedAt": "2026-11-10T18:45:11.010Z",
+  "finishedAt": "2026-11-10T18:45:11.342Z",
+  "scope": "One explicit static-token HTTPS origin GET; dashboard background traffic excluded",
+  "maximumRequests": 1,
+  "reservedRequests": 1,
+  "completed": true,
+  "httpStatus": 200,
+  "receivedBodyBytes": 2694,
+  "status": "readable",
+  "studentCount": 56,
+  "observedClassRevision": 2,
+  "completeJson": true,
+  "responseBodyPersisted": false,
+  "dashboardPlan": "Pro",
+  "dashboardSuspensionBannerPresent": false,
+  "limitations": [
+    "One roster read does not establish complete store exportability or snapshot consistency",
+    "Writer freeze and draining remain unverified",
+    "Dashboard counts are not a team allowance or final billing measurement",
+    "Prior OIDC allocations remain spent; this is a separate owner-requested check",
+    "No bulk export, credential rotation, store disconnect or production switch occurred"
+  ]
+}

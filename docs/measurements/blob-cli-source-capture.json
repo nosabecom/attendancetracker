@@ -1,0 +1,31 @@
+{
+  "formatVersion": 1,
+  "allocation": "CLISOURCE1",
+  "sourceCommit": "31d0410992e59c90bc89f174c927228cda20e7bb",
+  "reviewedSourceCommit": "20e57f771687d7103b7ac985fdea049fe97ce7c7",
+  "status": "partial",
+  "metadataRequests": 3,
+  "treeRequests": 3,
+  "contentRequests": 20,
+  "sourceFiles": 20,
+  "sourceBytes": 141951,
+  "responseBytes": 203587,
+  "completeSourceClosure": false,
+  "completeDeployments": 0,
+  "closureConcerns": [
+    "package_missing"
+  ],
+  "cancelled": false,
+  "independentWholeAllocationReserved": true,
+  "reservedMaximumRequests": 66,
+  "observedPhysicalRequests": 26,
+  "allRequestRetries": 0,
+  "credentialsRotated": false,
+  "storeDisconnected": false,
+  "writerFreezeEstablished": false,
+  "limitations": [
+    "Actual file trees contain a source wrapper and generated outputs. Selected application source was captured, but package/build configuration under the wrapper was omitted.",
+    "No captured code was executed. CompleteSourceClosure remains advisory; manual review of every tree entry and source/configuration/dependency behavior is required.",
+    "The 66-request reservation remains retained even if the mutable helper ledger becomes unreadable. No rerun or replacement allocation is implied."
+  ]
+}

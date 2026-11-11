@@ -1,0 +1,73 @@
+# Hosted release access
+
+The frozen Blob export, production import, and independent comparison are complete. Production remains read-only until the hosted Next checks and release review pass.
+
+The existing owned development backend `amicable-koala-816` was published from `ff8a8553e8d4ee04dd48349a011350db2fab1083`, initialized with an empty dataset, and closed. Setup used nine explicit controls, one CLI publication (internal calls unknown), 27 application calls, and 26 logical write reservations.
+
+The first prebuilt deployment reached READY but stopped because the publisher expected a string from the share-link endpoint. Its exact owned deployment was deleted and a confirming 404 received. No hosted functional flow ran. Cumulative usage then stood at 91 application calls, three Next calls, 60 Next controls, one hosting request, 381 write reservations, seven gateway requests, and three creations.
+
+The first automation diagnostic used an incorrect 64-character value. It stopped during generation after four controls and one hosting request. Subsequent ordinary owner UI inspection showed no configured automation secret and specified a 32-character value. The corrected diagnostic generated a 32-character secret, but its legacy-page header check failed. It used five controls and two hosting requests, then confirmed revocation and preservation of unrelated configuration. The HTTP status/body rejection reason was not retained and remains unknown. Neither diagnostic created a deployment; both remain spent.
+
+These observations establish the supported generation/revocation mechanism, not successful header access. There will be no further dummy-probe cycle. One new candidate must establish its own access and exact configuration through `local-prebuilt+signed-runtime-v1` before signup or other functional writes. Failure revokes the project-wide automation secret and deletes only the owned candidate. The secret has no provider expiry; the 15-minute local deadline does not replace explicit revocation.
+
+The cumulative starting point is 91 application calls, three Next calls, 69 Next controls, four hosting requests, 381 write reservations, seven gateway requests, and three creations. Publication allows at most 20 additional controls, three hosting requests, one application query, and one creation. Runtime retains its 19-control allocation and existing application/write/hosting limits; all preceding costs remain included. The conservative cumulative Next control cap is 110. Backend setup and earlier backend control/publication traffic remain separately reported.
+
+Production publication is a separate staged operation after actual hosted acceptance: build for the production Convex URLs, verify signed readiness before enabling writes, promote the owned candidate, verify production bindings, then revoke the temporary automation secret. Its 30-control ceiling reserves six for cleanup and permits up to 24 ordinary controls, covering three readiness polls and three promotion-status reads tied to the candidate. Promotion accepts the provider’s queued response and requires the exact alias job to succeed before confirming production bindings. Failed or uncertain promotion preserves the candidate for forward repair and closes writes.
+
+Cancellation, refund submission, PR merge, final approval, and conditional unit removal have not happened yet. No further Blob access is needed.
+
+## Runtime packaging failure
+
+The next candidate, `dpl_FaWoac3VazvQys89zWjwmVwZbwSw`, reached READY but returned HTTP 500 from signed readiness before signup. Owner runtime logs identify failure to resolve `@swc/helpers/_/_interop_require_default`. The dependency is present in the generated pnpm layout; the uploader’s `tar --dereference` flattened its links and changed Node dependency lookup. An isolated archive retaining those internal links loads the same route successfully. The earlier local route test could resolve parent build dependencies and therefore did not establish a self-contained deployment package.
+
+The candidate's automation secret was revoked and its exact owned deployment deleted with confirming 404. The immutable failure artifact records 17 controls, two hosting requests, one application query, and one creation. Cumulative costs are 92 application calls, four Next calls, 86 Next controls, six hosting requests, 381 write reservations, seven gateway requests, and four creations.
+
+One packaging-repair continuation uses separate private manifests/ledger and public evidence, with the failed artifact pinned by SHA-256. It retains all spent costs and permits one additional creation, 20 publication controls and 19 runtime controls. The resulting finite maximum is 125 actual cumulative Next controls (conservative guard 130), five creations, and the unchanged application/write/hosting caps. No additional diagnostic probe is planned. Signed readiness and actual runtime assertions remain mandatory before production release.
+
+## Protection propagation
+
+The repaired package passed isolated route imports for both fresh preview and production artifacts. Its hosted candidate returned platform HTTP 401 before signed readiness (the application route returns only 200 or 403), then its secret was revoked and exact deployment deleted. All 17 controls, two hosting requests, one application query, and one creation remain spent: cumulative 93 calls, five Next calls, 103 Next controls, eight hosting requests, 381 write reservations, seven gateway requests, and five creations.
+
+The next declared continuation holds one candidate through at most three read-only signed readiness checks: wait 15 seconds before the first, then 10 seconds before each subsequent check. Only HTTP 401 permits another check, with a new signed challenge each time; every other failure stops. Four publisher hosting requests include the unauthenticated protection check. Prior artifacts are hash-pinned and paths remain exclusive. At most 20 publisher controls plus 19 runtime controls yield a maximum of 142 cumulative controls, guarded conservatively at 150, and six creations total. Production uses the same bounded propagation handling and permits five hosting requests. This is bounded propagation checking, not permission to create another candidate after failure.
+
+## Browser prerequisite
+
+The held candidate passed signed readiness. The actual hosted run passed 18 assertions, including signup, managed session/JWT checks, short-JWT expiry and the five-student roster. It stopped at Chromium launch. A direct local preflight identified the missing pinned executable; the first installer invocation rejected Ubuntu 26.04. Playwright's supported host override selected its Ubuntu 24.04 build. Pinned Chromium revision 1217 then launched, opened `about:blank`, and closed successfully. This local preflight is required before the next publication.
+
+The stopped runtime remains failed, including its browser-closure and final session-verification limitations. Confirmed cleanup closed availability, logged out, revoked the automation secret and deleted the exact candidate. Its cumulative counters remain 116 calls, 28 Next calls, 126 Next controls, 23 hosting requests, 475 write reservations, 13 gateway requests and six creations. The earlier local `attempt_path` refusal made no external requests; its exact allowlist has been corrected and tested against real exclusive file creation.
+
+One subsequent fully bounded browser-ready run retains both preceding artifact hashes. Its maximum is 165 cumulative Next controls (guard 170), seven creations, 250 application calls, 90 Next calls, 950 write reservations including 100 cleanup reserve, 40 gateway requests and 80 hosting requests. This allocation accommodates the retained failed work and does not authorize provider overages or another creation after failure.
+
+Separately, production environment settings were persisted with ten explicit control calls: five encrypted production-only Convex values, removal of the two obsolete production credentials, and metadata confirmation. Preview/development records were preserved and Git stayed disconnected. These configuration calls are separate from the Next rehearsal counters. No production traffic has switched.
+
+## Optional font request in the browser harness
+
+The next hosted run confirmed real browser refresh and its fixed session deadline, then stopped before student metadata. Offline reproduction with real Chromium and the built student page identified the first rejected request: the exact Google Fonts stylesheet imported by `app/globals.css`. The harness's later cancellation obscured that primary code. Returning empty CSS for this exact optional stylesheet allowed the same real browser to render the form, request metadata and complete its first check-in using local mocked API responses. No Google request was sent.
+
+The harness now stubs only that exact GET origin/path/family/weights/display combination once, before transport; all other external requests remain rejected. It records the font stub separately and preserves the first failure code and fixed browser phase. Application, backend and dependencies remain unchanged.
+
+The failed hosted run remains immutable: all cleanup succeeded, including browser closure, logout, closed availability, automation revocation and owned deployment deletion. Cumulative costs are 142 calls, 54 Next calls, 149 Next controls, 44 hosting requests, 585 write reservations, 19 gateway requests and seven creations. The single font-stubbed continuation retains these totals and both evidence hashes: at most 188 cumulative controls (guard 190), eight creations, 250 calls, 100 Next calls, 950 write reservations with 100 reserved cleanup, 40 gateway requests and 100 hosting requests. A complete run's write reservation reaches 839, within the existing limit. No additional diagnostic deployment is planned.
+
+## Complete hosted acceptance
+
+The full font-stubbed run passed with normal process exit zero. All named assertions passed, including managed authentication and expected-preview JWT validation, short-JWT expiry with a valid managed-token control, real browser cookie refresh and fixed deadline, HttpOnly/Secure/Lax attributes, isolated student metadata and check-in, three fresh-proof submissions preserving one timestamp, trusted-IP spoof controls, logout, and old-JWT revocation. The student attempted no teacher WebSocket. One exact font stylesheet and two telemetry scripts were stubbed locally.
+
+Cleanup confirmed browser closure, logout/session revocation, closed read/write availability, automation-secret revocation and exact owned preview deletion. Synthetic rows remain only on the closed development backend. Actual cumulative counters are 179 application calls, 91 Next calls, 172 Next controls, 74 hosting requests, 839 write reservations, 29 gateway requests and eight creations. Publication/control-provider internals remain separately qualified. Natural one-hour/30-day browser expiry remains outside the short-token observation.
+
+Production execution still requires its milestone review and finite staged-release allocation. The real production artifact was built from `34f6a5d` for `tremendous-elk-298`; later evidence-only changes do not require rebuilding it. The selected public alias is `attendance-tracker-gamma-orpin.vercel.app`; its current anonymous homepage returns 200. Production settings and backup observations above remain separate from the hosted rehearsal counters.
+
+## Production traffic enabled
+
+The reviewed production artifact passed signed readiness and its homepage check, and the existing daily disable threshold was raised to 25,000 function calls. Promotion completed after the script's initial polling window, so its safety handler temporarily closed writes and revoked the automation secret while preserving the candidate. A fresh rollback-info read confirmed the exact successful promotion job and production pointer.
+
+Vercel moved both production aliases; its main-branch alias remained on the previous deployment. One existing-alias assignment using the installed CLI's exact API contract moved that alias to the same candidate. All three names and redirect settings were then confirmed. No replacement deployment or repeated promotion was created.
+
+Before reopening writes, the public homepage returned 200, the Convex auth method guard returned its expected 405, and historical public metadata matched the frozen source through the live Next gateway. Enabling writes and a fresh availability query both succeeded. Normal completion was uncancelled. The original finite release totals are 27 controls, nine application calls, three availability writes, five hosting requests and one production creation. One application call remains unused as closure reserve. The original stopped records remain preserved.
+
+The live URL is https://attendance-tracker-gamma-orpin.vercel.app. The production candidate is `dpl_8M4JWTSmfsyideF4fXJNB9j2EJid`; all application aliases point there. Existing accounts, classes, historical rosters and attendance retain their reconciled records. Final actual-result review and repository/billing administration follow.
+
+## Final technical approval and unit cleanup
+
+Astra xhigh granted final technical approval at `9a2c722` for the migration and live Convex cutover, finding no blocking defect. The reviewed production report and completed hosted checks support that decision. As Nosa requested, the 42 root Node unit-test files and `test:unit` command were then removed. Convex behavior/integration tests and opt-in browser/runtime runners remain. `pnpm test` now runs the backend suite; all 218 tests in seven files passed after cleanup. Application, backend, runtime dependencies and build commands were unchanged.
+
+PR merge, Git reconnection and the requested billing cancellation/refund are the remaining administrative steps. Do not repeat the migration, hosted workloads or spent release allocation.

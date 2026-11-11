@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "localOnly": false,
+  "backendOnly": true,
+  "startedAt": "2026-11-05T02:05:25.133Z",
+  "bounds": {
+    "calls": 200,
+    "studentGatewayCalls": 20,
+    "fixtureWriteUpperReservations": 500,
+    "ordinaryCalls": 160,
+    "ordinaryWriteReservations": 400,
+    "importCalls": 60,
+    "controlPlaneReads": 10,
+    "timeoutMs": 180000,
+    "ordinaryDeadlineMs": 130000,
+    "closureRequestTimeoutMs": 10000,
+    "responseBytes": 1048576
+  },
+  "calls": {
+    "submitted": 61,
+    "settledLocally": 61,
+    "sdk": 51,
+    "subscriptions": 2,
+    "publicHttp": 8
+  },
+  "physicalHttpAttempts": 59,
+  "controlPlaneReads": 5,
+  "studentGatewayCalls": 7,
+  "fixtureWriteUpperReservations": 355,
+  "assertions": {
+    "PrivatePreviewManifest": true,
+    "LivePreviewIdentity": true,
+    "CanonicalPreviewBinding": true,
+    "DailyLimitPresent": true,
+    "import-stage": true,
+    "import-verify": true,
+    "import-activate": true,
+    "ownerFixedManagedLifetime": true,
+    "teacherFixedManagedLifetime": true,
+    "FixedSessionDeadline": true,
+    "InitialBuckets": true,
+    "IdleNoCallbacksObserved": true,
+    "PublicMetadataPrivacy": true,
+    "FirstCheckin": true,
+    "FreshProofDuplicate": true,
+    "DuplicateFactStable": true,
+    "NoopNoCallbacksObserved": true,
+    "ClosedMetadata": true,
+    "LiveSharingDenial": true,
+    "RevokedSubscriptionNoNewSuccess": true,
+    "FreshExportSnapshot": true,
+    "ManagedRefreshFixedSession": true,
+    "LogoutRevokesLiveSubscription": true,
+    "ControlSessionIsolated": true
+  },
+  "initialWebSocketConnections": 2,
+  "blockedReconnectAttempts": 0,
+  "webSocketApplicationBytes": {
+    "sent": 2326,
+    "received": 5981
+  },
+  "cleanup": {
+    "clientsClosed": true,
+    "availabilityClosed": true,
+    "previewDeleted": false,
+    "closureAcknowledged": true
+  },
+  "limitations": [
+    "Budgets are client reservations and conservative intentional-write allowances, not provider billing caps.",
+    "Backend retries, invalidations, security maintenance and auth jobs can add work.",
+    "Provider usage may be provisional; team headroom, storage/index growth and whole-run retries are unknown.",
+    "Next/Vercel ingress, cookies, trusted IP, SSO, natural expiry and wall-clock refresh timing are untested.",
+    "Synthetic rows and possible scheduled jobs remain until separately reviewed preview deletion."
+  ],
+  "teamQuotaReview": {
+    "observedAt": "2026-11-05T02:04:00.776Z",
+    "source": "convex-dashboard-user-report",
+    "sufficientReviewedHeadroom": true,
+    "plannedHeadroom": {
+      "functionCalls": 1000,
+      "databaseIoGb": 0.025,
+      "databaseStorageGb": 0.005
+    }
+  },
+  "baselineDeploymentUsage": {
+    "seedStatus": "complete",
+    "metrics": {
+      "functionCalls": {
+        "unit": "calls",
+        "currentDay": 0,
+        "currentMonth": 0
+      },
+      "databaseIoGb": {
+        "unit": "GB",
+        "currentDay": 0,
+        "currentMonth": 0
+      },
+      "actionComputeConvexGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0,
+        "currentMonth": 0
+      },
+      "actionComputeNodeJsGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0,
+        "currentMonth": 0
+      },
+      "actionComputeCpuGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0,
+        "currentMonth": 0
+      },
+      "dataEgressGb": {
+        "unit": "GB",
+        "currentDay": 0,
+        "currentMonth": 0
+      }
+    }
+  },
+  "syntheticFingerprint": "a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba",
+  "deploymentName": "prestigious-jaguar-360",
+  "sourceCommit": "b06caabfe3f713c40160e28843695bcc65ac2a19",
+  "functionalFlowCompleted": true,
+  "afterDeploymentUsage": {
+    "seedStatus": "complete",
+    "metrics": {
+      "functionCalls": {
+        "unit": "calls",
+        "currentDay": 97,
+        "currentMonth": 97
+      },
+      "databaseIoGb": {
+        "unit": "GB",
+        "currentDay": 0.0002456279471516609,
+        "currentMonth": 0.0002456279471516609
+      },
+      "actionComputeConvexGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0.000026857638888888886,
+        "currentMonth": 0.000026857638888888886
+      },
+      "actionComputeNodeJsGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0.00014305555555555556,
+        "currentMonth": 0.00014305555555555556
+      },
+      "actionComputeCpuGbHours": {
+        "unit": "GB-hours",
+        "currentDay": 0.00002626736111111111,
+        "currentMonth": 0.00002626736111111111
+      },
+      "dataEgressGb": {
+        "unit": "GB",
+        "currentDay": 0.000011267140507698059,
+        "currentMonth": 0.000011267140507698059
+      }
+    }
+  },
+  "importReservations": {
+    "calls": 25,
+    "writes": 24
+  },
+  "elapsedMs": 15059,
+  "finishedAt": "2026-11-05T02:05:40.192Z",
+  "cancelled": false,
+  "passed": true
+}

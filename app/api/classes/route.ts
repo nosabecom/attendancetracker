@@ -7,6 +7,7 @@ import {
 } from "../../../lib/auth";
 import { read, write } from "../../../lib/storage";
 import { readJson } from "../../../lib/http.mjs";
+import { legacyRequestGate } from "../../../lib/backend-gate.mjs";
 import {
   classContext,
   loadSession,
@@ -33,6 +34,7 @@ function fail(e: unknown) {
   );
 }
 export async function GET(req: Request) {
+  const gate = legacyRequestGate(); if (gate) return gate;
   try {
     const who = (await account(req)).owner;
     const { root, state, isOwner } = await classContext(
@@ -51,6 +53,7 @@ export async function GET(req: Request) {
   }
 }
 export async function POST(req: Request) {
+  const gate = legacyRequestGate(true); if (gate) return gate;
   try {
     sameOrigin(req);
     const who = (await account(req)).owner;

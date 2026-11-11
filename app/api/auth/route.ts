@@ -15,6 +15,7 @@ import {
 } from "../../../lib/auth";
 import { read, write } from "../../../lib/storage";
 import { readJson } from "../../../lib/http.mjs";
+import { legacyRequestGate } from "../../../lib/backend-gate.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 function json(data: unknown, status = 200, sessionCookie?: string) {
@@ -38,6 +39,7 @@ function fail(e: unknown) {
   );
 }
 export async function GET(req: Request) {
+  const gate = legacyRequestGate(); if (gate) return gate;
   try {
     const a = await account(req);
     return json({ username: a.username });
@@ -46,6 +48,7 @@ export async function GET(req: Request) {
   }
 }
 export async function POST(req: Request) {
+  const gate = legacyRequestGate(true); if (gate) return gate;
   try {
     sameOrigin(req);
     const b = await readJson(req, 4096);

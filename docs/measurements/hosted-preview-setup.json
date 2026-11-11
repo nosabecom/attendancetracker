@@ -1,0 +1,35 @@
+{
+  "status": "complete",
+  "phase": "complete",
+  "explicitControlPlaneCalls": 16,
+  "cliPublicationRequests": "unknown",
+  "teamQuotaReview": {
+    "source": "convex-dashboard-user-report",
+    "observedAt": "2026-11-05T02:04:00.776Z",
+    "sufficientReviewedHeadroom": true,
+    "plannedHeadroom": {
+      "functionCalls": 1000,
+      "databaseIoGb": 0.025,
+      "databaseStorageGb": 0.005
+    }
+  },
+  "expectedCommit": "b06caabfe3f713c40160e28843695bcc65ac2a19",
+  "workloadsRun": false,
+  "deploymentName": "prestigious-jaguar-360",
+  "identifier": "attendance-validation-cc3fe969497c6852a6284ff5acde2a13",
+  "managementIdentity": {
+    "kind": "cloud",
+    "id": 6790265,
+    "name": "prestigious-jaguar-360",
+    "deploymentType": "preview",
+    "projectId": 3365270,
+    "reference": "preview/attendance-validation-cc3fe969497c6852a6284ff5acde2a13",
+    "isDefault": false,
+    "deploymentUrl": "https://prestigious-jaguar-360.convex.cloud",
+    "expiresAt": 1794265784166
+  },
+  "adminCapabilityVerified": true,
+  "usageSeedStatus": "complete",
+  "dailyFunctionCallsDisableLimit": 1000,
+  "publication": "succeeded"
+}

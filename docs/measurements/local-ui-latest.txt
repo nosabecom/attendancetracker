@@ -1,0 +1,25 @@
+Auth gateway HTTP status: 200
+PASS: synthetic account has the default session lifetime.
+PASS: class creation and CSV roster import.
+PASS: public check-in without a Convex WebSocket.
+PASS: live attendance.
+PASS: CSV export.
+PASS: disconnect hides private content and reconnect loads new attendance.
+PASS: online transport disconnect blocks stale export.
+PASS: synthetic clock past deadline blocks export before expiry timer runs.
+PASS: expiry after the snapshot response arrives blocks its delayed download.
+PASS: hiding during a delayed snapshot response blocks download after unmount.
+PASS: previous settled export cannot satisfy the next response attempt.
+PASS: synthetic visibility release hides content and resume reloads.
+Auth refresh requests during visibility resume: 0
+Auth gateway HTTP status: 200
+PASS: synthetic token rejection causes one real browser refresh, fixed deadline and authorized recovery.
+PASS: token refresh reload cancels the held export without a download.
+Offline control logout HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: offline revocation prevents old private content on reconnect and reload.
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+Auth gateway HTTP status: 200
+PASS: logout clears cookies, revokes replay and permits account switching.
+PASS: changing session while an export response is held blocks its delayed download.

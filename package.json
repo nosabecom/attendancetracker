@@ -6,12 +6,18 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node --version && next build",
     "start": "next start --hostname 0.0.0.0",
-    "test": "node --experimental-test-module-mocks --test tests/*.test.mjs"
+    "test": "pnpm test:backend",
+    "test:backend": "vitest run",
+    "test:local:ui": "node scripts/test-local-ui.mjs"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "0.0.96",
+    "@noble/hashes": "2.0.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.2",
     "@vercel/speed-insights": "^2.0.0",
+    "convex": "1.49.0",
     "lucide-react": "^1.66.0",
     "next": "^16.4.4",
     "papaparse": "^5.7.0",
@@ -25,7 +31,11 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
+    "convex-test": "0.0.67",
+    "playwright": "1.59.1",
+    "typescript": "^7.0.2",
+    "vite": "8.3.5",
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=24.22.1 <25"

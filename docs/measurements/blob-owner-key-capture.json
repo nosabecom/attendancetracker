@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "allocation": "OWNERCAPTURE1",
+  "sourceCommit": "3658f6440c7bddb34c23093629e6b3d5d6ab8239",
+  "status": "stopped",
+  "code": "reveal_timeout",
+  "showSecretInvocations": 1,
+  "browserDownloads": 0,
+  "credentialCaptured": false,
+  "originalStaticChecksUsed": 0,
+  "ownedTabClosed": true,
+  "failureCauseEstablished": false,
+  "rotationRetried": false,
+  "connectionChanged": false,
+  "writerFreezeDeclared": false,
+  "allReservationsRetained": true,
+  "cumulativeEngineeringReservationsUsd": 0.81,
+  "privateTransferDummyVerified": true,
+  "backupPreserved": true,
+  "productionSwitched": false
+}

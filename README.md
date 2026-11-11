@@ -2,65 +2,43 @@
 
 Live: https://attendance-tracker-gamma-orpin.vercel.app
 
-Next.js app on Vercel with private Vercel Blob storage.
+Next.js on Vercel, with Convex for authentication, classes, rosters and attendance. The historical Blob records have been imported and independently reconciled. Existing teachers can sign in again with their original username and password.
 
 ## Use
 
-1. Create an account with a username and password (at least 10 characters). Each account has its own private workspace. Save these credentials; password recovery is not implemented.
-2. Choose **New class**, name it, and upload a CSV with `name` (or `first_name,last_name`) and optional `student_id`. Plain one-name-per-line CSVs also work. Limits: 1,000 students / 500 KB.
-3. Try the downloadable **20 fake students** sample: [sample-roster.csv](public/sample-roster.csv). All names are fictional. For example, use `DEMO001` to check in Avery Brooks.
-4. Display or download the QR code, or copy the student check-in link. Students do not need accounts.
-5. View check-ins (refreshes every 30 seconds while the tab is visible and check-in is open), export a CSV, and close check-in.
-   Use **Mark excused** beside a student to excuse them for that session, or **Undo excused** to remove it. This also works after check-in closes. Excused students have a separate count and export as **Excused**. An excuse takes priority over a check-in until a teacher removes it; the original check-in time is preserved.
-6. Return to the same class after signing in on any device. **Take attendance again** reuses the roster with a fresh QR and empty attendance record. **Attendance history** retains previous sessions.
-7. Use the light/dark toggle on any page. The initial theme follows your device; your choice is saved in the browser.
+1. Sign in or create a username/password account. Passwords require at least 10 characters; password recovery is not implemented.
+2. Create a class and import a CSV with `name` (or `first_name,last_name`) and optional `student_id`. One name per line also works. Rosters support up to 1,000 students and 500 KB. The [sample roster](public/sample-roster.csv) contains fictional students.
+3. Start attendance, then display the QR code or share its student link. Students enter a roster name or ID and do not need an account.
+4. View live attendance, mark or undo excuses, export CSV, and close check-in. An excuse takes display priority while preserving the original check-in.
+5. Use **Take attendance again** for a fresh session with the saved roster. History preserves each session's roster and original facts. Roster edits apply to subsequent sessions.
 
-Existing anonymous workspaces can be imported after signing in using the banner shown on their original browser, or by opening the original private teacher link. The first account that imports a legacy workspace owns it. Old bearer keys no longer authorize teacher API access.
+Choose **Teacher access** to add an existing teacher by username. Shared teachers can use the assigned class; only its owner manages access. Concurrent roster/access edits detect revision conflicts.
 
-## Shared teaching and student changes
+Existing anonymous workspaces can be claimed after signing in from their original browser or private teacher link. Old bearer keys do not directly authorize teacher operations.
 
-Open a class and choose **Teacher access**. The class owner can add an existing teacher account by username or remove its access. Shared teachers see only the shared class and all its attendance sessions; they can take attendance, mark or undo excuses, close sessions, export records, and edit the saved roster. Only the owner manages teacher access. A teacher may need to refresh their workspace after being added or when another teacher creates a session.
+## Security and behavior
 
-Choose **Edit students** to add students, change names or student IDs, and remove students. Changes apply to the next session started with **Take attendance again**. Existing sessions keep their original roster and attendance. Simultaneous roster/access edits detect revision conflicts instead of silently replacing another teacher’s changes.
+Convex Auth manages tokens and fixed-lifetime sessions. Every protected operation verifies the current session and class access; logout revokes the server session. Authentication cookies are HttpOnly, Secure over HTTPS, and SameSite Lax. Imported password hashes retain their original scrypt behavior. There is no email verification or password recovery.
 
-`main` is the repository default and Vercel production branch. Merges to `main` deploy the live site at https://nosa.dev/attend.
+Public check-in exposes session metadata and the submitted student's result, without returning the roster. Attendance is self-reported; the link and a matching roster name/ID do not verify physical presence. Closing and check-in are serialized by the database.
 
-## Security and limitations
+Selected class/session subscriptions replace attendance polling. History is paginated, and CSV export reads a fresh server snapshot. Disconnection or authentication recovery blocks private views and exports until revalidation. Gateway admission uses atomic IP and submitted-identity limits; authentication and maintenance work is separate from attendance updates.
 
-Passwords use salted scrypt hashes. Sessions use random opaque tokens, hashed at rest, and 30-day HttpOnly/SameSite cookies (Secure over HTTPS). Logout revokes the server session. Teacher read/write routes enforce ownership server-side. Authentication attempts are throttled by username and IP in 15-minute windows; counters use Blob listing and are not transactional under simultaneous requests. No email verification or password recovery is provided. Each teacher uses their own account; class owners can grant or revoke class-specific access by username.
+Vercel Analytics and Speed Insights remove query strings and fragments from measured URLs. The app sends no custom student-name/ID events.
 
-Student check-in is self-reported: the QR link plus a roster name/ID is sufficient. It does not verify identity or physical presence. The public endpoint does not expose the roster. Attendance sessions and check-ins are immutable separate objects, avoiding shared-record overwrite races. Teacher excuses are separate per-student objects that can be removed without changing check-ins. A check-in already in progress when the teacher closes a session may finish.
+## Development and deployment
 
-## Vercel usage
-
-Attendance polling pauses in hidden tabs and refreshes immediately when an open session's tab becomes visible again. Requests run sequentially, retry temporary failures with a delay of up to five minutes, and stop for closed sessions or expired/removed access. Closing check-in fetches attendance once more before polling stops. Reload the page to refresh a closed session, including any check-in that finished after the final read.
-
-Owner attendance reads, excuse changes, and closing check-in use the immutable session owner instead of listing editable class versions. Shared teachers still load current membership on every request; authentication, permissions, and closure state remain uncached, and API responses use `Cache-Control: no-store`. Check-ins and excuses share one Blob prefix, so each attendance read still needs only one list operation (before pagination).
-
-For a continuously visible owner session, recurring requests fall from roughly 240 to 120 per hour. Each attendance read now lists only check-ins, reducing recurring Blob list calls from roughly 480 to 120 per hour (before pagination). Hidden and already closed sessions make no recurring requests. These are code-path estimates, not measured billing savings.
-
-Automatic Vercel previews are disabled for `dependabot/**` branches. GitHub's security/build workflow still validates dependency PRs, and merging to `main` still deploys production. A dependency preview can be created manually when needed. Other branches retain automatic previews.
-
-Dependabot PRs from this repository automatically squash-merge after the required `verify` check passes (installation, dependency audit, tests, and production build). The auto-merge workflow never checks out PR code. Node type definitions stay on major 24 to match the pinned runtime; update the runtime and types together when upgrading Node.
-
-The Oct 22, 2026 dashboard audit for the Sep 22–Oct 22 cycle showed approximately 1.6K Blob advanced operations, 4K simple operations, 1.3K function invocations, 27.72 MB fast data transfer, and 26 minutes of build CPU for this project. Account-wide build CPU was 8h 14m, so most of that build usage belongs to other projects. Recheck project-filtered Usage after deployment; detailed CLI metrics require Observability Plus, which was not enabled during this audit. See [Vercel Blob usage and pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing) for the current quotas and operation definitions.
-
-## Analytics and performance
-
-Vercel Web Analytics and Speed Insights are mounted in the root layout for all pages. Both are enabled on the Vercel project. URL query strings and fragments are removed before sending measurements, keeping check-in tokens and legacy teacher links out of collected page URLs. No custom events or student names/IDs are sent by the app. View traffic and performance in the project’s Web Analytics and Speed Insights dashboards.
-
-## Development and validation
+Use pnpm and the pinned Node version in `.nvmrc`.
 
 ```sh
 pnpm install --frozen-lockfile
-vercel env pull .env.local
 pnpm dev
-pnpm test
+pnpm test:backend
 pnpm build
-# With the dev server running (creates and removes test-owned records):
-node --env-file=.env.local tests/auth.integration.mjs
-# Against deployment:
-TEST_BASE_URL=https://attendance-tracker-gamma-orpin.vercel.app node --env-file=.env.local tests/auth.integration.mjs
 ```
 
-Requires `BLOB_READ_WRITE_TOKEN` for a private Blob store. Secrets are ignored by Git. Run `vercel --prod` to deploy.
+Configure an isolated Convex development backend and `.env.local` using [.env.example](.env.example). Configure Convex Auth signing keys on that backend. Next and Convex must share the environment-specific server gateway key and audience; public Convex cloud/site URLs must identify that same deployment. Secrets are ignored by Git.
+
+Production uses `tremendous-elk-298`. Its frontend environment is configured separately from backend publication; frontend builds must not implicitly publish or re-import the backend. `main` is the production branch. Dependabot previews remain disabled, and required GitHub verification covers installation, dependency auditing, backend integration tests and both frontend build configurations.
+
+See [cutover and recovery](docs/convex-cutover.md), [production reconciliation](docs/production-reconciliation.md), and [hosted release evidence](docs/hosted-release-access.md). Migration snapshots contain private account and student records and are kept outside Git, including a verified backup outside the worktree. Production recovery uses those snapshots and forward repair; the archived Blob backend does not contain new Convex attendance.

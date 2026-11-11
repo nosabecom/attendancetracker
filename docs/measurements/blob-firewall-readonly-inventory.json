@@ -1,0 +1,58 @@
+{
+  "sourceCommit": "cb76cc8125268a812f3b7e3320daa2132e12dcd8",
+  "allocation": "FIREWALLREAD1",
+  "startedAt": "2026-11-10T19:24:10.865Z",
+  "finishedAt": "2026-11-10T19:36:10.945Z",
+  "status": "inventory_lists_complete_execution_gaps",
+  "maximumExplicitRequests": 12,
+  "explicitRequestsUsed": 7,
+  "cliRequestStatuses": [
+    403,
+    200
+  ],
+  "ownerDashboardRequestStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "backgroundBrowserTraffic": "Separate, unmetered",
+  "projectIdentityMatched": true,
+  "gitConnected": false,
+  "activeCustomConfigurationPresent": false,
+  "pendingDraftPresent": false,
+  "deploymentPagesComplete": true,
+  "aliasPagesComplete": true,
+  "domainPagesComplete": true,
+  "deploymentCount": 50,
+  "stateCounts": {
+    "READY": 50
+  },
+  "aliasCount": 14,
+  "domainCount": 1,
+  "aliasWithoutDeploymentBinding": 0,
+  "aliasDeploymentNotInInventory": 0,
+  "projectProtectionBypassCount": 0,
+  "providerCronDefinitions": 0,
+  "coverageVerified": false,
+  "drainBoundEstablished": false,
+  "firewallMutations": 0,
+  "limitations": [
+    "Initial CLI access was denied; status alone does not prove its cause",
+    "Owner-dashboard reads and later refreshed-CLI identity read retain the same cumulative explicit inventory cap",
+    "Supported CLI authentication refresh had separately unmeasured internal control calls",
+    "Complete returned lists do not prove WAF coverage or bypass behavior",
+    "Historical runtime and downstream write drain bounds remain unestablished",
+    "No firewall configuration was saved, staged, activated or removed"
+  ],
+  "supportedCliCredentialRefresh": {
+    "cliInvocations": 1,
+    "internalControlRequests": "unknown; separate from explicit inventory requests",
+    "storedAccessExpiredBefore": true,
+    "storedAccessExpiredAfter": false,
+    "credentialChanged": true,
+    "exitCode": 0,
+    "projectIdentityRevalidatedAfterRefresh": true
+  }
+}

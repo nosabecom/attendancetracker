@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "5087de954d2fcc14a65ecc98f52e5817d123fc9c",
+  "allocation": "PROVISIONAL1",
+  "classification": [
+    "UNFROZEN",
+    "PROVISIONAL",
+    "NON-CANONICAL",
+    "NOT CUTOVER-READY"
+  ],
+  "startedAt": "2026-11-10T18:56:19.133Z",
+  "finishedAt": "2026-11-10T18:56:34.203Z",
+  "status": "failed",
+  "failureCode": "headers_timeout",
+  "limits": {
+    "metadataRequests": 2,
+    "objectRequests": 400,
+    "concurrency": 2,
+    "totalBodyBytes": 67108864
+  },
+  "actual": {
+    "metadataAttempts": 1,
+    "objectAttempts": 0,
+    "consumedBodyBytes": 0
+  },
+  "snapshotPublished": false,
+  "allowanceReviewed": true,
+  "allowanceCaveat": "Dashboard usage can lag by up to one hour; planning check is not a final billing guarantee",
+  "originalFrozenExportReservationUnused": true,
+  "noRetry": true,
+  "noImportOrActivation": true,
+  "limitations": [
+    "First metadata request timed out before headers; server-side processing or wire bytes are unknown",
+    "Zero object requests; no roster or complete backup was saved",
+    "This failed allocation is retained and cannot be replayed or reset"
+  ]
+}
