@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { AUTOMATION_PATH, automationRevokeBody, verifyAutomationRevoked } from './vercel-automation-access.mjs';
-import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, automationTotals } from './hosted-next-third.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, automationTotals } from './hosted-next-third.mjs';
 // Opt-in, one-attempt verification. Importing this file performs no I/O.
 import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -101,7 +101,7 @@ export function validateManifest(m, expected, now = Date.now()) {
     Number.isFinite(expiry) && expiry > now + 180000 && expiry <= now + 900000 &&
     a.headerVerified === true, 'access_binding');
   check(count(c?.controlRequests) && c.controlRequests <= 20 && count(c?.hostingRequests) &&
-    c.hostingRequests <= (expected.prebuilt ? 3 : 2) && c.applicationCalls === 1, 'publisher_counters');
+    c.hostingRequests <= (expected.automationOwnedRelease ? 4 : expected.prebuilt ? 3 : 2) && c.applicationCalls === 1, 'publisher_counters');
   return true;
 }
 
@@ -177,7 +177,7 @@ export function validatePriorEvidence(prior, backend, manifest) {
 // Counters never reset between the backend rehearsal, publisher and runtime.
 export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false, ownedDevelopment = false, setupUsage, automation = false, probe } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
-    count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= (prebuilt ? 3 : 2) &&
+    count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= (automation ? 4 : prebuilt ? 3 : 2) &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
   if (continuation) validateContinuationSnapshot(continuation);
@@ -202,7 +202,7 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
     check(next.calls <= 200 && next.nextCalls <= (automation ? 45 : 40) && next.writes <= (ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
-      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (automation ? 130 : ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
+      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (automation ? 150 : ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
       next.hosting <= (ownedDevelopment || thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
     ordinaryWrites = nextOrdinaryWrites; cleanupWrites = nextCleanupWrites;
@@ -654,7 +654,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       validateStoppedThird(await deps.readPublic(THIRD_PATHS.publication), manifest);
       await deps.assertAbsent(THIRD_PATHS.attempt);
       if (expected.ownedDevelopment) validateOwnedStopped(await deps.readPublic(PREBUILT_PATHS.publication));
-      if (expected.automationOwnedRelease) { validateOwnedFailed(await deps.readPublic(OWNED_DEVELOPMENT_PATHS.publication));validateFailedAutomationPublication(await deps.readPublic('docs/measurements/hosted-automation-next-setup.json'));validateFailedAutomationProbe(await deps.readPublic('docs/measurements/vercel-automation-access-probe.json')); const probe = validateAutomationProbe(JSON.parse(await deps.readPublic('docs/measurements/vercel-automation-access-probe-32.json'))); check(JSON.stringify(probe) === JSON.stringify(manifest.automationProbe), 'automation_probe_binding'); }
+      if (expected.automationOwnedRelease) { validateOwnedFailed(await deps.readPublic(OWNED_DEVELOPMENT_PATHS.publication));validateFailedAutomationPublication(await deps.readPublic('docs/measurements/hosted-automation-next-setup.json'));validateRepairedAutomationFailure(await deps.readPublic('docs/measurements/hosted-repaired-automation-next-setup.json'));validateFailedAutomationProbe(await deps.readPublic('docs/measurements/vercel-automation-access-probe.json')); const probe = validateAutomationProbe(JSON.parse(await deps.readPublic('docs/measurements/vercel-automation-access-probe-32.json'))); check(JSON.stringify(probe) === JSON.stringify(manifest.automationProbe), 'automation_probe_binding'); }
       validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest, expected.ownedDevelopment, expected.automationOwnedRelease);
     } else validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
   } else if (expected.continuation) {
@@ -696,8 +696,8 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     ...(thirdContinuation ? { thirdContinuation, preflight: { ...manifest.preflight }, vercelCreditReview } : {}),
     ...(expected.automationOwnedRelease ? { automationOwnedRelease:true, providerExpires:false } : {}),
     bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: expected.automationOwnedRelease ? 45 : 40, writes: expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.ownedDevelopment ? 650 : 600,
-      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: expected.automationOwnedRelease ? 130 : expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
-      ...(continuation || thirdContinuation ? { cumulativeCreations: expected.automationOwnedRelease ? 5 : thirdContinuation ? 3 : 2 } : {}),
+      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: expected.automationOwnedRelease ? 150 : expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
+      ...(continuation || thirdContinuation ? { cumulativeCreations: expected.automationOwnedRelease ? 6 : thirdContinuation ? 3 : 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
     assertions: {}, negativeProbes: [], ipProvenance: { status: 'unverified' },

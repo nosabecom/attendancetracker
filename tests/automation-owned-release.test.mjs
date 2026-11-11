@@ -12,15 +12,15 @@ test('automation history and budget retain prior costs exactly once',()=>{
   validateOwnedFailed(readFileSync('docs/measurements/hosted-owned-development-setup.json','utf8'));
   assert.throws(()=>validateOwnedFailed('{}'));
   assert.throws(()=>validateAutomationProbe({...probe,revocationConfirmed:false}));
-  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:93,nextCalls:5,controls:108,hosting:8,writes:381,gateway:7,creations:5});
+  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:94,nextCalls:6,controls:125,hosting:10,writes:381,gateway:7,creations:6});
   const b=createBudget({controlRequests:20,applicationCalls:1,hostingRequests:2},{prebuilt:true,ownedDevelopment:true,automation:true,probe});
-  assert.equal(b.snapshot().control,108); assert.equal(b.snapshot().writes,381);
+  assert.equal(b.snapshot().control,125); assert.equal(b.snapshot().writes,381);
   assert.notEqual(AUTOMATION_PATHS.publication,'docs/measurements/hosted-owned-development-setup.json');
 });
 test('stopped header probe establishes only generation and revocation, with its costs retained',()=>{
   const actual=JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'));
   assert.equal(validateAutomationProbe(actual).headerAccepted,false);
-  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:92,nextCalls:4,controls:86,hosting:6,writes:381,gateway:7,creations:4});
+  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:93,nextCalls:5,controls:103,hosting:8,writes:381,gateway:7,creations:5});
   assert.throws(()=>validateAutomationProbe({...actual,failedPhase:'generate'}));
   assert.throws(()=>validateAutomationProbe({...actual,cleanupUncertain:true,revocationConfirmed:false}));
 });

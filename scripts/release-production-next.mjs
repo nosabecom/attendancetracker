@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import { archivePrebuiltOutput } from './build-hosted-prebuilt.mjs';
-import { readPrebuiltReceipt } from './publish-prebuilt-next.mjs';
+import { readPrebuiltReceipt, verifyReadinessWithPropagation } from './publish-prebuilt-next.mjs';
 import { providerJson, readPrivateText, readVercelToken, EXPECTED, productionAliasBindings, validateProjectForPublication, safePublisherDiagnostic } from './prepare-hosted-next.mjs';
 import { AUTOMATION_PATH, newAutomationSecret, automationGenerateBody, automationRevokeBody, verifyAutomationGenerated, verifyAutomationRevoked } from './vercel-automation-access.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
@@ -67,12 +67,12 @@ export async function releaseProductionNext(opts, injected = {}) {
     finally { ticket = undefined; }
   };
   const state = (x, writes) => check(x?.readsEnabled === true && x.writesEnabled === writes, 'availability_state');
-  const host = async (url, init = {}) => { reserve('hosting',4); return deps.providerJson(url,{...init,timeoutMs:remaining()}); };
+  const host = async (url, init = {}) => { reserve('hosting',5); return deps.providerJson(url,{...init,timeoutMs:remaining()}); };
   try {
     check(opts && /^[a-f0-9]{40}$/.test(opts.reviewedHead ?? '') && deps.git(['rev-parse','HEAD']).trim() === opts.reviewedHead, 'reviewed_head');
     check(opts.convexProjectId === 3365270, 'production_project');
     check(opts.review?.astraApproved === true && /^[a-f0-9]{64}$/.test(opts.review?.evidenceSha256 ?? '') && opts.runtimeNormalExit === true, 'review_required');
-    const runtimeText = deps.readPublic('docs/measurements/hosted-repaired-automation-next-verification.json');
+    const runtimeText = deps.readPublic('docs/measurements/hosted-propagated-automation-next-verification.json');
     report.runtimeSha256 = validateOwnedRuntime(runtimeText,opts.runtimeReportSha256);
     const runtimeSource = JSON.parse(runtimeText).sourceCommit;
     check(/^[a-f0-9]{64}$/.test(opts.fingerprint ?? ''), 'fingerprint');
@@ -133,11 +133,12 @@ export async function releaseProductionNext(opts, injected = {}) {
     const generated = (await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationGenerateBody(capability)})).body;
     verifyAutomationGenerated(generated,capability,automationBaseline);
     await deps.wait(Math.min(1000,remaining()));
-    const signed = signReadinessRequest({version:1,release:m.source,origin:m.url,audience:config.ATTENDANCE_GATEWAY_AUDIENCE,cloudUrl:CLOUD,siteUrl:SITE,issuedAt:deps.now(),nonce:randomBytes(32).toString('hex')},config.ATTENDANCE_GATEWAY_KEY);
-    const proof = await host(`${m.url}/api/release-readiness`,{method:'POST',headers:{'x-vercel-protection-bypass':capability},body:signed});
-    check(verifyReadinessResponse(proof.body,signed,config.ATTENDANCE_GATEWAY_KEY),'runtime_proof');
+    const proof=await verifyReadinessWithPropagation({key:config.ATTENDANCE_GATEWAY_KEY,
+      createRequest:()=>signReadinessRequest({version:1,release:m.source,origin:m.url,audience:config.ATTENDANCE_GATEWAY_AUDIENCE,cloudUrl:CLOUD,siteUrl:SITE,issuedAt:deps.now(),nonce:randomBytes(32).toString('hex')},config.ATTENDANCE_GATEWAY_KEY),
+      send:signed=>host(`${m.url}/api/release-readiness`,{method:'POST',headers:{'x-vercel-protection-bypass':capability},body:signed}),
+      wait:ms=>deps.wait(Math.min(ms,remaining()))});
     // HTML is intentionally fetched without parsing or retaining its contents.
-    reserve('hosting',4); const page = await (injected.fetch ?? fetch)(m.url,{headers:{'x-vercel-protection-bypass':capability},redirect:'manual',signal:AbortSignal.timeout(remaining())}); await page.body?.cancel(); check(page.status === 200,'candidate_homepage');
+    reserve('hosting',5); const page = await (injected.fetch ?? fetch)(m.url,{headers:{'x-vercel-protection-bypass':capability},redirect:'manual',signal:AbortSignal.timeout(remaining())}); await page.body?.cancel(); check(page.status === 200,'candidate_homepage');
     phase = 'quota limit';
     await convex(`/api/v1/update_usage_limit/${before.id}`,{method:'POST',body:{metric:'functionCalls',window:'day',limitType:'disable',limit:25000,enabled:true}});
     check(String(limit((await convex('/api/v1/list_usage_limits')).body,25000).id) === String(before.id),'limit_id');
@@ -158,7 +159,7 @@ export async function releaseProductionNext(opts, injected = {}) {
     }
     check(promotionComplete,'promotion_not_complete');
     check(same(productionAliasBindings((await vercel(`/v2/deployments/${m.id}/aliases`)).body),aliases),'production_aliases');
-    reserve('hosting',4); const publicPage=await (injected.fetch ?? fetch)(`https://${opts.stableAlias}/`,{redirect:'manual',signal:AbortSignal.timeout(remaining())}); await publicPage.body?.cancel(); check(publicPage.status === 200,'public_homepage');
+    reserve('hosting',5); const publicPage=await (injected.fetch ?? fetch)(`https://${opts.stableAlias}/`,{redirect:'manual',signal:AbortSignal.timeout(remaining())}); await publicPage.body?.cancel(); check(publicPage.status === 200,'public_homepage');
     phase = 'capability revocation'; const revoked=(await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationRevokeBody(capability)})).body; verifyAutomationRevoked((await vercel(`/v9/projects/${EXPECTED.projectId}`)).body,capability,automationBaseline); capability=undefined; report.cleanup.capabilityRevoked=true; report.cleanup.providerExpires=false;
     report.passed=true; report.functionCompleted=true; report.finishedAt=new Date(deps.now()).toISOString();
     // A single exclusive final record is the final write on success.

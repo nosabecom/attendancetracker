@@ -9,7 +9,7 @@ import { makeFunctionReference } from 'convex/server';
 import * as old from './prepare-hosted-next.mjs';
 import { validateVercelCreditReview, validatePreviewBackendCompatibility, OWNED_DEVELOPMENT_PATHS, OWNED_STOPPED_SHA256, validateOwnedStopped, validateOwnedBackend, validateOwnedCompatibility, validateOwnedCanonical, ownedTotals } from './hosted-next-third.mjs';
 import { AUTOMATION_PATH, newAutomationSecret, automationGenerateBody, automationRevokeBody, verifyAutomationGenerated, verifyAutomationRevoked } from './vercel-automation-access.mjs';
-import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, automationTotals } from './hosted-next-third.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, automationTotals } from './hosted-next-third.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { signReadinessRequest, verifyReadinessResponse } from '../lib/release-readiness.mjs';
 
@@ -19,6 +19,17 @@ export const PREBUILT_PATHS = Object.freeze({ manifest: `${DIR}/prebuilt-preview
   attempt: `${DIR}/prebuilt-runtime-attempt.json`, evidence: 'docs/measurements/hosted-next-prebuilt-verification.json' });
 const check = (value, code) => { if (!value) throw Error(code); };
 const hash = value => createHash('sha256').update(value).digest('hex');
+export async function verifyReadinessWithPropagation({send,createRequest,key,wait}) {
+  for(let i=0;i<3;i++) {
+    await wait(i===0?15000:10000);
+    const request=createRequest();
+    let response;
+    try {response=await send(request);}
+    catch(error) {const d=old.safePublisherDiagnostic(error);if(d.category==='http_status'&&d.httpStatus===401&&i<2)continue;throw error;}
+    check(verifyReadinessResponse(response.body,request,key),'prebuilt_runtime_verification');
+    return {request,response:response.body};
+  }
+}
 export function validateStoppedPrebuiltPredecessor(text) {
   const p = JSON.parse(text);
   check(p.passed === false && p.cancelled === false && p.sourceCommit === '61a88ecd0672d971d77100d59226400f5e27bb9e' &&
@@ -98,7 +109,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const left = (cleaning ? 600000 : 550000) - (Date.now() - started);
     check(left > 0 && (cleaning || !stopped), 'prebuilt_stopped'); return Math.min(left, 20000);
   };
-  const ledger = automation ? '.convex/owned-development-validation/repaired-automation-publication-ledger' : ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
+  const ledger = automation ? '.convex/owned-development-validation/propagated-automation-publication-ledger' : ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
   function save() {
     if (!m) return;
     m.counters = { ...report.counters };
@@ -130,7 +141,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const predecessor = readFileSync('docs/measurements/hosted-next-third-preview-setup.json','utf8');
     const predecessorHash = validateStoppedPrebuiltPredecessor(predecessor);
     if (ownedDevelopment) validateOwnedStopped(readFileSync(PREBUILT_PATHS.publication, 'utf8'));
-    if (automation) { validateOwnedFailed(readFileSync(OWNED_DEVELOPMENT_PATHS.publication, 'utf8'));validateFailedAutomationPublication(readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8'));validateFailedAutomationProbe(readFileSync('docs/measurements/vercel-automation-access-probe.json','utf8')); probe = validateAutomationProbe(JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'))); }
+    if (automation) { validateOwnedFailed(readFileSync(OWNED_DEVELOPMENT_PATHS.publication, 'utf8'));validateFailedAutomationPublication(readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8'));validateRepairedAutomationFailure(readFileSync('docs/measurements/hosted-repaired-automation-next-setup.json','utf8'));validateFailedAutomationProbe(readFileSync('docs/measurements/vercel-automation-access-probe.json','utf8')); probe = validateAutomationProbe(JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'))); }
     const backendText = privateText(ownedDevelopment ? paths.backend : `${DIR}/preview-setup-manifest.json`);
     const backend = JSON.parse(backendText);
     const binding = ownedDevelopment ? validateOwnedBackend(backend, sourceCommit) : old.validateBackendManifest(backend, 'prestigious-jaguar-360');
@@ -150,7 +161,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     mkdirSync(ledger, { mode: 0o700 });
     writeFileSync(`${ledger}/ALLOCATION.json`, JSON.stringify({ version: 1, sourceCommit, predecessorHash,
       prior: automation ? automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},probe,0) : ownedDevelopment ? ownedTotals({controlRequests: 0, applicationCalls: 0, hostingRequests: 0}, setupUsage, 0) : { calls: 63, controls: 35, writes: 355, gateway: 7, creations: 2 }, maximumControls: 20,
-      cleanupControls: automation ? 5 : 4, maximumCreations: 1, maximumHosting: 3, maximumApplicationCalls: 1,
+      cleanupControls: automation ? 5 : 4, maximumCreations: 1, maximumHosting: automation ? 4 : 3, maximumApplicationCalls: 1,
       quotaObservedAt: quota.observedAt, creditObservedAt: credit.observedAt }), { mode: 0o400, flag: 'wx', flush: true });
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     m = { version: 1, runId, sourceCommit, publication: 'preflight', backend: binding,
@@ -214,7 +225,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
       after.ssoProtection?.deploymentType === project.ssoProtection?.deploymentType, 'prebuilt_project_changed');
     check(JSON.stringify(old.productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body)) === JSON.stringify(aliases), 'prebuilt_alias_changed');
     async function hosting(path, init = {}) {
-      duration(); check(++report.counters.hostingRequests <= 3, 'prebuilt_hosting_budget'); save();
+      duration(); check(++report.counters.hostingRequests <= (automation ? 4 : 3), 'prebuilt_hosting_budget'); save();
       return transport(m.vercel.url + path, { ...init, timeoutMs: duration() });
     }
     duration(); report.counters.hostingRequests++; save();
@@ -229,21 +240,23 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
         expiresAt:new Date(Date.now()+900000).toISOString(), providerExpires:false, headerVerified:false, baseline }; save();
       const generated = (await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationGenerateBody(capability)})).body;
       verifyAutomationGenerated(generated,capability,baseline);
-      await sleep(Math.min(1000, duration()));
+      // Propagation is verified by bounded signed readiness below.
     } else {
       m.shareCapabilitySubmitted=true;save();
       capability = (await vercel(`/aliases/${created.id}/protection-bypass`, { method: 'PATCH', body: { ttl: 900 } })).body;
       check(typeof capability === 'string' && capability.length > 0 && capability.length <= 16384 && !/[\u0000-\u0020\u007f]/.test(capability), 'prebuilt_scoped_capability');
       m.access = { kind: 'deployment-shareable', token: capability, expiresAt: new Date(Date.now()+900000).toISOString(), headerVerified: false }; save();
     }
-    const request = signReadinessRequest({ version: 1, release: sourceCommit, origin: m.vercel.url,
-      audience: backend.config.ATTENDANCE_GATEWAY_AUDIENCE, cloudUrl: binding.cloudUrl, siteUrl: binding.siteUrl,
-      issuedAt: Date.now(), nonce: randomBytes(32).toString('hex') }, backend.config.ATTENDANCE_GATEWAY_KEY);
-    const ready = await hosting('/api/release-readiness', { method: 'POST', headers: { 'x-vercel-protection-bypass': capability }, body: request });
-    check(verifyReadinessResponse(ready.body,request,backend.config.ATTENDANCE_GATEWAY_KEY), 'prebuilt_runtime_verification');
+    const createRequest=()=>signReadinessRequest({version:1,release:sourceCommit,origin:m.vercel.url,
+      audience:backend.config.ATTENDANCE_GATEWAY_AUDIENCE,cloudUrl:binding.cloudUrl,siteUrl:binding.siteUrl,
+      issuedAt:Date.now(),nonce:randomBytes(32).toString('hex')},backend.config.ATTENDANCE_GATEWAY_KEY);
+    phase='signed runtime readiness';
+    const proof=await verifyReadinessWithPropagation({createRequest,key:backend.config.ATTENDANCE_GATEWAY_KEY,
+      send:request=>hosting('/api/release-readiness',{method:'POST',headers:{'x-vercel-protection-bypass':capability},body:request}),
+      wait:ms=>sleep(Math.min(ms,duration()))});
     m.access.headerVerified = true;
     m.environmentVerification = { method: 'local-prebuilt+signed-runtime-v1', sourceCommit, outputSha256: receipt.outputSha256, readinessVerified: true };
-    m.readinessProof = { request, response: ready.body }; m.publication = 'ready'; save();
+    m.readinessProof = proof; m.publication = 'ready'; save();
     check(!stopped && !failedPersistence, 'prebuilt_not_successful'); report.passed = true;
     report.environmentVerification = m.environmentVerification;
     decorateReport();

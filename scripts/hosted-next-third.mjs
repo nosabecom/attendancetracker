@@ -151,10 +151,10 @@ export const OWNED_DEVELOPMENT_PATHS = freeze({
 });
 export const AUTOMATION_PATHS = freeze({
   backend: OWNED_DEVELOPMENT_PATHS.backend,
-  manifest: '.convex/owned-development-validation/repaired-automation-next-manifest.json',
-  publication: 'docs/measurements/hosted-repaired-automation-next-setup.json',
-  attempt: '.convex/owned-development-validation/repaired-automation-runtime-attempt.json',
-  evidence: 'docs/measurements/hosted-repaired-automation-next-verification.json',
+  manifest: '.convex/owned-development-validation/propagated-automation-next-manifest.json',
+  publication: 'docs/measurements/hosted-propagated-automation-next-setup.json',
+  attempt: '.convex/owned-development-validation/propagated-automation-runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-propagated-automation-next-verification.json',
 });
 export const OWNED_FAILED_SHA256 = 'fe88f962830b821fd9f4836a71951473a0cf4900f68927d01e27d94b95390201';
 export function validateOwnedFailed(text) {
@@ -174,6 +174,10 @@ export function validateFailedAutomationPublication(text) {
     JSON.stringify(p.cumulative)===JSON.stringify({calls:92,nextCalls:4,controls:86,hosting:6,writes:381,gateway:7,creations:4}),'failed_automation_publication');
   return p;
 }
+export function validateRepairedAutomationFailure(text) {
+  check(createHash('sha256').update(text).digest('hex')==='0b00e5ca2e7d5cabe650ec5dc97e64d85a713da13ae0d21c1e884d343f722a16','repaired_failure_hash');
+  const p=JSON.parse(text);check(!p.passed && p.cancelled===false && p.failure?.httpStatus===401 && p.cleanup?.capabilityRevoked===true && p.cleanup.deploymentDeleted===true && JSON.stringify(p.cumulative)===JSON.stringify({calls:93,nextCalls:5,controls:103,hosting:8,writes:381,gateway:7,creations:5}),'repaired_failure');return p;
+}
 export function validateAutomationProbe(p) {
   // Generation and confirmed revocation establish the supported mechanism.
   // Only signed readiness on the new candidate can establish its header access.
@@ -191,9 +195,9 @@ export function validateFailedAutomationProbe(text) {
 }
 export function automationTotals(c, probe, creations = 1) {
   validateAutomationProbe(probe);
-  check(count(c?.controlRequests,20) && count(c?.hostingRequests,3) && count(c?.applicationCalls,1) && count(creations,1), 'automation_counts');
-  return {calls:92+c.applicationCalls,nextCalls:4+c.applicationCalls,controls:81+probe.controls+c.controlRequests,
-    hosting:4+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:4+creations};
+  check(count(c?.controlRequests,20) && count(c?.hostingRequests,4) && count(c?.applicationCalls,1) && count(creations,1), 'automation_counts');
+  return {calls:93+c.applicationCalls,nextCalls:5+c.applicationCalls,controls:98+probe.controls+c.controlRequests,
+    hosting:6+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:5+creations};
 }
 export const OWNED_STOPPED_SHA256 = 'd0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7';
 export function validateOwnedStopped(text) {
