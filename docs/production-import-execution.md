@@ -1,9 +1,25 @@
 # Bounded production import
 
-Status: this import tool has not contacted production. Its implementation has
-received conditional Astra acceptance. Private capability capture and the
-separately bounded backend publication completed; actual setup evidence review
-and the real ready manifest remain required before import.
+Status: the production import completed all three phases under reviewed source
+`f2c4ab6`. Server verification passed and activation confirmed reads enabled with
+writes disabled. Actual import evidence is awaiting its milestone review;
+independent semantic reconciliation, hosted validation and cutover remain pending.
+
+The completed run used 36 application-call reservations, 21 verification calls
+and 755 logical document-write reservations, within 55/40/774. All three attempts
+completed without a failed/interrupted attempt; root verified the private
+reservation chain, immutable ledger permissions and unchanged source binding.
+See [the aggregate evidence](./measurements/production-import.json).
+
+Seven chunks created the planned 357 target documents: three accounts, two
+classes, three reusable roster versions with 132 ordered member rows, three
+teacher memberships, seven attendance sessions, one closure and 198 sparse
+attendance rows. The planned 723 retained documents also include migration
+receipts/state; that total has not been measured independently. Server
+verification compares actual tables to import receipts. Independent comparison
+of business fields and relationships directly to the frozen source is next.
+Public traffic remains disconnected. Retain this completed allocation; unused
+capacity is not permission for additional operations.
 
 The [wrapper](../scripts/execute-production-import.mjs) accepts only the preserved
 298-object frozen dataset and the intended `tremendous-elk-298` production target.

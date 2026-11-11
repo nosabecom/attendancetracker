@@ -2,30 +2,34 @@
 
 Status: implementation accepted conditionally. The production key was privately
 captured through the separately reviewed recovery, and the bounded existing-target
-backend publication completed. No data import or traffic switch was performed.
-Actual setup evidence review and the real ready manifest are next.
+backend publication completed. Astra accepted its actual evidence, and the real
+ready manifest was bound to that publication and the frozen source. All three
+production import phases then completed with writes disabled. Independent
+semantic reconciliation, hosted validation and cutover are next; no traffic
+switch was performed.
 The [final frozen source](./blob-final-frozen-export.md)
-is now preserved; its recalculated plan confirms the same counts and bytes below.
-Production execution is still pending its own reviewed, enforced allocation.
+is preserved; root recalculated and bound the same counts and bytes below before
+the completed run.
 
 The preserved frozen snapshot produces seven deterministic import chunks,
-357 target documents and 723 retained documents including migration receipts,
+357 target documents and 723 expected retained documents including migration receipts,
 chunk receipts and deployment/run state. Reusable roster versions contain 132
 student rows; the 320 historical per-session rows reuse those versions.
 Serialized operation payloads total 41,252 bytes; the largest is 16,290 bytes.
 These JSON sizes do not establish Convex storage, index size or billing.
 
-The current plan has 21 minimum estimated verification pages. A proposed finite
-ceiling of 40 pages would give 55 application calls through confirmed read-only
-state and 774 logical document writes, using the reviewed formulas
-`K + V + 8` and `2D + 2K + V + 6`. This is a **separate future production
-allocation**, not permission to spend a preview ledger's unused margin.
+Planning estimated 21 minimum verification pages. The reviewed finite ceiling
+of 40 pages allowed 55 application calls through confirmed read-only state and
+774 logical document-write reservations, using the formulas
+`K + V + 8` and `2D + 2K + V + 6`. This was a **separate production allocation**,
+with no use of a preview ledger's unused margin. Actual completion required
+21 verification calls, 36 application calls and 755 logical-write reservations.
 The underlying importer's verification loop does not enforce that proposed ceiling;
 the separately reviewed [execution wrapper](./production-import-execution.md)
 now reserves and enforces it before every dispatch, including interruption/resume.
 Publication, configuration, independent reconciliation, provider retries and
 authentication/hosting traffic are excluded and need their own accounting.
-Recompute every count and byte size from the final frozen snapshot before
+Every count and byte size was recomputed from the final frozen snapshot before
 execution; the private planning record binds this calculation to the preserved
 frozen input without publishing identities, credentials or fingerprints.
 
@@ -49,7 +53,8 @@ or reverse export rather than returning to a stale Blob snapshot.
 
 Hosted Next/cookie/IP/JWT/refresh/expiry provenance, production reconciliation and
 final Astra approval remain required. The frozen source is reconciled; no
-production import has been executed or authorized by this document. The
+traffic cutover has been executed or authorized by this document. The
 [existing-backend setup](./production-backend-setup.md) records actual publication
-and its separate accounting; it does not establish table emptiness or approve
-import by itself.
+and its separate accounting. The [completed import](./production-import-execution.md)
+records actual initialization, staging, server verification and read-only
+activation; it does not establish hosted readiness or independent reconciliation.

@@ -1,0 +1,73 @@
+{
+  "formatVersion": 1,
+  "allocation": "PRODUCTION_IMPORT1",
+  "executionSourceCommit": "f2c4ab60535a315e9ad2017389d6f522edf0ba52",
+  "rootVerifiedAt": "2026-11-11T01:03:59.171Z",
+  "phaseResults": [
+    {
+      "phase": "stage",
+      "startedAt": "2026-11-11T00:56:42.615Z",
+      "reserved": {
+        "applicationCalls": 9,
+        "verificationCalls": 0,
+        "logicalWrites": 730
+      }
+    },
+    {
+      "phase": "verify",
+      "startedAt": "2026-11-11T00:57:00.628Z",
+      "reserved": {
+        "applicationCalls": 32,
+        "verificationCalls": 21,
+        "logicalWrites": 752
+      }
+    },
+    {
+      "phase": "activate-readonly",
+      "startedAt": "2026-11-11T00:57:13.747Z",
+      "reserved": {
+        "applicationCalls": 36,
+        "verificationCalls": 21,
+        "logicalWrites": 755
+      }
+    }
+  ],
+  "sourceObjects": 298,
+  "importChunks": 7,
+  "targetDocuments": 357,
+  "expectedRetainedDocumentsIncludingReceipts": 723,
+  "expectedRetainedCountIndependentlyMeasured": false,
+  "counts": {
+    "accounts": 3,
+    "classes": 2,
+    "rosterVersions": 3,
+    "rosterVersionMembers": 132,
+    "teacherMemberships": 3,
+    "attendanceSessions": 7,
+    "closures": 1,
+    "sparseAttendanceRows": 198
+  },
+  "reserved": {
+    "applicationCalls": 36,
+    "verificationCalls": 21,
+    "logicalDocumentWrites": 755
+  },
+  "limits": {
+    "applicationCalls": 55,
+    "verificationCalls": 40,
+    "logicalDocumentWrites": 774
+  },
+  "serverReceiptVerificationPassed": true,
+  "activeReadOnlyConfirmedByWrapper": true,
+  "readsEnabled": true,
+  "writesEnabled": false,
+  "privateLedgerChainAndPermissionsVerified": true,
+  "failedOrInterruptedAttempts": 0,
+  "trafficSwitched": false,
+  "independentSemanticReconciliation": "pending",
+  "hostedNextValidation": "pending",
+  "finalCutoverApproval": false,
+  "providerRetryAndBillingAttribution": "unknown",
+  "privateEvidenceAgreement": "root_attested",
+  "priorAllocationsRetained": true
+}

@@ -10,8 +10,8 @@ No records have been imported in this step. The stopped attempt remains spent.
 The target is the existing Production deployment `tremendous-elk-298`, in
 `convex-cyan-garden`, under Convex team `nomokaro625-9385-s-projects`. The cloud
 and site origins must match the separately observed owner dashboard and the
-capability-authenticated canonical-URL response. The dashboard currently says
-Never Deployed. Before the attempted capture it showed no deployment keys.
+capability-authenticated canonical-URL response. Before publication the dashboard
+said Never Deployed. Before the attempted capture it showed no deployment keys.
 These are observations to refresh,
 not proof that every table is empty.
 
