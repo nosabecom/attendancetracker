@@ -123,7 +123,9 @@ export function validatePreviewBackendCompatibility(sourceCommit, backendCommit,
   // migration.ts is an administrative import API, outside the hosted scenarios.
   git(['diff', '--exit-code', backendCommit, sourceCommit, '--', 'app', 'convex', 'lib', 'patches',
     'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs',
-    'vercel.json', 'tsconfig.json', ':(exclude)convex/migration.ts']);
+    'vercel.json', 'tsconfig.json', ':(exclude)convex/migration.ts',
+    // These Node-only release checks have no import into the Convex runtime.
+    ':(exclude)app/api/release-readiness/route.ts', ':(exclude)lib/release-readiness.mjs']);
   const read = (commit, path) => git(['show', `${commit}:${path}`]);
   const packages = [backendCommit, sourceCommit].map((commit, i) => {
     const pkg = JSON.parse(read(commit, 'package.json'));

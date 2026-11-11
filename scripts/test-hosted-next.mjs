@@ -3,12 +3,13 @@
 import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { randomBytes, createPrivateKey, sign } from 'node:crypto';
+import { randomBytes, createPrivateKey, sign, createHash } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { BaseConvexClient, ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
+import { signReadinessRequest, verifyReadinessResponse } from '../lib/release-readiness.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { persistHostedReports } from './test-hosted-preview.mjs';
 import * as publisher from './prepare-hosted-next.mjs';
@@ -16,6 +17,12 @@ import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, validateContinuationH
   validateContinuationSnapshot, continuationTotals, validateContinuationPublication } from './hosted-next-continuation.mjs';
 import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdSnapshot, validateThirdHistory,
   validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview, validateArchiveSourceBinding } from './hosted-next-third.mjs';
+
+export const PREBUILT_PATHS = Object.freeze({ manifest: '.convex/hosted-validation/prebuilt-preview-manifest.json',
+  publication: 'docs/measurements/hosted-next-prebuilt-setup.json', attempt: '.convex/hosted-validation/prebuilt-runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-next-prebuilt-verification.json' });
+const STOPPED_PUBLICATION_SHA256 = '5529e1af2f30e5fdd7e79f6bee1fe05f62c027c6c4e2c2274ace6a76121fecdd';
+const STOPPED_SOURCE = '61a88ecd0672d971d77100d59226400f5e27bb9e';
 
 export const FINGERPRINT = 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba';
 const TEAM = 'nomokaro625-9385s-projects';
@@ -36,10 +43,11 @@ const record = value => value && typeof value === 'object' && !Array.isArray(val
 export function parseArgs(args) {
   const continued = args.length === 6 && args[4] === '--continue-after' && args[5] === CONTINUATION.predecessorDeploymentId;
   const third = args.length === 6 && args[4] === '--continue-after' && args[5] === THIRD.predecessorDeploymentId;
-  check((args.length === 4 || continued || third) && args[0] === '--expected-vercel-deployment' &&
+  const prebuilt = args.length === 6 && args[4] === '--prebuilt-release' && /^[a-f0-9]{40}$/.test(args[5]);
+  check((args.length === 4 || continued || third || prebuilt) && args[0] === '--expected-vercel-deployment' &&
     /^dpl_[A-Za-z0-9]+$/.test(args[1]) && args[2] === '--expected-preview' &&
     /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(args[3]), 'invalid_arguments');
-  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}), ...(third ? { third: true } : {}) };
+  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}), ...(third || prebuilt ? { third: true } : {}), ...(prebuilt ? { prebuilt: true, sourceCommit: args[5] } : {}) };
 }
 
 export function validateManifest(m, expected, now = Date.now()) {
@@ -47,8 +55,15 @@ export function validateManifest(m, expected, now = Date.now()) {
   check(m?.version === 1 && m.publication === 'ready' && /^[a-f0-9]{40}$/.test(m.sourceCommit ?? '') &&
     /^attendance-next-[a-f0-9]{32}$/.test(m.runId ?? ''), 'manifest_state');
   if (expected.third) {
-    validateThirdSnapshot(m.thirdContinuation); validateThirdPreflight(m.preflight);
-    validateArchiveSourceBinding(v?.sourceArchive, m.sourceCommit);
+    validateThirdSnapshot(m.thirdContinuation);
+    if (expected.prebuilt) {
+      validatePrebuiltPreflight(m.preflight);
+      check(m.sourceCommit === expected.sourceCommit && m.environmentVerification?.method === 'local-prebuilt+signed-runtime-v1' &&
+        m.environmentVerification.sourceCommit === m.sourceCommit && /^[a-f0-9]{64}$/.test(m.environmentVerification.outputSha256 ?? '') &&
+        m.environmentVerification.readinessVerified === true && v?.sourcePrebuilt?.sourceCommit === m.sourceCommit &&
+        v.sourcePrebuilt.outputSha256 === m.environmentVerification.outputSha256 && v.sourcePrebuilt.target === 'preview' &&
+        !m.environmentVerified, 'prebuilt_environment_binding');
+    } else { validateThirdPreflight(m.preflight); validateArchiveSourceBinding(v?.sourceArchive, m.sourceCommit); }
     check(!m.continuation && !v?.requireGitSource &&
       ![CONTINUATION.predecessorDeploymentId, THIRD.predecessorDeploymentId].includes(v?.deploymentId) &&
       v?.deploymentId !== m.preflight.deploymentId &&
@@ -59,7 +74,7 @@ export function validateManifest(m, expected, now = Date.now()) {
       'continuation_reuses_predecessor');
   }
   else check(!m.continuation && !m.thirdContinuation, 'continuation_mode_required');
-  check(m.environmentVerified?.build === true && m.environmentVerified.runtime === true &&
+  if (!expected.prebuilt) check(m.environmentVerified?.build === true && m.environmentVerified.runtime === true &&
     m.environmentVerified.credentialOverrides === true, 'environment_not_verified');
   check(v?.teamSlug === TEAM && v.teamId === TEAM_ID && v.projectId === PROJECT &&
     v.deploymentId === expected.deploymentId && /^dpl_[A-Za-z0-9]+$/.test(v.deploymentId) &&
@@ -80,7 +95,58 @@ export function validateManifest(m, expected, now = Date.now()) {
     Number.isFinite(expiry) && expiry > now + 180000 && expiry <= now + 900000 &&
     a.headerVerified === true, 'access_binding');
   check(count(c?.controlRequests) && c.controlRequests <= 20 && count(c?.hostingRequests) &&
-    c.hostingRequests <= 2 && c.applicationCalls === 1, 'publisher_counters');
+    c.hostingRequests <= (expected.prebuilt ? 3 : 2) && c.applicationCalls === 1, 'publisher_counters');
+  return true;
+}
+
+
+export function validatePrebuiltPreflight(value) {
+  check(value?.status === 'replaced-by-signed-runtime' && value.controlRequests === 2 &&
+    /^dpl_[A-Za-z0-9]+$/.test(value.deploymentId ?? ''), 'prebuilt_preflight');
+  return value;
+}
+export function validateStoppedThird(text, manifest) {
+  check(typeof text === 'string' && manifest.previousStoppedPublicationSha256 === STOPPED_PUBLICATION_SHA256 &&
+    createHash('sha256').update(text).digest('hex') === STOPPED_PUBLICATION_SHA256, 'prebuilt_stopped_hash');
+  const r = JSON.parse(text);
+  validateThirdSnapshot(r.thirdContinuation);
+  check(r.version === 1 && r.passed === false && r.cancelled === false && r.sourceCommit === STOPPED_SOURCE &&
+    r.failedPhase === 'existing deployment compatibility' && r.failure?.category === 'http_status' && r.failure.httpStatus === 400 &&
+    r.creationRequests === 0 && r.productionMutationRequested === false && r.preflight?.status === 'pending' &&
+    r.preflight.controlRequests === 2 && r.preflight.deploymentId === manifest.preflight.deploymentId &&
+    JSON.stringify(r.counters) === JSON.stringify({ controlRequests: 0, hostingRequests: 0, applicationCalls: 0 }) &&
+    JSON.stringify(r.cumulative) === JSON.stringify({ calls: 63, nextCalls: 2, controls: 35, hosting: 0, writes: 355, gateway: 7, creations: 2 }), 'prebuilt_stopped_evidence');
+  return true;
+}
+export function validatePrebuiltPublication(report, manifest) {
+  check(report?.version === 1 && report.passed === true && report.cancelled === false && !report.failedPhase &&
+    report.runId === manifest.runId && report.sourceCommit === manifest.sourceCommit &&
+    report.deploymentId === manifest.vercel.deploymentId && report.uniqueUrl === manifest.vercel.url &&
+    report.creationRequests === 1 && report.productionMutationRequested === false &&
+    report.productionTargetUnchanged === true && report.productionAliasBindingsUnchanged === true &&
+    report.gitDisconnectPreserved === true && !report.cleanup?.deploymentDeleted &&
+    report.previousStoppedPublicationSha256 === manifest.previousStoppedPublicationSha256 &&
+    JSON.stringify(report.environmentVerification) === JSON.stringify(manifest.environmentVerification) &&
+    JSON.stringify(report.sourcePrebuilt) === JSON.stringify(manifest.vercel.sourcePrebuilt) &&
+    JSON.stringify(report.backendCompatibility) === JSON.stringify(manifest.backendCompatibility) &&
+    JSON.stringify(report.preflight) === JSON.stringify(manifest.preflight) &&
+    JSON.stringify(report.counters) === JSON.stringify(manifest.counters) &&
+    JSON.stringify(report.cumulative) === JSON.stringify(manifest.cumulative), 'prebuilt_publication_evidence');
+  const c = manifest.counters;
+  check(JSON.stringify(manifest.cumulative) === JSON.stringify({ calls: 63 + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
+    controls: 35 + c.controlRequests, hosting: c.hostingRequests, writes: 355, gateway: 7, creations: 3 }), 'prebuilt_cumulative');
+  validateThirdSnapshot(report.thirdContinuation);
+  return true;
+}
+
+export function validatePrebuiltDeployment(d, manifest, { requireReady = true } = {}) {
+      check(d?.id === manifest.vercel.deploymentId && [d.ownerId, d.teamId, d.team?.id].some(x => x === TEAM_ID) &&
+        [d.ownerId, d.teamId, d.team?.id].filter(x => x !== undefined).every(x => x === TEAM_ID) &&
+        [d.projectId, d.project?.id].some(x => x === PROJECT) && [d.projectId, d.project?.id].filter(x => x !== undefined).every(x => x === PROJECT) &&
+        [null, 'preview'].includes(d.target) && !d.customEnvironment && (!requireReady || d.readyState === 'READY') &&
+        `https://${d.url}` === manifest.vercel.url && d.meta?.attendanceValidation === manifest.runId &&
+        d.meta?.attendanceSourceCommit === manifest.sourceCommit &&
+        d.meta?.attendanceOutputSha256 === manifest.environmentVerification.outputSha256, 'prebuilt_deployment_binding');
   return true;
 }
 
@@ -101,14 +167,14 @@ export function validatePriorEvidence(prior, backend, manifest) {
 }
 
 // Counters never reset between the backend rehearsal, publisher and runtime.
-export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight } = {}) {
+export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
-    count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= 2 &&
+    count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= (prebuilt ? 3 : 2) &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
   if (continuation) validateContinuationSnapshot(continuation);
-  if (thirdContinuation) { check(!continuation, 'third_budget_mode'); validateThirdSnapshot(thirdContinuation); validateThirdPreflight(preflight); }
-  const seed = thirdContinuation ? thirdTotals(publisherCounters, 1, preflight.controlRequests) : continuation ? continuationTotals(publisherCounters, 1) : {
+  if (thirdContinuation) { check(!continuation, 'third_budget_mode'); validateThirdSnapshot(thirdContinuation); if (prebuilt) validatePrebuiltPreflight(preflight); else validateThirdPreflight(preflight); }
+  const seed = thirdContinuation ? (prebuilt ? { calls: 63 + publisherCounters.applicationCalls, nextCalls: 2 + publisherCounters.applicationCalls, controls: 35 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests, creations: 3 } : thirdTotals(publisherCounters, 1, preflight.controlRequests)) : continuation ? continuationTotals(publisherCounters, 1) : {
     calls: 62, nextCalls: 1, controls: 1 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests };
   const totals = { calls: seed.calls, writes: 355, gateway: 7, control: seed.controls,
     hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
@@ -556,7 +622,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     shortJwt: createShortJwtFixture, wait: (ms, signal) => sleep(ms, undefined, { signal }),
     ...injected };
   const expected = parseArgs(argv);
-  const paths = expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const paths = expected.prebuilt ? PREBUILT_PATHS : expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const manifest = JSON.parse(await deps.readPrivateText(paths.manifest));
   validateManifest(manifest, expected, deps.wallNow());
   const backend = JSON.parse(await deps.readPrivateText(backendPath));
@@ -568,7 +634,11 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), await deps.readPublic(CONTINUATION_PATHS.publication),
       JSON.parse(await deps.readPrivateText(CONTINUATION_PATHS.manifest)), manifest.backend);
     for (const path of [ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, paths.evidence]) await deps.assertAbsent(path);
-    validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
+    if (expected.prebuilt) {
+      validateStoppedThird(await deps.readPublic(THIRD_PATHS.publication), manifest);
+      await deps.assertAbsent(THIRD_PATHS.attempt);
+      validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
+    } else validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
   } else if (expected.continuation) {
     continuation = validateContinuationHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
       JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), manifest.backend);
@@ -592,7 +662,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     !/[\u0000-\u0020\u007f]/.test(key), 'preview_key_scope');
   const vercelToken = await deps.readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
   const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation,
-    thirdContinuation, preflight: manifest.preflight });
+    thirdContinuation, preflight: manifest.preflight, prebuilt: expected.prebuilt });
   const attempt = { version: 1, runId: manifest.runId, sourceCommit: manifest.sourceCommit,
     vercelDeploymentId: expected.deploymentId, backendId: manifest.backend.id,
     backendReference: manifest.backend.reference, fingerprint: FINGERPRINT,
@@ -722,7 +792,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   }
   try {
     const liveVercel = await vercelRequest(`/v13/deployments/${expected.deploymentId}?teamId=${TEAM_ID}`);
-    deps.validateDeployment(liveVercel.body, { deploymentId: expected.deploymentId, url: manifest.vercel.url,
+    if (expected.prebuilt) validatePrebuiltDeployment(liveVercel.body, manifest); else deps.validateDeployment(liveVercel.body, { deploymentId: expected.deploymentId, url: manifest.vercel.url,
       sourceCommit: manifest.sourceCommit, runId: manifest.runId,
       ...(expected.third ? { sourceArchive: manifest.vercel.sourceArchive } : {}) });
     const team = (await vercelRequest(`/v2/teams/${TEAM_ID}`)).body;
@@ -740,6 +810,13 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     const day = usage?.metrics?.functionCalls?.usage?.current_day;
     assertion('DailyHeadroom', Number.isFinite(day) && day >= 0 && day <= 800);
     identityVerified = true;
+    if (expected.prebuilt) {
+      const signed = signReadinessRequest({ version: 1, release: manifest.sourceCommit, origin,
+        audience: backend.config.ATTENDANCE_GATEWAY_AUDIENCE, cloudUrl: backend.cloudUrl, siteUrl: backend.siteUrl,
+        issuedAt: deps.wallNow(), nonce: randomBytes(32).toString('hex') }, backend.config.ATTENDANCE_GATEWAY_KEY);
+      const response = await hosting('/api/release-readiness', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) });
+      assertion('SignedRuntimeReadiness', response.status === 200 && verifyReadinessResponse(jsonBody(response), signed, backend.config.ATTENDANCE_GATEWAY_KEY));
+    }
     const closed = await rpc('query', 'operations:availability', { fingerprint: FINGERPRINT }, { admin: true });
     publisher.validateClosedState(closed); assertion('ClosedFingerprint', true);
     phase = 'protected access';
@@ -912,7 +989,17 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     if (actor && !actor.logoutAttempted && report.cleanup.availabilityClosed)
       try { await logoutActor(); } catch { report.cleanup.logoutUncertain = true; }
     if (report.cleanup.availabilityClosed) try {
-      const result = await deps.cleanupVercel({ manifest, request: vercelRequest });
+      let result;
+      if (expected.prebuilt && !injected.cleanupVercel) {
+        const identity = await vercelRequest(`/v13/deployments/${expected.deploymentId}`);
+        validatePrebuiltDeployment(identity.body, manifest, { requireReady: false });
+        let capabilityRevoked = false;
+        try { await vercelRequest(`/aliases/${expected.deploymentId}/protection-bypass`, {
+          method: 'PATCH', body: { revoke: { secret: manifest.access.token, regenerate: false } } }); capabilityRevoked = true; } catch {}
+        await vercelRequest(`/v13/deployments/${expected.deploymentId}`, { method: 'DELETE', allowedStatuses: [200, 204] });
+        const confirmed = await vercelRequest(`/v13/deployments/${expected.deploymentId}`, { allowedStatuses: [404] });
+        result = { capabilityRevoked: capabilityRevoked || confirmed.status === 404, deploymentDeleted: confirmed.status === 404 };
+      } else result = await deps.cleanupVercel({ manifest, request: vercelRequest });
       report.cleanup.capabilityRevoked = result.capabilityRevoked === true;
       report.cleanup.vercelDeleted = result.deploymentDeleted === true;
     } catch { report.cleanup.vercelCleanupUncertain = true; }
