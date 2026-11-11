@@ -14,8 +14,10 @@ release used 27 controls, nine application calls, three availability writes, fiv
 hosting requests and one production creation. Its temporary automation secret
 was revoked. See [release evidence](./measurements/production-release.json).
 
-Final actual-result review, conditional unit cleanup, PR merge, Git restoration,
-and the requested Vercel cancellation/refund remain the final administrative steps.
+Astra xhigh granted final technical approval at `9a2c722`. The requested Node
+unit suite was removed afterward; 218 backend integration tests still pass.
+PR merge, Git restoration and the requested Vercel cancellation/refund remain
+the final administrative steps.
 The following sections retain the historical procedure and observations; they are
 not instructions to repeat spent allocations. No further Blob export is needed.
 

@@ -65,3 +65,9 @@ Vercel moved both production aliases; its main-branch alias remained on the prev
 Before reopening writes, the public homepage returned 200, the Convex auth method guard returned its expected 405, and historical public metadata matched the frozen source through the live Next gateway. Enabling writes and a fresh availability query both succeeded. Normal completion was uncancelled. The original finite release totals are 27 controls, nine application calls, three availability writes, five hosting requests and one production creation. One application call remains unused as closure reserve. The original stopped records remain preserved.
 
 The live URL is https://attendance-tracker-gamma-orpin.vercel.app. The production candidate is `dpl_8M4JWTSmfsyideF4fXJNB9j2EJid`; all application aliases point there. Existing accounts, classes, historical rosters and attendance retain their reconciled records. Final actual-result review and repository/billing administration follow.
+
+## Final technical approval and unit cleanup
+
+Astra xhigh granted final technical approval at `9a2c722` for the migration and live Convex cutover, finding no blocking defect. The reviewed production report and completed hosted checks support that decision. As Nosa requested, the 42 root Node unit-test files and `test:unit` command were then removed. Convex behavior/integration tests and opt-in browser/runtime runners remain. `pnpm test` now runs the backend suite; all 218 tests in seven files passed after cleanup. Application, backend, runtime dependencies and build commands were unchanged.
+
+PR merge, Git reconnection and the requested billing cancellation/refund are the remaining administrative steps. Do not repeat the migration, hosted workloads or spent release allocation.
