@@ -1,21 +1,25 @@
 # Convex cutover and recovery
 
-Status: implementation and local synthetic rehearsals; production still uses
-Blob. This document is an operating procedure, not a record of completed cutover.
+Status: the final frozen Blob source and offline historical reconciliation are
+complete and accepted by Astra. The legacy app remains held with revoked Blob
+credentials. Production Convex publication/import and traffic cutover are pending.
+This document is an operating procedure, not a record of completed cutover.
 Do not enable Convex against an empty target or discard the old data.
 
 ## External prerequisites
 
-**Latest preservation result, November 10:** all 298 listed Blob objects are
-preserved in two verified private local copies. An independent offline comparison
-matched the three account credentials, seven sessions and their historical
-rosters, 180 check-in timestamps, 18 excuses, closure and sharing. See the
-[copy evidence](./measurements/blob-provisional2-rescue.json) and
-[independent comparison](./measurements/blob-provisional2-offline-reconciliation.json).
-These are unfrozen provisional JSON-value captures, not original-body archives
-or an offsite backup. Writer freeze/drain, a final frozen capture, hosted checks,
-production import/reconciliation and final Astra approval remain incomplete.
-The earlier access investigation below records its historical scope.
+**Latest result, November 10:** all 298 Blob objects are preserved in two verified
+private local copies of the final frozen source. Every path, timestamp and parsed
+value matches the independently reconciled provisional backup. See the
+[frozen source evidence](./blob-final-frozen-export.md) and
+[accepted operational drain](./blob-connected-drain-outcome.md). The original
+final export allowance is spent. These are JSON-value captures, not original-body
+archives or offsite backups. The deployment/environment-copy/operator hold remains
+active; do not repeat Blob probes, rotation or export.
+
+Hosted checks, production import/reconciliation and final cutover approval remain
+incomplete. The following access observations are historical and do not override
+the completed frozen-source milestone.
 
 
 **2026-11-10 update:** the owner upgraded Vercel; the dashboard now shows Pro and
@@ -122,37 +126,36 @@ expiry behavior on the hosted runtime before cutover.
 
 ## Freeze and final import
 
-1. Inventory every writer and all old deployment URLs. The production store's
-   inspected connection was dedicated to this project, across production,
-   preview and development. Recheck immediately before acting.
-2. Freeze writes on the current deployment with
-   `ATTENDANCE_BLOB_WRITES_DISABLED=1`. This flag alone does not stop old immutable
-   deployments or old running functions.
-3. Revoke every old store credential and, if present, its OIDC project access.
-   Securely retain a new administrative export credential outside deployments.
-   Verify old writers are rejected; wait for in-flight operations to settle.
-   If the supported provider freeze/credential procedure is unavailable, stop
-   here rather than relying on two listings to establish consistency.
-4. Export with the reviewed `scripts/export-blob-bounded.mjs` API, an explicit
-   retained static credential, and the unused final frozen-export allocation
-   (at most two LISTs and 400 GETs). Use exclusive private attempt/output paths;
-   preserve any failure without resetting its allowance. Keep the complete
-   JSON-value snapshot and an independently verified private backup.
-   Do not log names, codes, credentials or raw validation payloads.
-5. Run `scripts/import-blob.mjs --input PRIVATE_RAW --url TARGET` for a dry run.
-   Review counts, the canonical fingerprint and source anomalies. Unknown or
-   conflicting records require explicit repair/reconciliation, not omission.
-6. Use the same input/target with `--apply --stage`, then separately
-   `--apply --verify`. Interrupted staging resumes the persisted checkpoint;
-   a different dataset is rejected. Avoid direct administrative database writes
-   during or after verification. Reconcile accounts, all historical rosters,
-   student IDs, ownership/sharing, sessions, check-ins, excuses and timestamps.
-7. Activate only the verified run using `--apply --activate`. Immediately set
-   `operations:setAvailability` to reads enabled/writes disabled, using the
-   reviewed fingerprint, while performing final privileged reconciliation reads. New sign-ins also
-   require write admission and remain paused in this state.
-   Keep this target undisclosed before the read-only check; activation itself
-   enables writes, so no public gateway may point to it during that interval.
+1. **Completed:** source/configuration review covers the same 50 known immutable
+   deployments. Continue the no-deployment/no-environment-copy/operator hold.
+2. **Completed:** the current export key succeeds and the old key is forbidden.
+   A clean Production comparison confirmed the project's selected credential
+   remains the old one. The connection was left intact to preserve the other
+   store's separate Preview/Development binding. Containment covers known
+   writers under the hold, not hypothetical global OIDC authority.
+3. **Completed:** the 300-second interval, exact nonwriting control, complete
+   overlapping logs and actual request classification left no unresolved
+   admitted mutation. Keep its private evidence and failed-request accounting.
+4. **Completed:** the original bounded export saved all 298 objects and an
+   independently verified private backup. Its allocation is spent. Do not
+   replace paths or reset allowances, and do not log source contents.
+5. Prepare the production execution wrapper's dry run against the frozen source
+   and a reviewed manifest binding the exact target, source and publication.
+   Review private fingerprints and counts without printing credentials. Unknown
+   or conflicting records require reconciliation rather than omission.
+6. After separate execution approval, explicitly stage and verify through the
+   production wrapper. Its immutable ledger must retain all previous requests
+   and enforce cumulative call/write and 40-page verification ceilings before
+   dispatch. Resume the persisted server checkpoint; reject a different source,
+   target or ledger. Reconcile all accounts, rosters, IDs, ownership, sharing,
+   sessions, check-ins, excuses and timestamps. Direct administrator writes
+   during or after verification defeat that boundary and are prohibited.
+7. Publish only the verified run through the wrapper's read-only phase with
+   `migration:activate({ readOnly: true })`. Reads become available while writes
+   remain disabled in the same transaction. Confirm maintenance availability
+   before privileged reconciliation. Checkpoint queries remain usable during
+   maintenance; login/session creation still requires write admission. Do not
+   use the raw import CLI's older write-enabled activation default in production.
 8. Deploy Next with `NEXT_PUBLIC_ATTENDANCE_BACKEND=convex`, the matching public
    deployment/site URLs and server gateway configuration. Legacy APIs return
    410 and cannot resume Blob writes. Users sign in once with their existing
@@ -161,9 +164,9 @@ expiry behavior on the hosted runtime before cutover.
    teacher/student/permission checks, and record the time of the first accepted
    Convex write. This is the recovery boundary. Keep Blob writers revoked.
 
-The import CLI validates explicit targets. Local keys are accepted only for
-matching loopback ports. Cloud keys come from `CONVEX_DEPLOY_KEY` in the command's
-environment; never put them in arguments, source control or chat.
+Production credentials stay in owner-only files selected by path; never put key
+values in arguments, source control, logs or chat. The ordinary importer remains
+available for isolated rehearsals, with loopback guards for local credentials.
 
 ## Recovery after the first Convex write
 

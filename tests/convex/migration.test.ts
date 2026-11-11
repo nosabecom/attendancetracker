@@ -5,12 +5,13 @@ import { anyApi, type ApiFromModules } from 'convex/server';
 import type * as migration from '../../convex/migration';
 import type * as attendance from '../../convex/attendance';
 import type * as authSupport from '../../convex/authSupport';
+import type * as operations from '../../convex/operations';
 import schema from '../../convex/schema';
 import { transformBlobSnapshot } from '../../lib/blob-migration.mjs';
 import { buildMigrationPlan, migrationTables } from '../../lib/convex-migration-plan.mjs';
 import { rosterDigest } from '../../convex/rosters';
 
-const api = anyApi as unknown as ApiFromModules<{ migration: typeof migration; attendance: typeof attendance; authSupport: typeof authSupport }>;
+const api = anyApi as unknown as ApiFromModules<{ migration: typeof migration; attendance: typeof attendance; authSupport: typeof authSupport; operations: typeof operations }>;
 const m = api.migration;
 const modules = (import.meta as ImportMeta & { glob(pattern: string): Record<string, () => Promise<unknown>> }).glob('../../convex/**/*.ts');
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -147,6 +148,27 @@ it('blocks runtime queries/auth while staging, preserves history/authority, then
   const control = await f.t.run(async ctx => ctx.db.query('deploymentState').unique());
   expect(control).toMatchObject({ activeRunId: runId, readsEnabled: true, writesEnabled: true });
   await expect(f.t.mutation(m.begin, f.beginArgs)).rejects.toThrow('deployment_not_closed');
+});
+
+it('publishes production reconciliation read-only atomically and keeps checkpoint reads resumable during maintenance', async () => {
+  const f = setup(), runId = await stage(f);
+  await expect(f.t.mutation(m.activate, { runId, readOnly: true })).rejects.toThrow('not_verified');
+  await verify(f, runId);
+  await f.t.mutation(m.activate, { runId, readOnly: true });
+  expect(await f.t.query(api.operations.availability, { fingerprint: f.canonical.contentFingerprint }))
+    .toEqual({ readsEnabled: true, writesEnabled: false });
+  expect((await f.t.query(m.status, { fingerprint: f.canonical.contentFingerprint, manifestDigest: f.plan.manifestDigest })).phase).toBe('active');
+  await expect(f.t.query(api.attendance.publicInfo, { legacyId: root })).resolves.toMatchObject({ title: 'Original title' });
+  const before = await dump(f);
+  await expect(f.t.mutation(api.attendance.publicCheckin, { legacyId: root, identity: roster[0].name })).rejects.toThrow('unavailable');
+  await expect(f.t.mutation(api.authSupport.createUser, { username: 'new-user', salt: 'a'.repeat(32), passwordHash: 'b'.repeat(128), ownerKey: '9'.repeat(64) })).rejects.toThrow('unavailable');
+  expect(await dump(f)).toEqual(before);
+  await expect(f.t.mutation(m.activate, { runId })).rejects.toThrow('deployment_not_closed');
+  await f.t.mutation(api.operations.setAvailability, { fingerprint: f.canonical.contentFingerprint, readsEnabled: false, writesEnabled: false });
+  expect((await f.t.query(m.status, { fingerprint: f.canonical.contentFingerprint, manifestDigest: f.plan.manifestDigest })).phase).toBe('active');
+  await expect(f.t.query(api.attendance.publicInfo, { legacyId: root })).rejects.toThrow('unavailable');
+  await f.t.run(async ctx => { const state = await ctx.db.query('deploymentState').unique(); await ctx.db.patch(state!._id, { writesEnabled: true }); });
+  await expect(f.t.query(m.status, { fingerprint: f.canonical.contentFingerprint, manifestDigest: f.plan.manifestDigest })).rejects.toThrow('invalid_run');
 });
 
 describe('verification reads actual fields, relationships and every table', () => {

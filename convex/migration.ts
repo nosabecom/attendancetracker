@@ -677,8 +677,8 @@ export const verifyNext = internalMutation({
 });
 
 export const activate = internalMutation({
-  args: { runId: v.id("migrationRuns") },
-  handler: async (ctx, { runId }) => {
+  args: { runId: v.id("migrationRuns"), readOnly: v.optional(v.boolean()) },
+  handler: async (ctx, { runId, readOnly }) => {
     const run = await runFor(ctx, runId),
       p = run.protocol;
     check(
@@ -698,7 +698,9 @@ export const activate = internalMutation({
     await ctx.db.patch(state._id, {
       activeRunId: runId,
       readsEnabled: true,
-      writesEnabled: true,
+      // Production reconciliation must not depend on a second request closing
+      // writes after publication. Legacy callers retain their existing default.
+      writesEnabled: readOnly !== true,
     });
     return { phase: "active" };
   },
@@ -722,9 +724,9 @@ export const status = internalQuery({
       const states = await ctx.db.query("deploymentState").take(2);
       check(
         states.length === 1 &&
+          states[0].key === "migration" &&
           states[0].activeRunId === run._id &&
-          states[0].readsEnabled &&
-          states[0].writesEnabled &&
+          !(states[0].writesEnabled && !states[0].readsEnabled) &&
           run.status === "active",
         "invalid_run",
       );
