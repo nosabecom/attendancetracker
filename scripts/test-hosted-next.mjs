@@ -3,7 +3,8 @@
 import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createPrivateKey, sign } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { BaseConvexClient, ConvexHttpClient } from 'convex/browser';
@@ -14,7 +15,7 @@ import * as publisher from './prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, validateContinuationHistory,
   validateContinuationSnapshot, continuationTotals, validateContinuationPublication } from './hosted-next-continuation.mjs';
 import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdSnapshot, validateThirdHistory,
-  validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview } from './hosted-next-third.mjs';
+  validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview, validateArchiveSourceBinding } from './hosted-next-third.mjs';
 
 export const FINGERPRINT = 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba';
 const TEAM = 'nomokaro625-9385s-projects';
@@ -47,7 +48,8 @@ export function validateManifest(m, expected, now = Date.now()) {
     /^attendance-next-[a-f0-9]{32}$/.test(m.runId ?? ''), 'manifest_state');
   if (expected.third) {
     validateThirdSnapshot(m.thirdContinuation); validateThirdPreflight(m.preflight);
-    check(!m.continuation && v?.requireGitSource === true &&
+    validateArchiveSourceBinding(v?.sourceArchive, m.sourceCommit);
+    check(!m.continuation && !v?.requireGitSource &&
       ![CONTINUATION.predecessorDeploymentId, THIRD.predecessorDeploymentId].includes(v?.deploymentId) &&
       v?.deploymentId !== m.preflight.deploymentId &&
       ![CONTINUATION.predecessorRunId, THIRD.predecessorRunId].includes(m.runId), 'third_reuses_predecessor');
@@ -111,6 +113,7 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
   const totals = { calls: seed.calls, writes: 355, gateway: 7, control: seed.controls,
     hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
     ...(continuation || thirdContinuation ? { creations: seed.creations } : {}) };
+  let ordinaryWrites = 355, cleanupWrites = 0;
   const snapshot = () => ({ ...totals });
   function reserve({ kind, writes = 0, gateway = false, cleanup = false }) {
     const elapsed = now() - start;
@@ -119,14 +122,16 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
       ['application', 'control', 'hosting'].includes(kind), 'invalid_reservation');
     check(kind === 'application' || (writes === 0 && !gateway), 'invalid_reservation');
     const next = snapshot();
+    const nextOrdinaryWrites = ordinaryWrites + (cleanup ? 0 : writes), nextCleanupWrites = cleanupWrites + (cleanup ? writes : 0);
     if (kind === 'application') { next.calls++; next.nextCalls++; next.writes += writes;
       if (gateway) { next.gateway++; next.nextGateway++; } }
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
-    check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= (cleanup ? 700 : 600) &&
+    check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= 700 && nextOrdinaryWrites <= 600 && nextCleanupWrites <= 100 &&
       next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
       next.hosting <= (thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
+    ordinaryWrites = nextOrdinaryWrites; cleanupWrites = nextCleanupWrites;
     return snapshot();
   }
   return { reserve, snapshot };
@@ -155,6 +160,27 @@ export function inspectAuthCookies(lines, { deleted = false } = {}) {
   }
   return { token: values.get(AUTH_NAMES[0]), refresh: values.get(AUTH_NAMES[1]),
     attributesVerified: true, deleted };
+}
+
+// Preview-only conformance fixture, after the managed token has passed viewer.
+// Keep its issuer, audience, subject and fixed session deadline; shorten only JWT time.
+export function createShortJwtFixture(token, backend, now) {
+  try {
+    const [head, payload, signature] = token.split('.');
+    const header = JSON.parse(Buffer.from(head, 'base64url')), claims = JSON.parse(Buffer.from(payload, 'base64url'));
+    check(signature && header.alg === 'RS256' && backend.isNewDeployment === true &&
+      backend.managementIdentity?.deploymentType === 'preview' && claims.iss === backend.siteUrl &&
+      claims.aud === 'convex' && typeof claims.sub === 'string' && claims.sub.split('|').every(Boolean) &&
+      claims.sub.split('|').length === 2 && Number.isSafeInteger(claims.sessionExpiresAt) &&
+      claims.sessionExpiresAt > now && Number.isFinite(now), 'short_jwt_fixture');
+    const pem = backend.config.JWT_PRIVATE_KEY.replace(/-----BEGIN PRIVATE KEY-----\s+([\s\S]+?)\s+-----END PRIVATE KEY-----/,
+      (_, body) => `-----BEGIN PRIVATE KEY-----\n${body.replace(/\s/g, '')}\n-----END PRIVATE KEY-----`);
+    const key = createPrivateKey(pem);
+    check(key.asymmetricKeyType === 'rsa' && key.asymmetricKeyDetails.modulusLength === 2048, 'short_jwt_fixture');
+    const exp = Math.floor(now / 1000) + 15;
+    const input = `${head}.${Buffer.from(JSON.stringify({ ...claims, iat: Math.floor(now / 1000), exp })).toString('base64url')}`;
+    return { token: `${input}.${sign('RSA-SHA256', Buffer.from(input), key).toString('base64url')}`, expiresAt: exp * 1000 };
+  } catch { fail('short_jwt_fixture'); }
 }
 
 export function assertPublicResponse(value, { kind, status }) {
@@ -241,6 +267,7 @@ export function createOneShotRpc({ cloudUrl, adminKey, transport }) {
       check(!sent && url.origin === cloudUrl && url.pathname === `/api/${kind}` && !url.search, 'sdk_retry_or_target');
       sent = true;
       const response = await transport(url.href, init);
+      if (response.status === 401) fail('convex_http_401');
       return new Response(response.bytes, { status: response.status, headers: response.headers });
     } });
     client.setDebug(false);
@@ -354,6 +381,10 @@ export function createBrowserPolicy({ origin, legacyId, deploymentId }) {
     let key, category, writes = 0, gateway = false, maximum = 1;
     if (url.pathname === '/' && url.search === `?join=${legacyId}` && method === 'GET') { key = 'document'; category = 'document'; }
     else if (url.pathname === '/api/convex-auth' && !url.search && method === 'GET') { key = 'cookieProbe'; category = 'api'; }
+    else if (url.pathname === '/api/convex-auth' && !url.search && method === 'POST') {
+      check(request.body === JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }), 'browser_refresh_body');
+      key = 'refresh'; category = 'api'; writes = 16;
+    }
     else if (url.pathname === '/api/convex/public' && method === 'GET' && url.search === `?id=${legacyId}`) {
       key = 'metadata'; category = 'api'; gateway = true;
     } else if (url.pathname === '/api/convex/public' && method === 'POST' && !url.search) {
@@ -427,6 +458,7 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
           check(!stopped && !signal?.aborted, 'browser_stopped');
           check(result.status < 300 || result.status >= 400, 'browser_redirect');
           const headers = Object.fromEntries(result.headers);
+          if (result.headers.getSetCookie().length) headers['set-cookie'] = result.headers.getSetCookie().join('\n');
           delete headers['content-length']; delete headers['content-encoding']; delete headers['transfer-encoding'];
           await route.fulfill({ status: result.status, headers, body: result.bytes });
         } catch (error) {
@@ -464,6 +496,17 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
     const stored = await step(() => teacher.cookies(origin));
     check(AUTH_NAMES.slice(0, 2).every(name => stored.some(c => c.name === name && c.httpOnly && c.secure &&
       c.sameSite === 'Lax' && c.path === '/' && !c.domain.startsWith('.'))), 'browser_cookie_attributes');
+    const refreshStatus = await step(() => probe.evaluate(async () => {
+      const response = await fetch('/api/convex-auth', { method: 'POST', credentials: 'same-origin', redirect: 'error',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }) });
+      return response.status;
+    }, { refresh: true }));
+    const refreshed = await step(() => teacher.cookies(origin));
+    check(refreshStatus === 200 && AUTH_NAMES.slice(0, 2).every(name => refreshed.some(c => c.name === name &&
+      c.value !== stored.find(old => old.name === name)?.value && c.httpOnly && c.secure && c.sameSite === 'Lax' &&
+      c.path === '/' && !c.domain.startsWith('.'))), 'browser_refresh_cookies');
+    const refreshedVisible = await step(() => probe.evaluate(() => document.cookie.split(';').map(x => x.trim().split('=')[0])));
+    check(AUTH_NAMES.every(name => !refreshedVisible.includes(name)), 'refreshed_http_only_javascript_visibility');
     await step(() => teacher.close()); contexts.splice(contexts.indexOf(teacher), 1);
     const student = await context(), page = await step(() => student.newPage());
     check(!(await step(() => student.cookies(origin))).some(c => AUTH_NAMES.includes(c.name)), 'student_teacher_cookie_isolation');
@@ -485,6 +528,7 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
       },
       close,
       cookiesVerified: true,
+      refreshVerified: true,
     };
   } catch (error) { await close().catch(() => {}); throw error; }
 }
@@ -509,6 +553,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     cleanupVercel: publisher.cleanupOwnedVercel, exclusiveAttempt,
     persist: persistHostedReports, now: () => performance.now(), wallNow: () => Date.now(),
     transport: boundedFetch, createBrowser: createBrowserHarness, createAdmin: createAdminReader,
+    shortJwt: createShortJwtFixture, wait: (ms, signal) => sleep(ms, undefined, { signal }),
     ...injected };
   const expected = parseArgs(argv);
   const paths = expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
@@ -533,7 +578,10 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   }
   const core = ['app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json'];
   check(deps.git(['rev-parse', 'HEAD']).trim() === manifest.sourceCommit, 'head_mismatch');
-  deps.git(['diff', '--exit-code', backend.reviewedSourceCommit, manifest.sourceCommit, '--', ...core]);
+  if (expected.third) {
+    const compatibility = publisher.validateSource(manifest.sourceCommit, backend.reviewedSourceCommit, deps.git, { third: true });
+    check(JSON.stringify(compatibility) === JSON.stringify(manifest.backendCompatibility), 'third_backend_compatibility');
+  } else deps.git(['diff', '--exit-code', backend.reviewedSourceCommit, manifest.sourceCommit, '--', ...core]);
   deps.git(['diff', '--exit-code', manifest.sourceCommit, '--', ...core, 'proxy.ts', 'next.config.ts', 'vercel.json']);
   check(!deps.git(['ls-files', '--others', '--exclude-standard', '--', ...core, 'proxy.ts', 'next.config.ts', 'vercel.json']).trim(), 'unreviewed_core');
   const quota = await deps.quota(deps.wallNow());
@@ -574,7 +622,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       sufficientReviewedHeadroom: true, plannedHeadroom: quota.plannedHeadroom },
     limitations: [
       'Client reservations do not cap provider billing, backend internal work, scheduled jobs or OCC retries.',
-      'Natural expiry and browser refresh timing are deferred.',
+      'Managed one-hour JWT and 30-day session natural expiry remain unobserved; a signed 15-second test JWT checks hosted expiry enforcement.',
       'A failure that requires early availability closure can defer the normal-flow old-JWT 401 assertion.',
       'Only newly created Vercel resources are cleanup targets. Convex synthetic rows remain on the closed preview.',
       'Free plan and team allowance rely on the fresh private dashboard review; provider usage may be provisional.',
@@ -627,10 +675,10 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   };
   const origin = new URL(manifest.vercel.url).origin;
   async function hosting(path, { method = 'GET', body, headers = {}, application = false, gateway = false, writes = 0,
-    protectedAccess = true, onSend } = {}) {
+    protectedAccess = true, onSend, cleanupReservation = false } = {}) {
     check(path.startsWith('/') && !path.startsWith('//'), 'hosting_target');
     const url = new URL(path, origin); check(url.origin === origin && !url.hash, 'hosting_target');
-    reserve('hosting'); if (application) reserve('application', { writes, gateway });
+    reserve('hosting'); if (application) reserve('application', { writes, gateway, cleanup: cleaning || cleanupReservation });
     return transport(url.href, { method, ...(protectedAccess ? {} : { redirect: 'manual' }), headers: { ...headers,
       ...(protectedAccess ? { 'x-vercel-protection-bypass': manifest.access.token } : {}) },
     ...(body == null ? {} : { body }) }, onSend);
@@ -662,7 +710,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   }
   async function logoutActor() {
     if (!actor || actor.logoutAttempted) return;
-    const logout = await hosting('/api/convex-auth', { method: 'POST', application: true, writes: 16,
+    const logout = await hosting('/api/convex-auth', { method: 'POST', application: true, writes: 16, cleanupReservation: true,
       onSend: () => { actor.logoutAttempted = true; },
       headers: { 'Content-Type': 'application/json', Origin: origin,
         Cookie: `${AUTH_NAMES[0]}=${actor.cookies.token}` +
@@ -675,7 +723,8 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   try {
     const liveVercel = await vercelRequest(`/v13/deployments/${expected.deploymentId}?teamId=${TEAM_ID}`);
     deps.validateDeployment(liveVercel.body, { deploymentId: expected.deploymentId, url: manifest.vercel.url,
-      sourceCommit: manifest.sourceCommit, runId: manifest.runId, ...(expected.third ? { requireGitSource: true } : {}) });
+      sourceCommit: manifest.sourceCommit, runId: manifest.runId,
+      ...(expected.third ? { sourceArchive: manifest.vercel.sourceArchive } : {}) });
     const team = (await vercelRequest(`/v2/teams/${TEAM_ID}`)).body;
     assertion('VercelProPlan', team?.id === TEAM_ID && team.slug === TEAM && team.billing?.plan === publisher.EXPECTED.vercelPlan);
     const project = (await vercelRequest(`/v9/projects/${PROJECT}`)).body;
@@ -745,6 +794,18 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     actor.sessionId = claims.sub.split('|')[1];
     const viewer = await rpc('query', 'attendance:viewer', {}, { token: actor.token });
     assertion('ManagedSessionDeadline', viewer.expiresAt === claims.sessionExpiresAt);
+    phase = 'signed short JWT expiry';
+    const short = deps.shortJwt(actor.token, backend, deps.wallNow());
+    assertion('ShortSignedJwtAccepted', (await rpc('query', 'attendance:viewer', {}, { token: short.token })).expiresAt === viewer.expiresAt);
+    const waitMs = short.expiresAt + 65000 - deps.wallNow();
+    check(waitMs > 0 && waitMs + 10000 < remaining(130000), 'short_jwt_deadline');
+    await browserOperation(() => deps.wait(waitMs, ordinaryAbort.signal), remaining(130000), ordinaryAbort.signal);
+    let expired = false;
+    try { await rpc('query', 'attendance:viewer', {}, { token: short.token }); }
+    catch (error) { check(error?.data?.status === 401 || error?.code === 'convex_http_401', 'short_jwt_denial_status'); expired = true; }
+    assertion('ShortSignedJwtExpired401', expired);
+    assertion('ManagedJwtStillAccepted', (await rpc('query', 'attendance:viewer', {}, { token: actor.token })).expiresAt === viewer.expiresAt);
+    phase = 'availability and Next auth';
     const legacyId = randomBytes(16).toString('hex');
     const created = await rpc('mutation', 'attendance:create', { newId: legacyId, title: 'Next hosted synthetic class',
       csv: 'name,student_id\nNext One,NXT01\nNext Two,NXT02\nNext Three,NXT03\nNext Four,NXT04\nNext Five,NXT05\n',
@@ -779,10 +840,21 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
           report.browser.checkinRequests++;
         } else if (admission.key === 'cookieProbe') {
           check(response.status === 405, 'cookie_probe_status'); assertPublicResponse(jsonBody(response), { status: 405 });
+        } else if (admission.key === 'refresh') {
+          check(response.status === 200, 'browser_refresh_status');
+          const next = inspectAuthCookies(response.headers.getSetCookie()), body = jsonBody(response);
+          const nextClaims = JSON.parse(Buffer.from(next.token.split('.')[1], 'base64url'));
+          check(record(body) && Object.keys(body).join(',') === 'tokens' && record(body.tokens) &&
+            Object.keys(body.tokens).sort().join(',') === 'refreshToken,token' && body.tokens.token === next.token && body.tokens.refreshToken === 'dummy' &&
+            next.refresh !== actor.cookies.refresh && nextClaims.sub === claims.sub &&
+            nextClaims.sessionExpiresAt === claims.sessionExpiresAt && nextClaims.exp - nextClaims.iat === 3600, 'browser_refresh_binding');
+          actor.cookies = next; actor.token = next.token;
+          assertion('RefreshedSessionDeadline', (await rpc('query', 'attendance:viewer', {}, { token: actor.token })).expiresAt === viewer.expiresAt);
         } else check(response.status === 200, 'browser_asset_status');
         return response;
       } }), remaining(30000), ordinaryAbort.signal);
     assertion('HttpOnlyCookieAndStudentIsolation', browser.cookiesVerified === true);
+    assertion('BrowserCookieRefresh', browser.refreshVerified === true && report.assertions.RefreshedSessionDeadline === true);
     await observeCounters(legacyId);
     await browserOperation(() => browser.firstCheckin(), remaining(30000), ordinaryAbort.signal);
     await observeCounters(legacyId);
@@ -855,6 +927,8 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       report.cleanup.availabilityClosed && report.cleanup.closureAcknowledged && !report.cleanup.closureMutationUncertain &&
       report.cleanup.logoutConfirmed && report.cleanup.sessionRevocationVerified &&
       report.cleanup.capabilityRevoked && report.cleanup.vercelDeleted &&
+      report.assertions.BrowserCookieRefresh && report.assertions.ShortSignedJwtAccepted &&
+      report.assertions.ShortSignedJwtExpired401 && report.assertions.ManagedJwtStillAccepted &&
       Object.values(report.assertions).every(Boolean);
     try { await deps.persist({ attemptPath: paths.attempt, evidencePath: paths.evidence, attemptRecord: { ...attempt, phase }, report,
       isCancelled: () => cancelled }); }

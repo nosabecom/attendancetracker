@@ -3,7 +3,9 @@ import { strict as assert } from 'node:assert';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS } from '../scripts/hosted-next-continuation.mjs';
 import { THIRD, THIRD_PATHS, GITHUB_SOURCE, validateThirdHistory, validateThirdSnapshot, thirdTotals,
   validateExplicitGitSource, validateCompatibilityDeployment, validateCompatibilityMaps,
-  validateThirdPreflight, validateVercelCreditReview } from '../scripts/hosted-next-third.mjs';
+  validateThirdPreflight, validateVercelCreditReview, PREVIEW_BACKEND_COMMIT, validatePreviewBackendCompatibility,
+  backendLockProjection, validateArchiveSourceBinding, validateArchiveDeployment } from '../scripts/hosted-next-third.mjs';
+import { compatibilityGit, compatibilityLock, compatibilityPackage, fixtureArchiveBinding } from './fixtures/hosted-next-archive.mjs';
 import { historyText, secondHistoryText, originalPublication, secondPublication, vercelCreditFixture } from './fixtures/hosted-next-history.mjs';
 const backend = { name: 'synthetic-preview', id: 1, projectId: 2, reference: 'preview/synthetic',
   cloudUrl: 'https://synthetic.convex.cloud', siteUrl: 'https://synthetic.convex.site', fingerprint: 'synthetic' };
@@ -61,7 +63,7 @@ test('preflight proof requires two completed owned-source/environment observatio
   for(const patch of [{status:'pending'},{controlRequests:1},{ownershipVerified:false},{sourceVerified:false},{environmentShapeCompatible:false}])assert.throws(()=>validateThirdPreflight({...value,...patch}));
 });
 test('fresh exact-team Pro credit review cannot authorize overage or replace the missing receipt', () => {
-  const now=Date.now(),good=vercelCreditFixture(now);
+  const now=Date.now(),good={...vercelCreditFixture(now),otherReservationsUsd:0.81};
   assert.equal(validateVercelCreditReview(good,now).billingCap,false);
   for(const patch of [{plan:'hobby'},{plan:'enterprise'},{teamId:'other'},{teamSlug:'other'},
     {observedAt:new Date(now-3600001).toISOString()},{observedAt:new Date(now+300001).toISOString()},
@@ -69,12 +71,56 @@ test('fresh exact-team Pro credit review cannot authorize overage or replace the
     {creditReservationUsd:0.01},{allTeamUsage:false},{reportingLagAcknowledged:false},{noOverageAuthorized:false}])assert.throws(()=>validateVercelCreditReview({...good,...patch},now));
 });
 test('credit review retains prior reservations before allocating another hosted attempt', () => {
-  const now=Date.now(),good=vercelCreditFixture(now);
-  for(const patch of [{otherReservationsUsd:undefined},{otherReservationsUsd:0},{otherReservationsUsd:-1},
+  const now=Date.now(),good={...vercelCreditFixture(now),otherReservationsUsd:0.81};
+  for(const patch of [{otherReservationsUsd:undefined},{otherReservationsUsd:0},{otherReservationsUsd:0.8},{otherReservationsUsd:-1},
     {otherReservationsUsd:NaN},{otherReservationsUsd:Infinity},{otherReservationsUsd:19.5},
     {usedCreditUsd:18.5},{usedCreditUsd:19}])
     assert.throws(()=>validateVercelCreditReview({...good,...patch},now));
   const proof=validateVercelCreditReview({...good,otherReservationsUsd:2},now);
   assert.equal(proof.cumulativeEngineeringReservationsUsd,3);
   assert.equal(proof.otherReservationsUsd,2);
+});
+test('preview compatibility pins the published commit and compares all runtime bytes and backend dependency records', () => {
+  const commit='a'.repeat(40), calls=[];
+  const git=args=>{calls.push(args);return compatibilityGit(commit,args);};
+  const proof=validatePreviewBackendCompatibility(commit,PREVIEW_BACKEND_COMMIT,git);
+  assert.equal(proof.backendCommit,PREVIEW_BACKEND_COMMIT);assert.equal(proof.sourceCommit,commit);
+  assert.equal(proof.backendDependencyClosureEqual,true);assert.equal(proof.runtimeBytesEqual,true);
+  assert.equal(backendLockProjection(compatibilityLock(false),false),backendLockProjection(compatibilityLock(true),true));
+  const diff=calls.find(args=>args[0]==='diff');
+  for(const path of ['app','convex','lib','patches','pnpm-workspace.yaml','convex.json'])assert(diff.includes(path));
+  assert(diff.includes(':(exclude)convex/migration.ts'));
+  assert.throws(()=>validatePreviewBackendCompatibility(commit,'b'.repeat(40),git), /backend_commit/);
+  assert.throws(()=>validatePreviewBackendCompatibility(commit,PREVIEW_BACKEND_COMMIT,args=>{
+    if(args[0]==='diff')throw Error('runtime bytes changed');return git(args);
+  }), /runtime bytes/);
+  for(const transform of [text=>text.replace('sha512-backend','sha512-ALTERED'),
+    text=>text.replace('version: 1.49.0(react@19.3.1)','version: 1.49.0(react@20.0.0)'),
+    text=>text.replace('      react: 19.3.1','      react: 20.0.0'),
+    text=>text.replace('  autoInstallPeers: true','  autoInstallPeers: false'),
+    text=>text+'  backend-injected@1.0.0: {}\n']){
+    assert.throws(()=>validatePreviewBackendCompatibility(commit,PREVIEW_BACKEND_COMMIT,args=>{
+      const value=git(args);return args[0]==='show'&&args[1]===commit+':pnpm-lock.yaml'?transform(value):value;
+    }), /backend_dependency_changed/);
+  }
+  const pkg=compatibilityPackage(true);pkg.dependencies.convex='2.0.0';
+  assert.throws(()=>validatePreviewBackendCompatibility(commit,PREVIEW_BACKEND_COMMIT,args=>
+    args[0]==='show'&&args[1]===commit+':package.json'?JSON.stringify(pkg):git(args)), /backend_package_changed/);
+  assert.throws(()=>backendLockProjection("lockfileVersion: '10.0'\n",true), /lock_format/);
+});
+test('archive binding requires uploaded bytes, submitted creation files and matching authenticated deployment tags', () => {
+  const commit='a'.repeat(40),binding=fixtureArchiveBinding(commit);
+  const deployment={meta:{attendanceArchiveSha1:binding.sha1,attendanceArchiveSha256:binding.sha256,
+    attendanceSourceTree:binding.metadata.sourceTree}};
+  validateArchiveSourceBinding(binding,commit);validateArchiveDeployment(deployment,binding,commit);
+  for(const mutate of [x=>{x.uploadSubmitted=false;},x=>{x.uploadAcknowledged=false;},x=>{x.creationSubmitted=false;},
+    x=>{x.creationFiles[0].sha='b'.repeat(40);},x=>{x.files[0].size++;},x=>{x.contentManifest[0].sha256='b'.repeat(64);},
+    x=>{x.metadata.sourceCommit='c'.repeat(40);},x=>{delete x.contentManifest;}]){
+    const value=structuredClone(binding);mutate(value);assert.throws(()=>validateArchiveSourceBinding(value,commit), /archive_binding/);
+  }
+  for(const mutate of [x=>{x.meta.attendanceArchiveSha256='b'.repeat(64);},x=>{x.meta.attendanceArchiveSha1='b'.repeat(40);},
+    x=>{x.meta.attendanceSourceTree='b'.repeat(40);},x=>{x.gitSource={sha:commit};},x=>{x.gitMetadata={};},
+    x=>{x.meta.githubCommitSha=commit;}]){
+    const value=structuredClone(deployment);mutate(value);assert.throws(()=>validateArchiveDeployment(value,binding,commit), /archive_source/);
+  }
 });

@@ -5,7 +5,8 @@ import { EXPECTED, validateBackendManifest, validateClosedState, validateDailyLi
   validateVercelDeployment, deploymentBody, cleanupOwnedVercel, providerJson, prepareHostedNext,
   safePublisherDiagnostic, validateEffectiveEnvironment, deploymentEnvironmentPath } from '../scripts/prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
-import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals } from '../scripts/hosted-next-third.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals, PREVIEW_BACKEND_COMMIT } from '../scripts/hosted-next-third.mjs';
+import { fixtureArchive, compatibilityGit } from './fixtures/hosted-next-archive.mjs';
 import { historyText, secondHistoryText, originalPublication, secondPublication, vercelCreditFixture } from './fixtures/hosted-next-history.mjs';
 
 const name = 'fixture-preview-123';
@@ -128,6 +129,7 @@ test('provider transport disables redirects/retries and bounds streamed bytes', 
 
 async function publicationScenario(options={}) {
   const backend=fixture(), writes=new Map(), calls=[], logs=[];
+  if(options.third)backend.reviewedSourceCommit=PREVIEW_BACKEND_COMMIT;
   const paths=options.third?THIRD_PATHS:options.continuation?CONTINUATION_PATHS:ORIGINAL_PATHS;
   const original=originalPublication(validateBackendManifest(backend,name));
   const second=secondPublication(validateBackendManifest(backend,name));
@@ -142,25 +144,33 @@ async function publicationScenario(options={}) {
     writes.set(CONTINUATION_PATHS.publication,JSON.parse(secondHistoryText));
   }
   const historical=JSON.stringify([...writes]);
-  const sha='a'.repeat(40); let createdBody, deleted=false, diskFailed=false, aliasReads=0, exitFailures=0;
+  const sha='a'.repeat(40); let createdBody, deleted=false, diskFailed=false, aliasReads=0, exitFailures=0, readyReads=0;
   const project={id:EXPECTED.projectId,accountId:EXPECTED.teamId,name:'attendance-tracker',framework:'nextjs',
     nodeVersion:'24.x',buildCommand:null,installCommand:null,
     link:{type:'github',repoId:1409352117,org:'nosabecom',repo:'attendancetracker'},
     targets:{production:{id:'dpl_production',target:'production'}},ssoProtection:{deploymentType:'all_except_custom_domains'}};
   if(options.third)delete project.link;
-  const deployment=()=>({...deploymentFixture(),meta:{...createdBody.meta,githubCommitSha:sha},
-    ...(options.third?{gitSource:{...createdBody.gitSource}}:{})});
+  const deployment=()=>{
+    const value={...deploymentFixture(),meta:{...createdBody.meta,...(!options.third?{githubCommitSha:sha}:{})}};
+    if(options.third)delete value.gitSource;
+    if(options.buildingReads && readyReads++<options.buildingReads)value.readyState='BUILDING';
+    options.mutateDeployment?.(value);
+    return value;
+  };
   const json=(body,status=200)=>new Response(body===null?null:JSON.stringify(body),{status});
   const deps={
     vercelToken:'synthetic-api-token',
-    git:args=>args[0]==='rev-parse'?sha:'',
+    git:args=>options.third?compatibilityGit(sha,args):args[0]==='rev-parse'?sha:'',
+    archiveSource:()=>{
+      const archive=fixtureArchive(sha);options.mutateArchive?.(archive);return archive;
+    },
     readQuotaReview:async()=>{
       if(options.quotaFailure)throw Error('Insufficient reviewed team allowance.');
       return{observedAt:'2026-11-05T00:00:00Z',source:'synthetic-offline-fixture'};
     },
     readPrivateText:path=>path===ORIGINAL_PATHS.manifest&&(options.continuation||options.third)?JSON.stringify(original):
       path===CONTINUATION_PATHS.manifest&&options.third?JSON.stringify(second):
-      path===vercelCreditReviewPath?JSON.stringify({...vercelCreditFixture(),...(options.creditPatch||{})}):
+      path===vercelCreditReviewPath?JSON.stringify({...vercelCreditFixture(),otherReservationsUsd:0.81,...(options.creditPatch||{})}):
       path.endsWith('preview-setup-manifest.json')?JSON.stringify(backend):
         'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic',
     readPublicText:path=>{
@@ -210,12 +220,35 @@ async function publicationScenario(options={}) {
       if(url.pathname==='/v2/deployments/dpl_production/aliases'){
         aliasReads++;return json({aliases:[{alias:options.changeAliases&&aliasReads>1?'changed.example':'production.example',uid:'stable-alias'}]});
       }
+      if(url.pathname==='/v2/files'){
+        assert.equal(method,'POST');assert.equal(url.searchParams.get('teamId'),EXPECTED.teamId);
+        const record=writes.get(paths.manifest);
+        assert.equal(record.vercel.sourceArchive.uploadSubmitted,true);
+        assert.equal(record.vercel.sourceArchive.uploadAcknowledged,false);
+        assert.equal(record.cleanupReservation.controlRequests,4);
+        assert.equal(record.counters.controlRequests,7);
+        assert(Buffer.isBuffer(init.body));assert.deepEqual(init.body,fixtureArchive(sha).archiveBytes);
+        assert.equal(init.headers['Content-Type'],'application/octet-stream');
+        assert.equal(init.headers['Content-Length'],String(init.body.length));
+        assert.equal(init.headers['x-now-digest'],fixtureArchive(sha).sha1);
+        assert.equal(init.headers['x-now-size'],String(init.body.length));
+        if(options.cancelOnUpload)process.emit('SIGTERM');
+        if(options.diskFailureAfterUpload)diskFailed=true;
+        return json({},options.uploadStatus??200);
+      }
       if(url.pathname==='/v13/deployments'&&method==='POST'){
         const record=writes.get(paths.manifest);
         assert.equal(record.creationState,'submitted; outcome uncertain');
         assert.equal(record.cleanupReservation.controlRequests,4);
         assert.equal(record.cleanupReservation.automaticResume,false);
         createdBody=JSON.parse(init.body);
+        if(options.third){
+          assert.equal(record.vercel.sourceArchive.uploadAcknowledged,true);
+          assert.equal(record.vercel.sourceArchive.creationSubmitted,true);
+          assert.deepEqual(record.vercel.sourceArchive.creationFiles,createdBody.files);
+          assert(!('target' in createdBody));assert(!('gitSource' in createdBody));
+          assert(!('gitMetadata' in createdBody));assert(!('projectSettings' in createdBody));
+        }
         if(options.diskFailureAfterCreation)diskFailed=true;
         return json(options.missingCreationUrl?{id:'dpl_fixture'}:{id:'dpl_fixture',url:'fixture.vercel.app'});
       }
@@ -237,7 +270,7 @@ async function publicationScenario(options={}) {
         return json(options.environmentTransform?options.environmentTransform(actual):actual);
       }
       if(url.pathname==='/aliases/dpl_fixture/protection-bypass')return json('synthetic-scoped-token');
-      if(url.host==='fixture.vercel.app')return new Response(null,{status:init.headers?.['x-vercel-protection-bypass']?200:401});
+      if(url.host==='fixture.vercel.app')return new Response(null,{status:init.headers?.['x-vercel-protection-bypass']?(options.capabilityProbeStatus??200):401});
       throw Error('Unexpected offline request');
     },
   };
@@ -247,7 +280,7 @@ async function publicationScenario(options={}) {
     ATTENDANCE_VALIDATION_SOURCE_COMMIT:sha,ATTENDANCE_PREVIEW_KEY_FILE:'synthetic-key-file',
   },deps);
   const report=await run();
-  return{report,calls,writes,logs,deleted,exitFailures,historical,run};
+  return{report,calls,writes,logs,deleted,exitFailures,historical,run,createdBody};
 }
 test('publication orchestration validates effective maps and leaves an owned protected ready control',async()=>{
   const r=await publicationScenario();
@@ -445,7 +478,9 @@ test('third publication proves existing-target compatibility before creating onc
   assert.equal(r.report.cumulative.creations,3);assert.equal(r.report.cumulative.controls,35+r.report.counters.controlRequests);
   assert.deepEqual(r.calls.slice(0,2).map(x=>x.path),['/v13/deployments/dpl_existing','/v3/env/pull/dpl_existing']);
   assert.equal(r.calls.filter(x=>x.path==='/v13/deployments'&&x.method==='POST').length,1);
-  const current=r.writes.get(THIRD_PATHS.manifest);assert.equal(current.vercel.requireGitSource,true);
+  const current=r.writes.get(THIRD_PATHS.manifest);assert.equal(current.vercel.requireGitSource,undefined);
+  assert.equal(current.vercel.sourceArchive.sha256,fixtureArchive().sha256);
+  assert.equal(r.calls.filter(x=>x.path==='/v2/files'&&x.method==='POST').length,1);
   const historical=JSON.stringify([...r.writes].filter(([path])=>[...Object.values(ORIGINAL_PATHS),...Object.values(CONTINUATION_PATHS)].includes(path)));
   assert.equal(historical,r.historical);
   const sent=r.calls.length,record=structuredClone(current);const again=await r.run();
@@ -499,4 +534,47 @@ test('third storage failure after creation keeps its cleanup reserve and immutab
   assert.equal(r.report.cleanup.deploymentDeleted,true);assert.equal(r.report.preflight.controlRequests,2);
   assert.equal(r.report.cumulative.creations,3);assert(r.report.counters.controlRequests<=20);
   assert.equal(JSON.stringify([...r.writes].filter(([path])=>[...Object.values(ORIGINAL_PATHS),...Object.values(CONTINUATION_PATHS)].includes(path))),r.historical);
+});
+test('third archive upload failure, cancellation or persistence loss creates nothing and never retries',async()=>{
+  for(const options of [{uploadStatus:503},{cancelOnUpload:true},{diskFailureAfterUpload:true}]){
+    const r=await publicationScenario({third:true,...options});
+    assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'source archive upload');
+    assert.equal(r.report.creationRequests,0);assert.equal(r.deleted,false);
+    assert.equal(r.calls.filter(x=>x.path==='/v2/files').length,1);
+    assert.equal(r.calls.filter(x=>x.method==='POST'&&x.path==='/v13/deployments').length,0);
+    const sent=r.calls.length;await r.run();assert.equal(r.calls.length,sent);
+  }
+});
+test('third altered payload cannot reach provider requests and no private archive values enter diagnostics',async()=>{
+  const r=await publicationScenario({third:true,mutateArchive:x=>{x.archiveBytes[0]^=1;}});
+  assert.equal(r.report.passed,false);assert.equal(r.report.creationRequests,0);assert.equal(r.calls.length,0);
+  assert.equal(r.writes.has(THIRD_PATHS.manifest),false);
+});
+test('third four Ready reads plus upload spend16 ordinary controls and preserve four owned cleanup requests',async()=>{
+  const success=await publicationScenario({third:true,buildingReads:3});
+  assert.equal(success.report.passed,true);assert.equal(success.report.counters.controlRequests,16);
+  assert.equal(success.calls.filter(x=>x.path==='/v13/deployments/dpl_fixture').length,4);
+  const failed=await publicationScenario({third:true,buildingReads:3,capabilityProbeStatus:403});
+  assert.equal(failed.report.passed,false);assert.equal(failed.report.counters.controlRequests,20);
+  assert.equal(failed.report.cleanup.deploymentDeleted,true);assert.equal(failed.report.cleanup.capabilityRevoked,true);
+  assert.equal(failed.report.cumulative.controls,55);assert.equal(failed.report.cumulative.creations,3);
+  assert.equal(failed.calls.filter(x=>x.method==='DELETE').length,1);
+});
+test('third cannot accept Ready source metadata for another archive or fall back to Git evidence',async()=>{
+  for(const mutateDeployment of [x=>{x.meta.attendanceArchiveSha256='b'.repeat(64);},
+    x=>{delete x.meta.attendanceArchiveSha1;},x=>{x.gitSource={type:'github',sha:'a'.repeat(40)};}]){
+    const r=await publicationScenario({third:true,mutateDeployment});
+    assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'deployment readiness');
+    assert.equal(r.report.counters.hostingRequests,0);
+    assert.equal(r.calls.filter(x=>x.method==='DELETE').length,0);
+    assert.equal(r.report.cleanup.incomplete,true);
+  }
+});
+test('third effective environment remains strict for archive deployments and still cleans only its owner',async()=>{
+  for(const options of [{redactedGateway:true},{inheritedCredential:true},{environmentStatus:400},
+    {environmentTransform:actual=>({...actual,protectedSecrets:true})}]){
+    const r=await publicationScenario({third:true,...options});
+    assert.equal(r.report.passed,false);assert.equal(r.report.failedPhase,'effective environment');
+    assert.equal(r.report.counters.hostingRequests,0);assert.equal(r.report.cleanup.deploymentDeleted,true);
+  }
 });

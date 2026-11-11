@@ -1,5 +1,6 @@
 // One separately reviewed third publication. Historical policies/records stay immutable.
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { CONTINUATION, validateContinuationHistory, validateContinuationSnapshot } from './hosted-next-continuation.mjs';
 
 const check = (value, code) => { if (!value) throw Error(code); };
@@ -16,7 +17,7 @@ export const THIRD = freeze({
   spent: { calls: 63, nextCalls: 2, controls: 33, hosting: 0, writes: 355, gateway: 7, creations: 2 },
   limits: { controls: 80, creations: 3, preflightControls: 2, publisherControls: 20, runtimeControls: 19, hosting: 50 },
   creditReservationUsd: 1,
-  minimumOtherReservationsUsd: 0.8,
+  minimumOtherReservationsUsd: 0.81,
 });
 export const THIRD_PATHS = freeze({
   manifest: '.convex/hosted-validation/next-third-preview-manifest.json',
@@ -78,6 +79,87 @@ export function validateExplicitGitSource(deployment, sourceCommit) {
   if (source.repo !== undefined) check(source.repo === GITHUB_SOURCE.repo, 'third_git_source');
   return true;
 }
+export const PREVIEW_BACKEND_COMMIT = 'b06caabfe3f713c40160e28843695bcc65ac2a19';
+// A deliberately narrow comparison of the committed pnpm v9 text, not a YAML
+// parser. Keep every other package, snapshot, importer, override and patch byte.
+// Only the reviewed Next/Lucide closure and Next peers in Vercel's two frontend
+// packages may differ. The old commit fixes the audited dependency graph; this
+// comparison retains all backend package integrity, peer and dependency bytes.
+const frontendVersions = Object.freeze({
+  next: ['16.4.3', '16.4.4'], 'lucide-react': ['1.61.0', '1.66.0'],
+  'baseline-browser-mapping': ['2.11.33', '2.11.35'], 'caniuse-lite': ['1.0.30001819', '1.0.30001820'],
+  semver: ['7.8.5', '7.8.6'], tslib: ['2.8.1', '2.9.1'],
+});
+export function backendLockProjection(text, current) {
+  check(typeof text === 'string' && text.startsWith("lockfileVersion: '9.0'\n") &&
+    Buffer.byteLength(text) <= 1024 * 1024, 'third_lock_format');
+  let section = '', block = '';
+  const next = current ? '16.4.4' : '16.4.3';
+  return text.split('\n').map(line => {
+    if (/^\S/.test(line)) { section = line; block = ''; }
+    const header = (section === 'importers:' ? /^      (\S.*?):(?: \{\})?$/ : /^  (\S.*?):(?: \{\})?$/).exec(line);
+    if (header) block = header[1].replace(/^'(.*)'$/, '$1');
+    const name = block.startsWith('@') ? block.slice(0, block.indexOf('@', 1)) : block.split('@')[0];
+    const changedPackage = Object.hasOwn(frontendVersions, name) || /^@next\/(?:env|swc-[a-z0-9-]+)$/.test(name);
+    const frontend = section === 'importers:' ? ['next', 'lucide-react'].includes(block) :
+      changedPackage || (section === 'snapshots:' && ['@swc/helpers', '@emnapi/runtime', 'sharp'].includes(name));
+    if (frontend) {
+      if (changedPackage && section === 'packages:' && /^    resolution: \{integrity: sha512-[A-Za-z0-9+/=]+\}$/.test(line))
+        return '    resolution: {integrity: REVIEWED_FRONTEND}';
+      for (const [dependency, versions] of Object.entries(frontendVersions))
+        line = line.replaceAll(versions[Number(current)], `REVIEWED_${dependency}`);
+      return line;
+    }
+    if (/^@vercel\/(?:analytics|speed-insights)(?:@|$)/.test(block))
+      return line.replaceAll(`next@${next}(`, 'next@REVIEWED_NEXT(').replaceAll(`next: ${next}(`, 'next: REVIEWED_NEXT(');
+    return line;
+  }).join('\n');
+}
+export function validatePreviewBackendCompatibility(sourceCommit, backendCommit, git = args =>
+  execFileSync('git', args, { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
+    timeout: 30000, stdio: ['ignore', 'pipe', 'ignore'] })) {
+  check(backendCommit === PREVIEW_BACKEND_COMMIT && /^[a-f0-9]{40}$/.test(sourceCommit ?? ''), 'third_backend_commit');
+  // Includes every auth/gateway/access/attendance/operations/lib/patch byte.
+  // migration.ts is an administrative import API, outside the hosted scenarios.
+  git(['diff', '--exit-code', backendCommit, sourceCommit, '--', 'app', 'convex', 'lib', 'patches',
+    'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs',
+    'vercel.json', 'tsconfig.json', ':(exclude)convex/migration.ts']);
+  const read = (commit, path) => git(['show', `${commit}:${path}`]);
+  const packages = [backendCommit, sourceCommit].map((commit, i) => {
+    const pkg = JSON.parse(read(commit, 'package.json'));
+    check(pkg.dependencies?.next === (i ? '^16.4.4' : '^16.4.3') &&
+      pkg.dependencies?.['lucide-react'] === (i ? '^1.66.0' : '^1.61.0'), 'third_frontend_versions');
+    delete pkg.dependencies.next; delete pkg.dependencies['lucide-react'];
+    return JSON.stringify(pkg);
+  });
+  check(packages[0] === packages[1], 'third_backend_package_changed');
+  const locks = [backendCommit, sourceCommit].map((commit, i) => backendLockProjection(read(commit, 'pnpm-lock.yaml'), Boolean(i)));
+  check(locks[0] === locks[1], 'third_backend_dependency_changed');
+  return { backendCommit, sourceCommit, runtimeBytesEqual: true, backendDependencyClosureEqual: true,
+    lockProjectionSha256: createHash('sha256').update(locks[0]).digest('hex'),
+    excludedAdministrativeFile: 'convex/migration.ts', frontendVersions: { next: '16.4.4', lucide: '1.66.0' } };
+}
+export function validateArchiveSourceBinding(value, sourceCommit) {
+  check(value?.metadata?.sourceCommit === sourceCommit && /^[a-f0-9]{40}$/.test(sourceCommit ?? '') &&
+    /^[a-f0-9]{40}$/.test(value.metadata.sourceTree ?? '') && /^[a-f0-9]{40}$/.test(value.sha1 ?? '') &&
+    /^[a-f0-9]{64}$/.test(value.sha256 ?? '') && /^[a-f0-9]{64}$/.test(value.metadata.contentManifestSha256 ?? '') &&
+    value.uploadSubmitted === true && value.uploadAcknowledged === true && value.creationSubmitted === true &&
+    value.metadata.version === 1 && value.metadata.format === 'tar+gzip' &&
+    Array.isArray(value.contentManifest) && value.contentManifest.length > 0 && value.contentManifest.length <= 512 &&
+    value.contentManifest.length === value.metadata.fileCount &&
+    createHash('sha256').update(JSON.stringify(value.contentManifest)).digest('hex') === value.metadata.contentManifestSha256 &&
+    Number.isSafeInteger(value.metadata.archiveBytes) && value.metadata.archiveBytes > 0 && value.metadata.archiveBytes <= 4 * 1024 * 1024 &&
+    JSON.stringify(value.files) === JSON.stringify([{ file: '.vercel/source.tgz.part1', size: value.metadata.archiveBytes, mode: 438, sha: value.sha1 }]) &&
+    JSON.stringify(value.creationFiles) === JSON.stringify(value.files), 'third_archive_binding');
+  return true;
+}
+export function validateArchiveDeployment(deployment, archive, sourceCommit) {
+  validateArchiveSourceBinding(archive, sourceCommit);
+  check(deployment.gitSource == null && deployment.gitMetadata == null && deployment.meta?.githubCommitSha === undefined &&
+    deployment.meta?.attendanceArchiveSha256 === archive.sha256 &&
+    deployment.meta?.attendanceArchiveSha1 === archive.sha1 &&
+    deployment.meta?.attendanceSourceTree === archive.metadata.sourceTree, 'third_archive_source');
+}
 export function validateCompatibilityDeployment(deployment, deploymentId, owner) {
   const owners = [deployment?.ownerId, deployment?.teamId, deployment?.team?.id].filter(x => x !== undefined);
   const projects = [deployment?.projectId, deployment?.project?.id].filter(x => x !== undefined);
@@ -126,12 +208,19 @@ export function validateThirdPublication(report, manifest) {
     report.deploymentId === manifest.vercel.deploymentId && report.uniqueUrl === manifest.vercel.url &&
     report.creationRequests === 1 && report.productionMutationRequested === false &&
     report.productionTargetUnchanged === true && report.productionAliasBindingsUnchanged === true &&
-    report.gitDisconnectPreserved === true && manifest.vercel.requireGitSource === true &&
+    report.gitDisconnectPreserved === true && !manifest.vercel.requireGitSource &&
+    JSON.stringify(report.sourceArchive) === JSON.stringify(manifest.vercel.sourceArchive) &&
+    JSON.stringify(report.backendCompatibility) === JSON.stringify(manifest.backendCompatibility) &&
     report.environmentVerified?.build === true && report.environmentVerified.runtime === true &&
     report.environmentVerified.credentialOverrides === true && !report.cleanup?.deploymentDeleted &&
     JSON.stringify(report.preflight) === JSON.stringify(manifest.preflight) &&
     JSON.stringify(report.counters) === JSON.stringify(manifest.counters) &&
     JSON.stringify(report.cumulative) === JSON.stringify(totals) && JSON.stringify(manifest.cumulative) === JSON.stringify(totals),
   'third_publication_evidence');
+  validateArchiveSourceBinding(manifest.vercel.sourceArchive, manifest.sourceCommit);
+  check(manifest.backendCompatibility?.backendCommit === PREVIEW_BACKEND_COMMIT &&
+    manifest.backendCompatibility.sourceCommit === manifest.sourceCommit &&
+    manifest.backendCompatibility.runtimeBytesEqual === true &&
+    manifest.backendCompatibility.backendDependencyClosureEqual === true, 'third_backend_compatibility');
   return totals;
 }

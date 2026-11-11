@@ -1,17 +1,21 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { EventEmitter } from 'node:events';
+import { generateKeyPairSync, verify } from 'node:crypto';
 import { assertPublicResponse, boundedFetch, compareIpObservations, counterSnapshot, createAdminReader,
   createBrowserHarness, createBrowserPolicy, createBudget, createOneShotRpc, FINGERPRINT, inspectAuthCookies, parseArgs,
-  readAdminTable, runHostedNext, validateManifest, validatePriorEvidence, browserOperation } from '../scripts/test-hosted-next.mjs';
+  readAdminTable, runHostedNext, validateManifest, validatePriorEvidence, browserOperation, createShortJwtFixture } from '../scripts/test-hosted-next.mjs';
 import { persistHostedReports } from '../scripts/test-hosted-preview.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, continuationTotals } from '../scripts/hosted-next-continuation.mjs';
-import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals } from '../scripts/hosted-next-third.mjs';
+import { THIRD, THIRD_PATHS, vercelCreditReviewPath, thirdTotals, PREVIEW_BACKEND_COMMIT,
+  validatePreviewBackendCompatibility } from '../scripts/hosted-next-third.mjs';
+import { fixtureArchiveBinding, compatibilityGit } from './fixtures/hosted-next-archive.mjs';
 import { historyText, secondHistoryText, originalPublication, secondPublication, readyContinuationPublication,
   readyThirdPublication, vercelCreditFixture } from './fixtures/hosted-next-history.mjs';
 
 const expected = { deploymentId: 'dpl_fixture', backendName: 'fixture-preview-123' };
 const time = Date.parse('2030-01-01T00:00:00Z');
+const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
 function fixture() {
   return { version: 1, runId: 'attendance-next-' + 'b'.repeat(32), sourceCommit: 'a'.repeat(40), publication: 'ready',
     environmentVerified: { build: true, runtime: true, credentialOverrides: true },
@@ -33,7 +37,8 @@ function backendFixture() {
     reference: m.backend.reference, cloudUrl: m.backend.cloudUrl, siteUrl: m.backend.siteUrl,
     publication: 'succeeded', environmentConfigured: true, limitVerified: true, adminCapabilityVerified: true,
     reviewedSourceCommit: 'e'.repeat(40), adminKey: 'synthetic-admin-capability',
-    config: { ATTENDANCE_GATEWAY_KEY: 'synthetic-gateway-secret-'.repeat(3), ATTENDANCE_GATEWAY_AUDIENCE: 'synthetic-audience' } };
+    config: { JWT_PRIVATE_KEY: signingKeys.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString().trimEnd().replace(/\n/g, ' '),
+      ATTENDANCE_GATEWAY_KEY: 'synthetic-gateway-secret-'.repeat(3), ATTENDANCE_GATEWAY_AUDIENCE: 'synthetic-audience' } };
 }
 function priorFixture() {
   return { version: 1, passed: true, backendOnly: true, cancelled: false,
@@ -44,10 +49,14 @@ function priorFixture() {
 }
 const args = ['--expected-vercel-deployment', expected.deploymentId, '--expected-preview', expected.backendName];
 const authNames = ['__Host-__convexAuthJWT', '__Host-__convexAuthRefreshToken', '__Host-__convexAuthOAuthVerifier'];
-const jwt = 'e30.' + Buffer.from(JSON.stringify({ sub: 'syntheticUser|syntheticSession', iat: time / 1000,
+const jwt = Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'synthetic' })).toString('base64url') + '.' +
+  Buffer.from(JSON.stringify({ iss: 'https://fixture-preview-123.convex.site', aud: 'convex', sub: 'syntheticUser|syntheticSession', iat: time / 1000,
   exp: time / 1000 + 3600, sessionExpiresAt: time + 30 * 86400000 })).toString('base64url') + '.synthetic-signature';
-function cookieLines(deleted = false) {
-  return authNames.map((name, i) => `${name}=${deleted || i === 2 ? '' : i === 0 ? jwt : 'synthetic-refresh'}; Path=/; ` +
+const refreshedJwt = jwt.split('.')[0] + '.' + Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url')),
+  iat: time / 1000 + 80, exp: time / 1000 + 3680 })).toString('base64url') + '.synthetic-refreshed-signature';
+function cookieLines(deleted = false, refreshed = false) {
+  return authNames.map((name, i) => `${name}=${deleted || i === 2 ? '' : i === 0 ? refreshed ? refreshedJwt : jwt :
+    refreshed ? 'synthetic-refreshed' : 'synthetic-refresh'}; Path=/; ` +
     (deleted || i === 2 ? 'Expires=Thu, 01 Jan 1970 00:00:00 GMT; ' : 'Max-Age=2592000; ') + 'HttpOnly; Secure; SameSite=Lax');
 }
 function response(body, status = 200, cookies = []) {
@@ -60,10 +69,14 @@ function offlineRun(options = {}) {
   const original = originalPublication(manifest.backend);
   const second = secondPublication(manifest.backend);
   if (options.third) {
+    backend.reviewedSourceCommit=PREVIEW_BACKEND_COMMIT;prior.sourceCommit=PREVIEW_BACKEND_COMMIT;
     manifest.thirdContinuation = structuredClone(THIRD);
     manifest.preflight = { deploymentId:'dpl_existing',status:'passed',controlRequests:2,
       ownershipVerified:true,sourceVerified:true,environmentShapeCompatible:true };
-    manifest.cumulative = thirdTotals(manifest.counters,1,2);manifest.vercel.requireGitSource=true;
+    manifest.cumulative = thirdTotals(manifest.counters,1,2);
+    manifest.vercel.sourceArchive=fixtureArchiveBinding(manifest.sourceCommit);
+    manifest.backendCompatibility=validatePreviewBackendCompatibility(manifest.sourceCommit,backend.reviewedSourceCommit,
+      values=>compatibilityGit(manifest.sourceCommit,values));
     options.mutateThird?.(manifest);options.mutateSecond?.(second);
   }
   if (options.continuation) {
@@ -74,20 +87,30 @@ function offlineRun(options = {}) {
   }
   const paths = options.third ? THIRD_PATHS : options.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const publication = options.third ? readyThirdPublication(manifest) : options.continuation ? readyContinuationPublication(manifest) : undefined;
+  if(options.third){publication.sourceArchive=structuredClone(manifest.vercel.sourceArchive);
+    publication.backendCompatibility=structuredClone(manifest.backendCompatibility);}
   options.mutatePublication?.(publication);
   const events = [], persisted = new Map();
-  const state = { open: false, checkins: 0, loggedOut: false, exclusive: 0, deleted: false, mutationCalls: 0 };
+  const state = { open: false, checkins: 0, loggedOut: false, exclusive: 0, deleted: false, mutationCalls: 0, waited: 0 };
   const deploy = { id: expected.deploymentId, ownerId: manifest.vercel.teamId, projectId: manifest.vercel.projectId,
     target: null, url: 'fixture.vercel.app', readyState: 'READY', meta: { attendanceValidation: manifest.runId,
-      attendanceSourceCommit: manifest.sourceCommit, githubCommitSha: manifest.sourceCommit },
-    ...(options.third?{gitSource:{type:'github',repoId:1409352117,ref:manifest.sourceCommit,sha:manifest.sourceCommit}}:{}) };
+      attendanceSourceCommit: manifest.sourceCommit, ...(options.third?{
+        attendanceArchiveSha1:manifest.vercel.sourceArchive.sha1,attendanceArchiveSha256:manifest.vercel.sourceArchive.sha256,
+        attendanceSourceTree:manifest.vercel.sourceArchive.metadata.sourceTree}:{githubCommitSha:manifest.sourceCommit}) } };
+  options.mutateDeployment?.(deploy);
   const dependencies = {
-    now: () => options.elapsed?.() ?? 0, wallNow: () => time,
+    now: () => options.elapsed?.() ?? state.waited, wallNow: () => time + state.waited,
+    shortJwt: (token, value, now) => {
+      const short = createShortJwtFixture(token, value, now); state.short = short; return short;
+    },
+    wait: async (ms, signal) => {
+      assert.equal(signal.aborted, false); state.waited += ms; options.onExpiryWait?.();
+    },
     readPrivateText: async path => {
       if (path === paths.manifest) return JSON.stringify(manifest);
       if ((options.continuation||options.third) && path === ORIGINAL_PATHS.manifest) return JSON.stringify(original);
       if (options.third && path === CONTINUATION_PATHS.manifest) return JSON.stringify(second);
-      if (path === vercelCreditReviewPath) return JSON.stringify({...vercelCreditFixture(time),...(options.creditPatch||{})});
+      if (path === vercelCreditReviewPath) return JSON.stringify({...vercelCreditFixture(time),otherReservationsUsd:0.81,...(options.creditPatch||{})});
       if (path?.endsWith('/preview-setup-manifest.json')) return JSON.stringify(backend);
       if (path === 'fixture-key-path') return 'preview:nomokaro625-9385-s-projects:convex-cyan-garden|synthetic-key';
       throw Error('unexpected private fixture path');
@@ -102,7 +125,7 @@ function offlineRun(options = {}) {
       if (options.secondRuntimeExists && path === CONTINUATION_PATHS.attempt) throw Error('second_runtime_exists');
       if (persisted.has(path)) throw Error('continuation_record_exists');
     },
-    git: values => values[0] === 'rev-parse' ? manifest.sourceCommit : '',
+    git: values => options.third?compatibilityGit(manifest.sourceCommit,values):values[0] === 'rev-parse' ? manifest.sourceCommit : '',
     quota: async () => {
       if(options.quotaFailure)throw Error('Insufficient reviewed team allowance.');
       return { plan: Object.hasOwn(options,'convexPlan')?options.convexPlan:'CONVEX_BASE',
@@ -152,6 +175,10 @@ function offlineRun(options = {}) {
       if (call.name === 'attendance:viewer') {
         if (!state.open) throw { data: { status: 503 } };
         if (state.loggedOut) throw { data: { status: 401 } };
+        if (call.token === state.short?.token && time + state.waited >= state.short.expiresAt + 65000) {
+          if (options.acceptExpired) return { expiresAt: time + 30 * 86400000 };
+          throw { data: { status: options.expiryStatus ?? 401 } };
+        }
         return { expiresAt: time + 30 * 86400000 };
       }
       if (call.name === 'attendance:create') {
@@ -182,11 +209,15 @@ function offlineRun(options = {}) {
         if (init.method === 'GET') return response({ error: 'Invalid method.' }, 405);
         const body = JSON.parse(init.body);
         if (body.action === 'auth:signOut') {
+          if (state.refreshed) assert(init.headers.Cookie.includes(refreshedJwt) && init.headers.Cookie.includes('synthetic-refreshed'));
           events.push('logout'); state.loggedOut = true;
           if (options.logoutUncertain) throw Error('uncertain logout');
           return response(null, 200, cookieLines(true));
         }
-        assert.equal(state.open, true); return response({ tokens: { token: jwt, refreshToken: 'dummy' } }, 200, cookieLines());
+        const refreshed = body.args?.refreshToken === 'dummy';
+        if (refreshed) assert((init.headers.Cookie ?? init.headers.cookie).includes('synthetic-refresh'));
+        state.refreshed ||= refreshed;
+        assert.equal(state.open, true); return response({ tokens: { token: refreshed ? refreshedJwt : jwt, refreshToken: 'dummy' } }, 200, cookieLines(false, refreshed));
       }
       if (url.pathname === '/api/convex/public') {
         if (init.method === 'PUT') return response(undefined, 405);
@@ -213,14 +244,17 @@ function offlineRun(options = {}) {
         const request = { url: config.origin + path, method, headers, body };
         return config.send(request, policy(request));
       };
-      await send('/api/convex-auth'); await send('/api/convex/public?id=' + config.legacyId);
+      await send('/api/convex-auth');
+      await send('/api/convex-auth', 'POST', { Cookie: `${authNames[0]}=${config.cookies.token}; ${authNames[1]}=${config.cookies.refresh}` },
+        JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }));
+      await send('/api/convex/public?id=' + config.legacyId);
       if (options.browserFault) { config.fatal('student_teacher_websocket'); throw Error('fixture blocked socket'); }
       const checkin = async headers => {
         const result = await send('/api/convex/public', 'POST', headers,
           JSON.stringify({ action: 'checkin', id: config.legacyId, identity: 'NXT01' }));
         return { status: result.status, body: JSON.parse(result.bytes) };
       };
-      return { cookiesVerified: true, firstCheckin: () => checkin({}), duplicate: checkin,
+      return { cookiesVerified: true, refreshVerified: true, firstCheckin: () => checkin({}), duplicate: checkin,
         close: async () => { events.push('browser-close'); } };
     },
     persist: values => persistHostedReports(values, {
@@ -292,6 +326,30 @@ test('cookie checks inspect host-only HttpOnly Secure Lax lifetime and deletion 
   assert.throws(() => assertPublicResponse({ name: 'Next One', roster: [] }, { kind: 'checkin', status: 200 }), /privacy/);
 });
 
+test('ordinary writes and cleanup writes keep separate fixed limits before later ordinary queries', () => {
+  const budget = createBudget(fixture().counters);
+  budget.reserve({ kind: 'application', writes: 237 }); // ordinary: 592, including historical seed
+  budget.reserve({ kind: 'application', writes: 16, cleanup: true });
+  budget.reserve({ kind: 'application' });
+  assert.equal(budget.snapshot().writes, 608);
+  assert.throws(() => budget.reserve({ kind: 'application', writes: 9 }), /budget_exceeded/);
+  assert.throws(() => budget.reserve({ kind: 'application', writes: 85, cleanup: true }), /budget_exceeded/);
+});
+
+test('short JWT fixture signs only shortened time claims for the same preview-managed identity', () => {
+  const short = createShortJwtFixture(jwt, backendFixture(), time);
+  const [header, payload, signature] = short.token.split('.');
+  assert.equal(verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), signingKeys.publicKey, Buffer.from(signature, 'base64url')), true);
+  const original = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url')), claims = JSON.parse(Buffer.from(payload, 'base64url'));
+  assert.deepEqual(claims, { ...original, iat: time / 1000, exp: time / 1000 + 15 });
+  assert.equal(header, jwt.split('.')[0]); assert.equal(short.expiresAt, time + 15000);
+  const wrongAlg = Buffer.from('{"alg":"HS256"}').toString('base64url') + '.' + jwt.split('.').slice(1).join('.');
+  for (const [token, backend] of [[wrongAlg, backendFixture()], ['private-invalid-token', backendFixture()],
+    [jwt, { ...backendFixture(), isNewDeployment: false }], [jwt, { ...backendFixture(), siteUrl: 'https://other.convex.site' }],
+    [jwt, { ...backendFixture(), config: { JWT_PRIVATE_KEY: 'private-invalid-key' } }]])
+    assert.throws(() => createShortJwtFixture(token, backend, time), error => error.message === 'short_jwt_fixture');
+});
+
 test('bounded fetch makes one attempt, forbids redirects, caps body and cancels oversized streams', async () => {
   let sends = 0, cancelled = false;
   const result = await boundedFetch('https://fixture.vercel.app', {}, { fetchImpl: async (_, init) => {
@@ -313,6 +371,10 @@ test('one-shot Convex HTTP client exercises pinned SDK with exact origin and pri
   assert.deepEqual(await rpc({ kind: 'query', name: 'operations:availability', args: { fingerprint: FINGERPRINT }, admin: true }),
     { readsEnabled: false, writesEnabled: false });
   assert.equal(sent.length, 1); assert.equal(new URL(sent[0]).pathname, '/api/query');
+  const denied = createOneShotRpc({ cloudUrl: fixture().backend.cloudUrl,
+    transport: async () => response({ privateError: 'private-response-body' }, 401) });
+  await assert.rejects(denied({ kind: 'query', name: 'attendance:viewer', args: {}, token: jwt }),
+    error => error.code === 'convex_http_401' && error.message === 'convex_http_401');
 });
 
 test('browser allowlist admits only exact student requests and planned duplicates; rejects retry and exfiltration', () => {
@@ -321,7 +383,10 @@ test('browser allowlist admits only exact student requests and planned duplicate
   const req = { url: config.origin + '/?join=' + config.legacyId, method: 'GET' };
   assert.equal(policy(req).category, 'document'); assert.throws(() => policy(req), /retry/);
   assert.throws(() => policy({ url: 'https://example.com/steal', method: 'GET' }), /browser_target/);
-  assert.throws(() => policy({ url: config.origin + '/api/convex-auth', method: 'POST', body: '{}' }), /unexpected_browser_request/);
+  assert.throws(() => policy({ url: config.origin + '/api/convex-auth', method: 'POST', body: '{}' }), /browser_refresh_body/);
+  const refresh = { url: config.origin + '/api/convex-auth', method: 'POST',
+    body: JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }) };
+  assert.equal(policy(refresh).writes, 16); assert.throws(() => policy(refresh), /retry/);
   const post = { url: config.origin + '/api/convex/public', method: 'POST',
     body: JSON.stringify({ action: 'checkin', id: config.legacyId, identity: 'NXT01' }) };
   for (let i = 1; i <= 3; i++) assert.equal(policy(post).ordinal, i);
@@ -359,8 +424,16 @@ function browserFixture({ leakHttpOnly = false, failContext = false, failClose =
           await this.httpRoute({
             request: () => ({ url: () => url, method: () => method, postData: () => body,
               redirectedFrom: () => redirected ? {} : null,
-              allHeaders: async () => readHeaders ? readHeaders({ method, headers }) : headers }),
-            fulfill: async value => { result = value; fulfilled.push(value); },
+              allHeaders: async () => readHeaders ? readHeaders({ method, headers, body }) : headers }),
+            fulfill: async value => {
+              result = value; fulfilled.push(value);
+              for (const line of value.headers?.['set-cookie']?.split('\n') ?? []) {
+                const separator = line.indexOf('='), name = line.slice(0, separator), cookieValue = line.slice(separator + 1).split(';')[0];
+                this.jar = this.jar.filter(cookie => cookie.name !== name);
+                if (cookieValue) this.jar.push({ name, value: cookieValue, path: '/', domain: 'fixture.vercel.app',
+                  httpOnly: line.includes('HttpOnly'), secure: line.includes('Secure'), sameSite: 'Lax' });
+              }
+            },
             abort: async () => { aborted = true; },
           });
           if (aborted) throw Error('fixture browser request aborted');
@@ -381,6 +454,12 @@ function browserFixture({ leakHttpOnly = false, failContext = false, failClose =
             async evaluate(_fn, value) {
               if (hangEvaluation) return new Promise(() => {});
               if (!value) return leakHttpOnly ? authNames : [];
+              if (value.refresh) {
+                const result = await owner.issue(origin + '/api/convex-auth', 'POST',
+                  { 'Content-Type': 'application/json', Cookie: owner.jar.map(c => `${c.name}=${c.value}`).join('; ') },
+                  JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }));
+                return result.status;
+              }
               const result = await owner.issue(origin + '/api/convex/public', 'POST',
                 { 'Content-Type': 'application/json', ...value.headers },
                 JSON.stringify({ action: 'checkin', id: value.id, identity: 'NXT01' }));
@@ -410,6 +489,7 @@ function browserFixture({ leakHttpOnly = false, failContext = false, failClose =
     send: async (request, admission) => {
       sends.push({ request, admission });
       const result = admission.key === 'cookieProbe' ? response({ error: 'Invalid method.' }, 405) :
+        admission.key === 'refresh' ? response({ tokens: { token: refreshedJwt, refreshToken: 'dummy' } }, 200, cookieLines(false, true)) :
         admission.key === 'metadata' ? response({ title: 'Next hosted synthetic class', closed: false }) :
         admission.key === 'checkin' ? response({ name: 'Next One', ...(++checkins > 1 ? { already: true } : {}) }) : response({});
       result.headers.set('Content-Encoding', 'gzip'); result.headers.set('Content-Length', '999'); return result;
@@ -421,12 +501,15 @@ function browserFixture({ leakHttpOnly = false, failContext = false, failClose =
 test('actual browser harness isolates teacher cookies, gates routes and completes exactly three planned check-ins offline', async () => {
   const fixture = browserFixture(); const browser = await createBrowserHarness(fixture.config);
   assert.equal(browser.cookiesVerified, true); assert.equal(fixture.contexts.length, 2);
+  assert.equal(browser.refreshVerified, true);
   assert.equal(fixture.contexts[0].closed, true); assert.equal(fixture.contexts[1].jar.length, 0);
   await browser.firstCheckin();
   await browser.duplicate({ 'x-forwarded-for': '198.51.100.71' });
   await browser.duplicate({ 'x-vercel-forwarded-for': '203.0.113.82' });
   assert.equal(fixture.sends.filter(x => x.admission.key === 'checkin').length, 3);
   assert.equal(fixture.sends.filter(x => x.admission.key === 'cookieProbe').length, 1);
+  assert.equal(fixture.sends.filter(x => x.admission.key === 'refresh').length, 1);
+  assert.equal(fixture.fulfilled.find(x => x.headers?.['set-cookie'])?.headers['set-cookie'].split('\n').length, 3);
   assert.equal(fixture.observation.stubbedTelemetry, 1);
   assert(!fixture.sends.some(x => x.request.url.includes('/_vercel/')));
   assert(fixture.fulfilled.every(x => !x.headers?.['content-encoding'] && !x.headers?.['content-length']));
@@ -495,7 +578,10 @@ test('complete offline fixture exercises real orchestration, bounded cleanup and
   const run = offlineRun(); const report = await run.run();
   assert.equal(report.passed, true); assert.equal(report.functionalFlowCompleted, true);
   assert.equal(report.assertions.VercelProPlan,true);
-  assert.equal(report.counters.writes, 593); assert.equal(report.counters.calls, 61 + report.counters.nextCalls);
+  for (const name of ['ShortSignedJwtAccepted', 'ShortSignedJwtExpired401', 'ManagedJwtStillAccepted', 'RefreshedSessionDeadline', 'BrowserCookieRefresh'])
+    assert.equal(report.assertions[name], true);
+  assert.equal(run.state.waited, 80000);
+  assert.equal(report.counters.writes, 609); assert.equal(report.counters.calls, 61 + report.counters.nextCalls);
   assert.equal(report.counters.control, 1 + 20 + report.counters.runnerControl);
   assert.equal(report.browser.checkinRequests, 3); assert.equal(report.ipProvenance.status, 'verified');
   assert.equal(report.negativeProbes.length, 8); assert.equal(report.cleanup.sessionRevocationVerified, true);
@@ -505,9 +591,32 @@ test('complete offline fixture exercises real orchestration, bounded cleanup and
   assert(run.events.lastIndexOf('confirm-closed') < run.events.indexOf('revoke'));
   assert(run.events.indexOf('revoke') < run.events.indexOf('delete'));
   const artifact = run.persisted.get('docs/measurements/hosted-next-verification.json');
-  for (const privateValue of [jwt, 'synthetic-bypass', 'synthetic-refresh', 'synthetic-admin-capability',
+  for (const privateValue of [jwt, refreshedJwt, run.state.short.token, backendFixture().config.JWT_PRIVATE_KEY,
+    'synthetic-bypass', 'synthetic-refresh', 'synthetic-refreshed', 'synthetic-admin-capability',
     '198.51.100.71', '203.0.113.82', 'd'.repeat(64), 'c'.repeat(64)]) assert(!artifact.includes(privateValue));
   assert.equal(JSON.parse(artifact).passed, true);
+});
+
+test('short expiry requires a specific 401 while a successful or different failure cannot pass', async () => {
+  for (const options of [{ acceptExpired: true }, { expiryStatus: 503 }]) {
+    const run = offlineRun(options), report = await run.run();
+    assert.equal(report.passed, false); assert.equal(report.failedPhase, 'signed short JWT expiry');
+    assert.equal(run.state.waited, 80000); assert.equal(run.state.checkins, 0);
+    assert.equal(report.cleanup.availabilityClosed, true); assert.equal(report.cleanup.vercelDeleted, true);
+  }
+});
+
+test('short expiry wait preserves ordinary deadline and cancellation plus reserved closure cleanup', async () => {
+  let elapsed = 0;
+  const deadline = offlineRun({ elapsed: () => elapsed }), original = deadline.dependencies.shortJwt;
+  deadline.dependencies.shortJwt = (...args) => { elapsed = 60000; return original(...args); };
+  const stopped = await deadline.run();
+  assert.equal(stopped.failureKind, 'short_jwt_deadline'); assert.equal(deadline.state.waited, 0);
+  assert.equal(stopped.cleanup.availabilityClosed, true); assert.equal(stopped.cleanup.logoutConfirmed, true);
+  const cancellation = offlineRun({ onExpiryWait: () => process.emit('SIGTERM') }), cancelled = await cancellation.run();
+  assert.equal(cancelled.cancelled, true); assert.equal(cancelled.passed, false);
+  assert.equal(cancelled.cleanup.availabilityClosed, true); assert.equal(cancelled.cleanup.vercelDeleted, true);
+  assert.equal(cancellation.events.filter(x => x === 'rpc:attendance:viewer').length, 2);
 });
 
 test('runtime rejects a wrong or missing Vercel plan before hosting probes or application writes',async()=>{
@@ -533,7 +642,7 @@ test('missing bounded admin observable produces honest unverified result while f
   const run = offlineRun({ noAdmin: true }); const report = await run.run();
   assert.equal(report.passed, false); assert.equal(report.functionalFlowCompleted, true);
   assert.equal(report.ipProvenance.status, 'unverified'); assert.equal(report.cleanup.availabilityClosed, true);
-  assert.equal(report.cleanup.vercelDeleted, true); assert.equal(report.counters.writes, 593);
+  assert.equal(report.cleanup.vercelDeleted, true); assert.equal(report.counters.writes, 609);
 });
 
 test('failure after signup prioritizes closure and confirmation before optional logout and exact deployment deletion', async () => {
@@ -697,8 +806,9 @@ for (const stop of ['signal', 'fatal']) {
   test(`browser send boundary rejects queued check-in during ${stop} cleanup`, async () => {
     const run = offlineRun();
     let queued = 0, rejected = 0;
+    const createBrowser = run.dependencies.createBrowser;
     run.dependencies.createBrowser = async config => ({
-      cookiesVerified: true,
+      ...await createBrowser(config),
       firstCheckin: () => new Promise(() => {
         queueMicrotask(() => {
           run.events.push('stop');
@@ -734,8 +844,8 @@ for (const stop of ['signal', 'fatal']) {
 
 test('browser route rechecks cancellation after its header read settles', async () => {
   const abort = new AbortController();
-  const fixture = browserFixture({ readHeaders: ({ method, headers }) => {
-    if (method === 'POST') {
+  const fixture = browserFixture({ readHeaders: ({ method, headers, body }) => {
+    if (method === 'POST' && JSON.parse(body).action === 'checkin') {
       // Let the header operation settle, then stop before its caller dispatches.
       const result = Promise.resolve(headers);
       result.then(() => queueMicrotask(() => queueMicrotask(() => abort.abort())));
@@ -754,8 +864,8 @@ test('browser route rechecks cancellation after its header read settles', async 
 
 test('browser route cannot send when teardown completes during its header read', async () => {
   let browser;
-  const fixture = browserFixture({ readHeaders: async ({ method, headers }) => {
-    if (method === 'POST') await browser.close();
+  const fixture = browserFixture({ readHeaders: async ({ method, headers, body }) => {
+    if (method === 'POST' && JSON.parse(body).action === 'checkin') await browser.close();
     return headers;
   } });
   browser = await createBrowserHarness(fixture.config);
@@ -788,7 +898,7 @@ test('continuation runner validates its new manifest and history, persists separ
   assert.equal(report.counters.creations, 2);
   assert.equal(report.counters.calls, 61 + report.counters.nextCalls);
   assert.equal(report.counters.control, 17 + 20 + report.counters.runnerControl);
-  assert.equal(report.counters.writes, 593); assert.equal(report.cleanup.availabilityClosed, true);
+  assert.equal(report.counters.writes, 609); assert.equal(report.cleanup.availabilityClosed, true);
   assert.equal(report.cleanup.vercelDeleted, true);
   assert(run.persisted.has(CONTINUATION_PATHS.attempt)); assert(run.persisted.has(CONTINUATION_PATHS.evidence));
   assert([...run.persisted.keys()].every(path => !Object.values(ORIGINAL_PATHS).includes(path)));
@@ -838,8 +948,9 @@ test('third runner requires its new publication, retains cumulative costs and wr
   assert.deepEqual(report.thirdContinuation,THIRD);assert.equal(report.counters.creations,3);
   assert.equal(report.bounds.hosting,50);assert.equal(report.bounds.control,80);
   assert.equal(report.counters.calls,61+report.counters.nextCalls);
+  assert.equal(report.counters.nextCalls,39);
   assert.equal(report.counters.control,33+2+20+report.counters.runnerControl);
-  assert.equal(report.counters.writes,593);assert.equal(report.cleanup.availabilityClosed,true);
+  assert.equal(report.counters.writes,609);assert.equal(report.cleanup.availabilityClosed,true);
   assert.deepEqual([...run.persisted.keys()].sort(),[THIRD_PATHS.attempt,THIRD_PATHS.evidence].sort());
   const sent=run.events.length;await assert.rejects(run.run(),/continuation_record_exists/);
   assert.deepEqual(run.events.slice(sent),[]);
@@ -849,7 +960,10 @@ test('third runner rejects changed second history, missing preflight, underrepor
     {mutateSecond:x=>{x.cleanup.deploymentDeleted=false;}},
     {mutateThird:x=>{x.preflight.ownershipVerified=false;}},
     {mutateThird:x=>{x.cumulative.calls=63;}},
+    {mutateThird:x=>{x.vercel.sourceArchive.uploadAcknowledged=false;}},
+    {mutateThird:x=>{x.vercel.sourceArchive.creationFiles[0].sha='b'.repeat(40);}},
     {mutatePublication:x=>{x.gitDisconnectPreserved=false;}},
+    {mutatePublication:x=>{x.sourceArchive.sha256='b'.repeat(64);}},
     {creditPatch:{usedCreditUsd:20}},{creditPatch:{plan:'hobby'}}]){
     const run=offlineRun({third:true,...options});await assert.rejects(run.run());
     assert.deepEqual(run.events,[]);assert.equal(run.state.exclusive,0);assert.equal(run.persisted.size,0);
@@ -859,6 +973,12 @@ test('third runner rejects any Git reconnection before app requests or mutation'
   const run=offlineRun({third:true,gitLinkReturned:true});const report=await run.run();
   assert.equal(report.passed,false);assert.equal(report.failureKind,'GitDisconnectPreserved');
   assert.equal(run.state.mutationCalls,0);assert.equal(report.physicalRequests.hosting,0);
+});
+test('third runtime rejects mismatched archive readback before hosting or synthetic mutations',async()=>{
+  const run=offlineRun({third:true,mutateDeployment:x=>{x.meta.attendanceArchiveSha256='b'.repeat(64);}});
+  const report=await run.run();assert.equal(report.passed,false);
+  assert.equal(run.state.mutationCalls,0);assert.equal(report.physicalRequests.hosting,0);
+  assert.equal(run.events.some(x=>x.method==='DELETE'),false);
 });
 test('third selector cannot be omitted, downgraded or extended to an unallocated fourth attempt',()=>{
   const m=fixture();m.thirdContinuation=structuredClone(THIRD);

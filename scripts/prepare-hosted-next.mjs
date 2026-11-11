@@ -13,7 +13,8 @@ import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS,
   validateContinuationHistory, continuationTotals } from './hosted-next-continuation.mjs';
 import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdHistory, thirdTotals,
   validateCompatibilityDeployment, validateCompatibilityMaps, validateExplicitGitSource,
-  validateVercelCreditReview } from './hosted-next-third.mjs';
+  validateVercelCreditReview, validatePreviewBackendCompatibility, validateArchiveDeployment } from './hosted-next-third.mjs';
+import { archiveHostedNextSource, sourceArchiveUploadDescriptor } from './archive-hosted-next-source.mjs';
 
 export const EXPECTED = Object.freeze({
   teamSlug: 'nomokaro625-9385s-projects', teamId: 'team_fmwIPLne9w30y7G5JQrs3fzl',
@@ -96,12 +97,14 @@ export function validateLiveIdentity(m, live, canonical) {
 // This checks both the tracked review boundary and non-ignored source additions.
 // The upload must still be made exclusively from `git archive` at this commit.
 export function validateSource(reviewedCommit, backendCommit, git = (args) =>
-  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })) {
+  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }), { third = false } = {}) {
   assert(/^[a-f0-9]{40}$/.test(reviewedCommit ?? '') && /^[a-f0-9]{40}$/.test(backendCommit ?? ''), 'source_commit');
   assert(git(['rev-parse', 'HEAD']).trim() === reviewedCommit, 'head_mismatch');
-  git(['diff', '--exit-code', backendCommit, reviewedCommit, '--', ...sourcePaths.filter(x => x !== 'scripts')]);
+  const compatibility = third ? validatePreviewBackendCompatibility(reviewedCommit, backendCommit, git) : undefined;
+  if (!third) git(['diff', '--exit-code', backendCommit, reviewedCommit, '--', ...sourcePaths.filter(x => x !== 'scripts')]);
   git(['diff', '--exit-code', reviewedCommit, '--', ...sourcePaths]);
   assert(!git(['ls-files', '--others', '--exclude-standard', '--', ...sourcePaths]).trim(), 'untracked_source');
+  return compatibility;
 }
 
 export function validateBuildHooks(vercel, pkg) {
@@ -156,16 +159,18 @@ export function readVercelToken(path) {
   }
   return config.token;
 }
-export async function providerJson(url, { method = 'GET', headers = {}, body, timeoutMs = 10000,
+export async function providerJson(url, { method = 'GET', headers = {}, body, binaryBody, timeoutMs = 10000,
   allowedStatuses = [200], fetchImpl = fetch } = {}) {
   const target = new URL(url);
   assert(target.protocol === 'https:' && !target.username && !target.password && !target.hash,
     'provider_url');
+  assert(binaryBody === undefined || (body === undefined && Buffer.isBuffer(binaryBody) &&
+    binaryBody.length > 0 && binaryBody.length <= 4 * 1024 * 1024), 'provider_binary_body');
   let response;
   try { response = await fetchImpl(target.href, { method, redirect: 'error',
       signal: AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs))),
       headers: { ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
+      ...(binaryBody !== undefined ? { body: binaryBody } : body === undefined ? {} : { body: JSON.stringify(body) }) }); }
   catch { throw diagnosticError('provider_transport', 'transport'); }
   const reader = response.body?.getReader(), chunks = [];
   let bytes = 0;
@@ -193,8 +198,9 @@ export function validateVercelDeployment(data, expected, { requireReady = true }
     projects.length > 0 && projects.every(value => value === EXPECTED.projectId) &&
     Object.hasOwn(data, 'target') && [null, 'preview'].includes(data.target) &&
     !data.customEnvironment && data.meta?.attendanceValidation === expected.runId &&
-    data.meta?.attendanceSourceCommit === expected.sourceCommit &&
-    data.meta?.githubCommitSha === expected.sourceCommit, 'vercel_deployment_binding');
+    data.meta?.attendanceSourceCommit === expected.sourceCommit, 'vercel_deployment_binding');
+  if (expected.sourceArchive) validateArchiveDeployment(data, expected.sourceArchive, expected.sourceCommit);
+  else assert(data.meta?.githubCommitSha === expected.sourceCommit, 'vercel_deployment_binding');
   assert(typeof data.url === 'string' && /^[a-z0-9-]+\.vercel\.app$/.test(data.url) &&
     expected.url === `https://${data.url}`, 'vercel_deployment_url');
   if (data.gitSource?.sha !== undefined) assert(data.gitSource.sha === expected.sourceCommit, 'vercel_git_source');
@@ -227,7 +233,7 @@ export async function cleanupOwnedVercel({ manifest, request }) {
   return result;
 }
 
-export function deploymentBody(backendManifest, sourceCommit, runId) {
+export function deploymentBody(backendManifest, sourceCommit, runId, archive) {
   const env = deploymentEnvironment(backendManifest);
   const buildEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     key.startsWith('NEXT_PUBLIC_') || ['CONVEX_DEPLOY_KEY', 'BLOB_READ_WRITE_TOKEN'].includes(key)));
@@ -235,9 +241,12 @@ export function deploymentBody(backendManifest, sourceCommit, runId) {
   // Its preview selector omits target; the documented API default is Preview.
   // No projectSettings are sent: they can persist across later deployments.
   return { name: 'attendance-tracker', project: EXPECTED.projectId,
-    gitSource: { type: 'github', repoId: 1409352117, ref: sourceCommit, sha: sourceCommit },
+    ...(archive ? { files: structuredClone(archive.files) } :
+      { gitSource: { type: 'github', repoId: 1409352117, ref: sourceCommit, sha: sourceCommit } }),
     env, build: { env: buildEnv },
-    meta: { attendanceValidation: runId, attendanceSourceCommit: sourceCommit } };
+    meta: { attendanceValidation: runId, attendanceSourceCommit: sourceCommit,
+      ...(archive ? { attendanceArchiveSha1: archive.sha1, attendanceArchiveSha256: archive.sha256,
+        attendanceSourceTree: archive.metadata.sourceTree } : {}) } };
 }
 
 export function validateEffectiveEnvironment(records, backendManifest, { httpStatus } = {}) {
@@ -246,6 +255,8 @@ export function validateEffectiveEnvironment(records, backendManifest, { httpSta
   const verify = (condition, code, category) => {
     if (!condition) throw diagnosticError(code, category, httpStatus, environmentShape(records));
   };
+  verify(records?.protectedSecrets === undefined || records.protectedSecrets === false,
+    'effective_protected_secrets', 'protected_secrets');
   verify(runtime && build && typeof runtime === 'object' && typeof build === 'object' &&
     !Array.isArray(runtime) && !Array.isArray(build), 'effective_environment_unavailable', 'missing_or_malformed_maps');
   for (const key of ['NEXT_PUBLIC_ATTENDANCE_BACKEND', 'NEXT_PUBLIC_CONVEX_URL', 'NEXT_PUBLIC_CONVEX_SITE_URL'])
@@ -337,10 +348,11 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     if (manifest) { manifest.counters = { ...report.counters }; save(cleaning); }
   };
   const vercel = async (endpoint, options = {}) => {
-    assert(/^\/(?:v2\/(?:teams|deployments)\/|v3\/env\/pull\/|v9\/projects\/|v13\/deployments|aliases\/)/.test(endpoint), 'vercel_endpoint');
+    assert(/^\/(?:v2\/(?:teams|deployments)\/|v3\/env\/pull\/|v9\/projects\/|v13\/deployments|aliases\/)/.test(endpoint) ||
+      (third && endpoint === '/v2/files' && options.method === 'POST' && Buffer.isBuffer(options.binaryBody)), 'vercel_endpoint');
     reserveControl();
     const url = new URL(endpoint, 'https://api.vercel.com'); url.searchParams.set('teamId', EXPECTED.teamId);
-    return providerJson(url.href, { ...options, headers: { Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()), fetchImpl });
+    return providerJson(url.href, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` }, timeoutMs: Math.min(20000, remaining()), fetchImpl });
   };
   const compatibilityRead = async endpoint => {
     remaining(); assert(third && report.preflight.controlRequests < 2, 'third_preflight_budget');
@@ -368,8 +380,12 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
       for (const unused of [paths.publication, paths.attempt, paths.evidence]) absent(unused);
     }
     const sourceCommit = env.ATTENDANCE_VALIDATION_SOURCE_COMMIT;
-    validateSource(sourceCommit, backendManifest.reviewedSourceCommit, dependencies.git);
+    const backendCompatibility = validateSource(sourceCommit, backendManifest.reviewedSourceCommit, dependencies.git, { third });
     validateBuildHooks(publicJson('vercel.json'), publicJson('package.json'));
+    // No working-tree/private files: the archive reads only the exact reviewed Git objects.
+    const archive = third ? (dependencies.archiveSource ?? archiveHostedNextSource)({ repoRoot: resolve('.'), commit: sourceCommit }) : undefined;
+    if (third) assert(archive?.metadata?.sourceCommit === sourceCommit, 'source_archive_commit');
+    const upload = archive ? sourceArchiveUploadDescriptor(archive) : undefined;
     phase = 'quota and credentials'; const quota = await (dependencies.readQuotaReview ?? readQuotaReview)();
     if (third) report.vercelCreditReview = validateVercelCreditReview(JSON.parse(privateText(vercelCreditReviewPath)), clock());
     token = dependencies.vercelToken ?? readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
@@ -378,16 +394,19 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
       previewKey.split('|').length === 2, 'preview_key_scope');
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     const candidate = { version: 1, runId, sourceCommit, publication: 'preflight', backend,
-      ...(third ? { thirdContinuation: report.thirdContinuation, preflight: { ...report.preflight },
+      ...(third ? { thirdContinuation: report.thirdContinuation, backendCompatibility, preflight: { ...report.preflight },
         cumulative: thirdTotals(report.counters) } : {}),
       ...(continued ? { continuation: report.continuation, cumulative: continuationTotals(report.counters) } : {}),
       vercel: { teamSlug: EXPECTED.teamSlug, teamId: EXPECTED.teamId, projectId: EXPECTED.projectId, target: 'preview', ready: false,
-        ...(third ? { requireGitSource: true } : {}) },
+        ...(third ? { sourceArchive: { metadata: archive.metadata, contentManifest: archive.contentManifest,
+          sha1: archive.sha1, sha256: archive.sha256, files: archive.files,
+          uploadSubmitted: false, uploadAcknowledged: false, creationSubmitted: false } } : {}) },
       cleanupReservation: { controlRequests: 4, automaticResume: false },
       counters: { ...report.counters }, createdAt: new Date().toISOString() };
     persist(path, JSON.stringify(candidate, null, 2) + '\n', { exclusive: true });
     manifest = candidate; cleanupReserved = true;
     Object.assign(report, { runId, sourceCommit, cleanupReservePersisted: true });
+    if (third) { report.backendCompatibility = backendCompatibility; report.sourceArchive = manifest.vercel.sourceArchive; }
     process.on('SIGINT', cancelledSignal); process.on('SIGTERM', cancelledSignal);
     report.quotaReview = { observedAt: quota.observedAt, source: quota.source, sufficientReviewedHeadroom: true };
     if (third) {
@@ -429,13 +448,24 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
     validateProjectForPublication(project, { gitDisconnected: third });
     const productionId = project.targets.production.id;
     const aliasesBefore = productionAliasBindings((await vercel(`/v2/deployments/${productionId}/aliases`)).body);
+    if (third) {
+      phase = 'source archive upload';
+      manifest.vercel.sourceArchive.uploadSubmitted = true; save();
+      await vercel(upload.path, { method: upload.method, headers: upload.headers,
+        binaryBody: upload.body, allowedStatuses: [200, 201] });
+      manifest.vercel.sourceArchive.uploadAcknowledged = true; save();
+      remaining();
+    }
     phase = 'single deployment creation'; manifest.publication = 'creation submitted or uncertain';
+    const body = deploymentBody(backendManifest, sourceCommit, runId, archive);
+    if (third) { manifest.vercel.sourceArchive.creationSubmitted = true;
+      manifest.vercel.sourceArchive.creationFiles = structuredClone(body.files); }
     manifest.creationState = 'submitted; outcome uncertain'; save();
     if (continued) continuationTotals(report.counters, report.creationRequests + 1);
     if (third) thirdTotals(report.counters, report.creationRequests + 1, report.preflight.controlRequests);
     report.creationRequests++;
     const created = (await vercel('/v13/deployments', { method: 'POST',
-      body: deploymentBody(backendManifest, sourceCommit, runId), allowedStatuses: [200, 201] })).body;
+      body, allowedStatuses: [200, 201] })).body;
     if (/^dpl_[A-Za-z0-9]+$/.test(created?.id ?? '')) {
       manifest.vercel.deploymentId = created.id; report.deploymentId = created.id;
       manifest.creationState = 'returned ID; ownership unverified'; save();
@@ -446,7 +476,7 @@ export async function prepareHostedNext(args, env = process.env, dependencies = 
       /^[a-z0-9-]+\.vercel\.app$/.test(created.url), 'created_identity');
     manifest.vercel.url = `https://${created.url}`; save();
     phase = 'deployment readiness'; let deployment;
-    for (let poll = 0; poll < 5; poll++) {
+    for (let poll = 0; poll < (third ? 4 : 5); poll++) {
       deployment = (await vercel(`/v13/deployments/${created.id}`)).body;
       validateVercelDeployment(deployment, { ...manifest.vercel, sourceCommit, runId }, { requireReady: false });
       if (deployment.readyState === 'READY') break;

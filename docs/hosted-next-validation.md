@@ -381,3 +381,98 @@ failed against the previous implementation. The next scoped review accepted the
 correction: fifty targeted tests and 118 additional offline timing cases passed.
 It granted code readiness subject to live/quota gates; it did not establish
 provider behavior. The subsequent publication outcome is recorded above.
+
+## Third-attempt archive preparation (offline only)
+
+The third path now uses one content-addressed archive upload instead of GitHub
+source selection. Original and continuation requests and their evidence retain
+their Git checks. This preparation authorizes no creation, backend publication,
+production change, Git reconnection, paid usage or extra attempt.
+
+`archive-hosted-next-source.mjs` reads only the exact reviewed commit's Git objects.
+It caps source at 512 public regular files and 8 MiB, verifies GNU tar entries
+and extracted content against every Git blob, then creates deterministic gzip
+bounded to 4 MiB. Unsafe/private paths, symlinks, submodules and archive attribute
+omissions/substitutions stop preparation. Source bytes stay in memory. SHA-256
+binds the archive and independent content manifest; SHA-1 is Vercel's content
+address. Fictional temporary Git repositories cover the archive protocol. Root
+also built the actual committed repository archive offline: 221 files, 2,005,097
+source bytes and 519,184 compressed bytes, with zero provider requests. This
+exposed early-exit tar stdin `EPIPE`; consuming the complete already-unique
+archive fixed it, with a 512 KiB regression fixture. The exact final reviewed
+commit is archived again by the publisher before upload.
+
+The request matches installed CLI 62.1.0 / `@vercel/client` 18.5.0:
+one binary `POST /v2/files`, with Content-Length, x-now-size and x-now-digest,
+followed by one `POST /v13/deployments` with the file entry
+`.vercel/source.tgz.part1`, mode 438, size and SHA-1. It omits target, gitSource,
+gitMetadata and projectSettings. An exclusive private record reserves cleanup
+before upload; upload acknowledgement, payload hashes, content manifest and the
+exact submitted creation file entry are retained before creation. Returned
+owner/project/run/source/archive tags and the unique URL must bind the new
+deployment. Metadata alone does not establish the uploaded source. Ownership
+failure stops deletion; an uncertain creation is never retried. Both publisher
+and runtime apply this archive gate only to the third path.
+
+The project must have its Git link disconnected before upload and after Ready.
+Production deployment and complete alias bindings must remain unchanged. The
+extra upload consumes one ordinary publisher control; third readiness reads are
+capped at four, preserving 16 ordinary plus four cleanup controls. The existing
+two preflight, 20 publisher and 19 runtime limits remain. Spent totals remain
+63 application calls, two Next calls, 33 controls, 355 write reservations, seven
+gateway calls and two creations; cumulative limits remain 80 controls, three
+creations and 50 hosting requests. A fresh Pro credit review must preserve at
+least $0.81 of other reservations before the $1 engineering reservation.
+
+Backend compatibility pins the existing preview publication to
+`b06caabfe3f713c40160e28843695bcc65ac2a19`; it does not relabel that publication.
+The machine check compared it with public source HEAD
+`690e42d3f3f596d97ed2e385b0e857b70dd773ff` and passed. All app, auth, gateway,
+access, attendance, operations, lib, patch and configuration bytes remain equal.
+The administrative `convex/migration.ts` difference is explicitly outside these
+hosted scenarios. Package comparison permits exactly Next 16.4.3 → 16.4.4 and
+Lucide 1.61.0 → 1.66.0. The bounded pnpm v9 text comparison keeps every backend
+importer, integrity, dependency, peer, patch and override byte. It permits only
+those frontend versions and their specific Next/env/swc, browser baseline,
+caniuse, semver and tslib closure changes, with scoped frontend peer references.
+Other lockfile changes or unsupported format stop the check. The common lock
+projection SHA-256 was
+`b165594dadee9366a8ab90fec9ffd9052546b7bc7f3f09cbb6eabe2516fef3da`.
+Publisher and runtime recompute this proof for the reviewed source commit.
+
+The targeted offline suite passed 142 tests across archive, publisher, runtime,
+third policy and continuation files. It covers byte/manifest drift, private paths,
+caps, upload failure/cancellation/persistence uncertainty, no Git request,
+four readiness reads with full reserved cleanup, archive ownership failure,
+backend dependency drift and the existing regressions. No private inputs,
+credentials, browser or cloud services were used.
+
+Remaining live gates belong to root: fresh Free quota, Vercel Pro headroom,
+identities, unchanged exclusive paths and final source review before any cloud
+execution; old Ready deployment environment-shape compatibility; archive upload
+and provider creation acceptance; exact build/runtime environment readback via
+`source=vercel-cli:env:pull` plus teamId; scoped protection-header acceptance; and
+the preview-only hosted cookie/JWT/gateway/logout workload and cleanup. Protected
+Secrets, missing/redacted values and absent empty credential overrides stop
+publication. Actual production remains read-only.
+
+The runtime now requires an actual browser refresh through the normal cookie
+handler. It checks rotated HttpOnly/Secure/host-only cookies, unchanged managed
+session deadline, and successful authenticated use of the refreshed token. It
+also signs a preview-only 15-second JWT fixture for that same managed session,
+verifies acceptance, waits once through expiry plus 65 seconds of clock-tolerance
+margin, requires a specific 401, and verifies that the managed-token control still
+works. This checks hosted expiry enforcement; it does not observe the natural
+one-hour managed JWT or 30-day session lifetime. The test signing code is never
+part of application auth, and neither key nor token is persisted or printed.
+
+The extra checks retain the existing ceilings: 39 cumulative Next-call
+reservations, 592 ordinary write reservations and 17 cleanup write reservations
+(609 total, including the prior 355). Normal-flow logout uses the cleanup write
+reserve without changing its ordinary request deadline or cancellation boundary.
+The ordinary and cleanup write totals are tracked separately so zero-write probes
+remain possible after revocation. The expiry wait is abortable and must fit the
+130-second ordinary window; the 50-second cleanup window remains reserved.
+The final combined archive/publisher/runtime/history suite passed 147 offline
+tests after the refresh, short-token and repository-sized archive corrections.
+No hosted requests or new deployment were made by those tests.
