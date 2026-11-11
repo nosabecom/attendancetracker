@@ -1,8 +1,9 @@
 # Bounded production import
 
-Status: local implementation and tests only. This tool has not contacted
-production. Production identity/publication, private key acquisition, real
-resource allocation and Astra pre-execution review are still required.
+Status: this import tool has not contacted production. Its implementation has
+received conditional Astra acceptance. Private capability capture and the
+separately bounded backend publication completed; actual setup evidence review
+and the real ready manifest remain required before import.
 
 The [wrapper](../scripts/execute-production-import.mjs) accepts only the preserved
 298-object frozen dataset and the intended `tremendous-elk-298` production target.

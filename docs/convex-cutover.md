@@ -2,7 +2,8 @@
 
 Status: the final frozen Blob source and offline historical reconciliation are
 complete and accepted by Astra. The legacy app remains held with revoked Blob
-credentials. Production Convex publication/import and traffic cutover are pending.
+credentials. The bounded existing-production Convex backend publication completed;
+its actual evidence review, data import and traffic cutover are pending.
 This document is an operating procedure, not a record of completed cutover.
 Do not enable Convex against an empty target or discard the old data.
 

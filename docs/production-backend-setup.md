@@ -1,10 +1,11 @@
 # Existing production backend setup
 
-Status: offline preparation. The frozen Blob source is saved and reconciled.
+Status: production backend publication completed; evidence review and import pending.
+The frozen Blob source is saved and reconciled.
 The production import wrapper has received conditional Astra acceptance. One
-production capability was created, but its private capture timed out. No key was
-downloaded, no production functions have been published, and no records have
-been imported in this step. The stopped attempt remains spent.
+production capability was created. Its first capture timed out; the separately
+reviewed same-key recovery succeeded, followed by the bounded publication below.
+No records have been imported in this step. The stopped attempt remains spent.
 
 The target is the existing Production deployment `tremendous-elk-298`, in
 `convex-cyan-garden`, under Convex team `nomokaro625-9385-s-projects`. The cloud
@@ -156,3 +157,35 @@ After an actual private-file verification, separately review/bind the updated
 source and original still-unused backend/publication allowance before continuing
 setup. This proposal does not reset `PRODUCTION_BACKEND_SETUP1`, create another
 key, or permit import or public traffic.
+
+## Actual production setup outcome
+
+The separately reviewed same-visible-key recovery completed with one ordinary
+Copy and one download. Root verified the complete private file, ownership,
+0600/0700 permissions, matching copied bytes and distinct inode before closing
+the browser tab. No second key was created. The original timeout and all
+reservations remain retained.
+
+`PRODUCTION_BACKEND_SETUP1` then completed against the pinned existing Production
+target at source `8e9a6e8`. Its ten explicit requests were two canonical-URL
+reads, one usage read, two usage-limit reads, two environment system queries,
+one daily-limit creation, one environment update and one function-specification
+system query. All ten have durable reservations and responses, with no uncertain
+request or stopped marker. The one CLI publication exited zero with no reported
+uncertainty. CLI/UI internal traffic and final provider billing remain unknown.
+
+Canonical origins and exact private configuration readback matched. The actual
+published specification has the required function identifiers/types, internal
+visibility and supported optional-boolean `readOnly` activation validator.
+`publishedFunctionMetadataVerified` is true. Root verified private-ledger
+ownership/0400 permissions, receipt agreement and unchanged bound source.
+See [the sanitized evidence](./measurements/production-backend-setup.json).
+
+The temporary enabled 1,000-function-call daily disable limit is installed; its
+public-release setting still needs a separate decision. Ten unused explicit
+setup request reservations are not permission for other work. The single CLI
+publication is spent. No import was initialized and no application table was
+inspected. There is no ready manifest or traffic switch yet. Actual setup
+evidence must receive Astra review before preparing the real ready manifest and
+running the separate import allocation. The operator/deployment/environment-copy
+hold remains active.

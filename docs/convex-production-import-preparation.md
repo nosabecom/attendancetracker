@@ -1,8 +1,10 @@
 # Production import preparation
 
-Status: implementation accepted conditionally. One production Convex key was
-created; private capture timed out. No publication, data import or traffic switch
-was performed. The [final frozen source](./blob-final-frozen-export.md)
+Status: implementation accepted conditionally. The production key was privately
+captured through the separately reviewed recovery, and the bounded existing-target
+backend publication completed. No data import or traffic switch was performed.
+Actual setup evidence review and the real ready manifest are next.
+The [final frozen source](./blob-final-frozen-export.md)
 is now preserved; its recalculated plan confirms the same counts and bytes below.
 Production execution is still pending its own reviewed, enforced allocation.
 
@@ -47,5 +49,7 @@ or reverse export rather than returning to a stale Blob snapshot.
 
 Hosted Next/cookie/IP/JWT/refresh/expiry provenance, production reconciliation and
 final Astra approval remain required. The frozen source is reconciled; no
-production publication or import has been executed or authorized by this document.
-The next step is the separately reviewed [existing-backend setup](./production-backend-setup.md).
+production import has been executed or authorized by this document. The
+[existing-backend setup](./production-backend-setup.md) records actual publication
+and its separate accounting; it does not establish table emptiness or approve
+import by itself.

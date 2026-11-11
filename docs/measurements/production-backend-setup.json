@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "allocation": "PRODUCTION_BACKEND_SETUP1",
+  "publicationSourceCommit": "8e9a6e8dc72ed4580822fc30f33e23594f5e726a",
+  "completedAt": "2026-11-11T00:49:47.743Z",
+  "productionKeyCreations": 1,
+  "initialCapture": {
+    "outcome": "failed",
+    "code": "timeout",
+    "downloadRequests": 0
+  },
+  "sameKeyRecovery": {
+    "allocation": "PRODUCTION_CAPABILITY_RECOVERY1",
+    "keyCreations": 0,
+    "ordinaryCopyActions": 1,
+    "downloadRequests": 1,
+    "privateFileVerified": true,
+    "originalFailureRetained": true
+  },
+  "explicitBackendRequests": 10,
+  "explicitSystemQueryRequests": 3,
+  "cliPublications": 1,
+  "cliExitStatus": 0,
+  "cliPublicationUncertain": false,
+  "cliInternalRequests": "unknown",
+  "uiInternalRequests": "unknown",
+  "canonicalOriginsVerified": true,
+  "privateConfigurationReadback": true,
+  "identifierTypesVerified": true,
+  "readOnlyMetadata": "observed_supported_shape",
+  "visibilityMetadata": "observed_supported_shape",
+  "publishedFunctionMetadataVerified": true,
+  "temporaryDailyFunctionDisableLimit": 1000,
+  "importInitialized": false,
+  "applicationTables": "not inspected",
+  "readyManifestCreated": false,
+  "recordsImportedByThisStep": 0,
+  "trafficSwitched": false,
+  "ledgerPermissionsVerified": true,
+  "privateEvidenceAgreement": "root_attested",
+  "independentProviderBillingAttribution": false,
+  "previousAllocationsRetained": true
+}
