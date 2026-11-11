@@ -2,7 +2,7 @@
 
 Status: the production import completed all three phases under reviewed source
 `f2c4ab6`. Server verification passed and activation confirmed reads enabled with
-writes disabled. Actual import evidence is awaiting its milestone review;
+writes disabled. Astra accepted the actual import milestone at `003e349`;
 independent semantic reconciliation, hosted validation and cutover remain pending.
 
 The completed run used 36 application-call reservations, 21 verification calls
@@ -12,7 +12,8 @@ reservation chain, immutable ledger permissions and unchanged source binding.
 See [the aggregate evidence](./measurements/production-import.json).
 
 Seven chunks created the planned 357 target documents: three accounts, two
-classes, three reusable roster versions with 132 ordered member rows, three
+classes and their two current-state documents, three credential documents,
+three owner links, three reusable roster versions with 132 ordered member rows, three
 teacher memberships, seven attendance sessions, one closure and 198 sparse
 attendance rows. The planned 723 retained documents also include migration
 receipts/state; that total has not been measured independently. Server
