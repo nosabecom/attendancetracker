@@ -55,7 +55,7 @@ export async function releaseProductionNext(opts, injected = {}) {
     remaining(); const n = report.counters[kind] + 1; check(n <= (cleaning ? max : ordinaryMax), 'budget'); report.counters[kind] = n;
     writeFileSync(`${DIR}/${kind}-${String(n).padStart(2,'0')}.json`, JSON.stringify({ordinal:n,cleanup:cleaning})+'\n', {flag:'wx',mode:0o600,flush:true});
   };
-  const control = async (url, init = {}) => { reserve('controls',30,22); return deps.providerJson(url,{...init,timeoutMs:remaining()}); };
+  const control = async (url, init = {}) => { reserve('controls',30,24); return deps.providerJson(url,{...init,timeoutMs:remaining()}); };
   const vercel = (path, init = {}) => { check(path === AUTOMATION_PATH || (m?.id && path === `/v10/projects/${EXPECTED.projectId}/promote/${m.id}`) || /^\/(?:v2\/teams\/|v2\/deployments\/|v2\/files$|v9\/projects\/|v13\/deployments(?:\?|\/|$))/.test(path), 'vercel_endpoint'); const url = new URL(path,'https://api.vercel.com'); url.searchParams.set('teamId',EXPECTED.teamId); return control(url.href,{...init,headers:{...init.headers,Authorization:`Bearer ${token}`}}); };
   const convex = (path, init = {}) => control(CLOUD+path,{...init,headers:{...init.headers,Authorization:`Convex ${key}`}});
   const availability = async (write, enabled) => {
@@ -144,9 +144,19 @@ export async function releaseProductionNext(opts, injected = {}) {
     phase = 'enable writes'; check(same(productionAliasBindings((await vercel(`/v2/deployments/${previous}/aliases`)).body),aliases),'aliases_changed_before_enable');
     writesMayBeOpen=true; state(await availability(true,true),true); state(await availability(false),true);
     phase = 'promote'; promotionSubmitted=true;
-    await vercel(`/v10/projects/${EXPECTED.projectId}/promote/${m.id}`,{method:'POST',body:{},allowedStatuses:[200,201]});
+    await vercel(`/v10/projects/${EXPECTED.projectId}/promote/${m.id}`,{method:'POST',body:{},allowedStatuses:[200,201,202]});
     phase = 'promotion confirmation';
-    const promoted=(await vercel(`/v9/projects/${EXPECTED.projectId}`)).body; validateProjectForPublication(promoted,{gitDisconnected:true}); check(promoted.targets.production.id === m.id,'production_pointer');
+    let promotionComplete=false;
+    for(let i=0;i<3;i++) {
+      const promoted=(await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
+      validateProjectForPublication(promoted,{gitDisconnected:true});
+      const job=promoted.lastAliasRequest;
+      check(job?.toDeploymentId===m.id && job.type==='promote','promotion_job_identity');
+      if(job.jobStatus==='succeeded') {check(promoted.targets.production.id===m.id,'production_pointer');promotionComplete=true;break;}
+      check(['pending','in-progress'].includes(job.jobStatus),'promotion_failed');
+      if(i<2)await deps.wait(Math.min(10000,remaining()));
+    }
+    check(promotionComplete,'promotion_not_complete');
     check(same(productionAliasBindings((await vercel(`/v2/deployments/${m.id}/aliases`)).body),aliases),'production_aliases');
     reserve('hosting',4); const publicPage=await (injected.fetch ?? fetch)(`https://${opts.stableAlias}/`,{redirect:'manual',signal:AbortSignal.timeout(remaining())}); await publicPage.body?.cancel(); check(publicPage.status === 200,'public_homepage');
     phase = 'capability revocation'; const revoked=(await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationRevokeBody(capability)})).body; verifyAutomationRevoked((await vercel(`/v9/projects/${EXPECTED.projectId}`)).body,capability,automationBaseline); capability=undefined; report.cleanup.capabilityRevoked=true; report.cleanup.providerExpires=false;
