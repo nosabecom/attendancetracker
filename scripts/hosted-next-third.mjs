@@ -151,10 +151,10 @@ export const OWNED_DEVELOPMENT_PATHS = freeze({
 });
 export const AUTOMATION_PATHS = freeze({
   backend: OWNED_DEVELOPMENT_PATHS.backend,
-  manifest: '.convex/owned-development-validation/automation-next-manifest.json',
-  publication: 'docs/measurements/hosted-automation-next-setup.json',
-  attempt: '.convex/owned-development-validation/automation-runtime-attempt.json',
-  evidence: 'docs/measurements/hosted-automation-next-verification.json',
+  manifest: '.convex/owned-development-validation/repaired-automation-next-manifest.json',
+  publication: 'docs/measurements/hosted-repaired-automation-next-setup.json',
+  attempt: '.convex/owned-development-validation/repaired-automation-runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-repaired-automation-next-verification.json',
 });
 export const OWNED_FAILED_SHA256 = 'fe88f962830b821fd9f4836a71951473a0cf4900f68927d01e27d94b95390201';
 export function validateOwnedFailed(text) {
@@ -164,6 +164,14 @@ export function validateOwnedFailed(text) {
     p.cleanup?.ownershipVerified === true && p.cleanup.deploymentDeleted === true &&
     p.cleanup.capabilityInvalidatedByDeletion === true && p.cleanup.capabilityRevoked === false &&
     JSON.stringify(p.cumulative) === JSON.stringify({calls:91,nextCalls:3,controls:60,hosting:1,writes:381,gateway:7,creations:3}), 'owned_failed_evidence');
+  return p;
+}
+export function validateFailedAutomationPublication(text) {
+  check(createHash('sha256').update(text).digest('hex')==='2c602bac6eb3793af1c87f701c7615eb756df41116d7d6fc3636431118b2074b','failed_automation_publication_hash');
+  const p=JSON.parse(text);
+  check(p.passed===false && p.cancelled===false && p.failure?.httpStatus===500 && p.creationRequests===1 &&
+    p.cleanup?.ownershipVerified===true && p.cleanup.capabilityRevoked===true && p.cleanup.deploymentDeleted===true &&
+    JSON.stringify(p.cumulative)===JSON.stringify({calls:92,nextCalls:4,controls:86,hosting:6,writes:381,gateway:7,creations:4}),'failed_automation_publication');
   return p;
 }
 export function validateAutomationProbe(p) {
@@ -184,8 +192,8 @@ export function validateFailedAutomationProbe(text) {
 export function automationTotals(c, probe, creations = 1) {
   validateAutomationProbe(probe);
   check(count(c?.controlRequests,20) && count(c?.hostingRequests,3) && count(c?.applicationCalls,1) && count(creations,1), 'automation_counts');
-  return {calls:91+c.applicationCalls,nextCalls:3+c.applicationCalls,controls:64+probe.controls+c.controlRequests,
-    hosting:2+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:3+creations};
+  return {calls:92+c.applicationCalls,nextCalls:4+c.applicationCalls,controls:81+probe.controls+c.controlRequests,
+    hosting:4+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:4+creations};
 }
 export const OWNED_STOPPED_SHA256 = 'd0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7';
 export function validateOwnedStopped(text) {

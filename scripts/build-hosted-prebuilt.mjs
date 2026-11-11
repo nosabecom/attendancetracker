@@ -1,7 +1,7 @@
 // Local build only. This module does not contact the Vercel deployment API.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { archiveHostedNextSource } from './archive-hosted-next-source.mjs';
@@ -13,9 +13,15 @@ function origin(value, suffix) {
   check(u.protocol === 'https:' && u.hostname.endsWith(suffix) && u.hostname.length > suffix.length && !u.port && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash, 'url');
   return u.origin;
 }
-function inventory(output) {
+export function inventory(output) {
   const root = realpathSync(output), records = [], active = new Set();
   function walk(path, name) {
+    if (lstatSync(path).isSymbolicLink()) {
+      const target = readlinkSync(path);
+      check(!isAbsolute(target), 'link_outside');
+      check(records.length < 100000, 'file_limit');
+      records.push({ path: name, link: target });
+    }
     const real = realpathSync(path), rel = relative(root, real);
     check(rel !== '..' && !rel.startsWith('../') && !isAbsolute(rel), 'link_outside');
     const stat = statSync(path); check(stat.isDirectory() || stat.isFile(), 'file_type');
@@ -61,7 +67,9 @@ export function archivePrebuiltOutput(receipt) {
   check(receipt && /^[a-f0-9]{40}$/.test(receipt.commit) && ['preview','production'].includes(receipt.target), 'receipt');
   const files = inventory(join(receipt.dir, '.vercel/output'));
   check(JSON.stringify(files) === JSON.stringify(receipt.files) && sha('sha256', JSON.stringify(files)) === receipt.outputSha256, 'output_changed');
-  const bytes = execFileSync('tar', ['--dereference', '--sort=name', '--mtime=@0', '--owner=0', '--group=0', '--numeric-owner', '-czf', '-', '.vercel/output'], { cwd: receipt.dir, maxBuffer: 512 * 1024 * 1024, timeout: 120000, env: { PATH: process.env.PATH, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' } });
+  // pnpm's relative links are part of Node's module resolution. Flattening them
+  // changes Next's real path and makes its sibling dependencies unreachable.
+  const bytes = execFileSync('tar', ['--sort=name', '--mtime=@0', '--owner=0', '--group=0', '--numeric-owner', '-czf', '-', '.vercel/output'], { cwd: receipt.dir, maxBuffer: 512 * 1024 * 1024, timeout: 120000, env: { PATH: process.env.PATH, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' } });
   const sha1 = sha('sha1', bytes);
   return { bodyBuffer: bytes, files: [{ file: '.vercel/source.tgz.part1', size: bytes.length, mode: 438, sha: sha1 }], sha1, archiveSha256: sha('sha256', bytes), outputSha256: receipt.outputSha256, sourceCommit: receipt.commit, target: receipt.target };
 }

@@ -72,7 +72,7 @@ export async function releaseProductionNext(opts, injected = {}) {
     check(opts && /^[a-f0-9]{40}$/.test(opts.reviewedHead ?? '') && deps.git(['rev-parse','HEAD']).trim() === opts.reviewedHead, 'reviewed_head');
     check(opts.convexProjectId === 3365270, 'production_project');
     check(opts.review?.astraApproved === true && /^[a-f0-9]{64}$/.test(opts.review?.evidenceSha256 ?? '') && opts.runtimeNormalExit === true, 'review_required');
-    const runtimeText = deps.readPublic('docs/measurements/hosted-automation-next-verification.json');
+    const runtimeText = deps.readPublic('docs/measurements/hosted-repaired-automation-next-verification.json');
     report.runtimeSha256 = validateOwnedRuntime(runtimeText,opts.runtimeReportSha256);
     const runtimeSource = JSON.parse(runtimeText).sourceCommit;
     check(/^[a-f0-9]{64}$/.test(opts.fingerprint ?? ''), 'fingerprint');

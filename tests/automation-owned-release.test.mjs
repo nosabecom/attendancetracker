@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AUTOMATION_PATHS, validateOwnedFailed, validateAutomationProbe, automationTotals, validateOwnedCompatibility } from '../scripts/hosted-next-third.mjs';
+import { AUTOMATION_PATHS, validateOwnedFailed, validateFailedAutomationPublication, validateAutomationProbe, automationTotals, validateOwnedCompatibility } from '../scripts/hosted-next-third.mjs';
 import { parseArgs, createBudget } from '../scripts/test-hosted-next.mjs';
 import { cleanupPrebuiltOwned } from '../scripts/publish-prebuilt-next.mjs';
 import { AUTOMATION_PATH } from '../scripts/vercel-automation-access.mjs';
@@ -12,15 +12,15 @@ test('automation history and budget retain prior costs exactly once',()=>{
   validateOwnedFailed(readFileSync('docs/measurements/hosted-owned-development-setup.json','utf8'));
   assert.throws(()=>validateOwnedFailed('{}'));
   assert.throws(()=>validateAutomationProbe({...probe,revocationConfirmed:false}));
-  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:92,nextCalls:4,controls:91,hosting:6,writes:381,gateway:7,creations:4});
+  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:93,nextCalls:5,controls:108,hosting:8,writes:381,gateway:7,creations:5});
   const b=createBudget({controlRequests:20,applicationCalls:1,hostingRequests:2},{prebuilt:true,ownedDevelopment:true,automation:true,probe});
-  assert.equal(b.snapshot().control,91); assert.equal(b.snapshot().writes,381);
+  assert.equal(b.snapshot().control,108); assert.equal(b.snapshot().writes,381);
   assert.notEqual(AUTOMATION_PATHS.publication,'docs/measurements/hosted-owned-development-setup.json');
 });
 test('stopped header probe establishes only generation and revocation, with its costs retained',()=>{
   const actual=JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'));
   assert.equal(validateAutomationProbe(actual).headerAccepted,false);
-  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:91,nextCalls:3,controls:69,hosting:4,writes:381,gateway:7,creations:3});
+  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:92,nextCalls:4,controls:86,hosting:6,writes:381,gateway:7,creations:4});
   assert.throws(()=>validateAutomationProbe({...actual,failedPhase:'generate'}));
   assert.throws(()=>validateAutomationProbe({...actual,cleanupUncertain:true,revocationConfirmed:false}));
 });
@@ -38,3 +38,5 @@ test('uncertain project secret revocation does not prevent exact owned deploymen
   const request=async(path,opts={})=>{calls.push([path,opts.method]);if(path===AUTOMATION_PATH)throw Error('uncertain');if(opts.method==='DELETE')return {status:204};if(opts.allowedStatuses?.includes(404))return {status:404};return {body:{id:'dpl_123',ownerId:'team_fmwIPLne9w30y7G5JQrs3fzl',projectId:'prj_uOMK1a4PLAgsDr1A16InuImM1M3q',target:'preview',url:'test.vercel.app',meta:{attendanceValidation:'run',attendanceSourceCommit:source,attendanceOutputSha256:'f'.repeat(64)}}};};
   const result=await cleanupPrebuiltOwned(m,request); assert.equal(result.capabilityRevoked,false);assert.equal(result.capabilityRevocationUncertain,true);assert.equal(result.providerExpires,false);assert.equal(result.capabilityInvalidatedByDeletion,false);assert.equal(result.deploymentDeleted,true);assert.ok(calls.some(([p,m])=>p==='/v13/deployments/dpl_123'&&m==='DELETE'));
 });
+
+test('failed runtime artifact is immutable and never grants a successful release',()=>{const text=readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8');assert.equal(validateFailedAutomationPublication(text).passed,false);assert.throws(()=>validateFailedAutomationPublication(text+' '));});

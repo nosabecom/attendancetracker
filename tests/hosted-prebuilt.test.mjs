@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { archivePrebuiltOutput } from '../scripts/build-hosted-prebuilt.mjs';
+import { execFileSync } from 'node:child_process';
+import { archivePrebuiltOutput, inventory } from '../scripts/build-hosted-prebuilt.mjs';
 
 const hash = b => createHash('sha256').update(b).digest('hex');
 function fixture(t) {
@@ -26,4 +27,22 @@ test('archive rejects changed files, function environment and outside links', t 
   assert.throws(()=>archivePrebuiltOutput(receipt),/function_environment/);
   rmSync(join(output,'secret.vc-config.json')); symlinkSync('/etc/passwd',join(output,'outside'));
   assert.throws(()=>archivePrebuiltOutput(receipt),/link_outside/);
+});
+test('archive preserves audited links needed for isolated Node resolution', t => {
+  const {receipt,output}=fixture(t);
+  const modules=join(output,'functions/test.func/node_modules');
+  const pkg=join(modules,'.pnpm/next/node_modules/next');
+  mkdirSync(pkg,{recursive:true});
+  mkdirSync(join(modules,'.pnpm/next/node_modules/helper'),{recursive:true});
+  writeFileSync(join(pkg,'index.js'),"module.exports = require('helper');");
+  writeFileSync(join(modules,'.pnpm/next/node_modules/helper/index.js'),"module.exports = 42;");
+  symlinkSync('.pnpm/next/node_modules/next',join(modules,'next'));
+  receipt.files=inventory(output); receipt.outputSha256=hash(JSON.stringify(receipt.files));
+  const archive=archivePrebuiltOutput(receipt);
+  const isolated=mkdtempSync(join(tmpdir(),'prebuilt-isolated-')); t.after(()=>rmSync(isolated,{recursive:true,force:true}));
+  execFileSync('tar',['-xzf','-','-C',isolated],{input:archive.bodyBuffer});
+  const cwd=join(isolated,'.vercel/output/functions/test.func');
+  assert.equal(execFileSync(process.execPath,['-e',"process.stdout.write(String(require('./node_modules/next')))"],{cwd,env:{HOME:isolated}}).toString(),'42');
+  rmSync(join(modules,'next')); symlinkSync('.pnpm/next/node_modules/./next',join(modules,'next'));
+  assert.throws(()=>archivePrebuiltOutput(receipt),/output_changed/);
 });
