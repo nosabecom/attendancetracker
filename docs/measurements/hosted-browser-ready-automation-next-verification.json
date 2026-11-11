@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "localOnly": false,
+  "backendOnly": false,
+  "hostedNext": true,
+  "startedAt": "2026-11-11T04:16:39.610Z",
+  "sourceCommit": "21efd72552a9c465d8dbb45294e048183de08885",
+  "deploymentId": "dpl_4z4KJwmnPprkyD471PzWUg3AwYo2",
+  "deploymentName": "amicable-koala-816",
+  "priorBackend": {
+    "calls": 61,
+    "writes": 355,
+    "gateway": 7,
+    "sourceCommit": "b06caabfe3f713c40160e28843695bcc65ac2a19",
+    "closed": true,
+    "rootControlPreflight": 1
+  },
+  "thirdContinuation": {
+    "version": 1,
+    "predecessorRunId": "attendance-next-c46801e578baa2c52e070b25c05cfa6a",
+    "predecessorSourceCommit": "53b7965cb594407cf1dea3d5d2a5e04b38f03a32",
+    "predecessorDeploymentId": "dpl_4AAsug64RaRxhbVDToFQMhBUEVwQ",
+    "firstEvidenceSha256": "7ff21650d0c963bccb7e71edf8b222af7756b434053a747c44fa569788c53ae4",
+    "secondEvidenceSha256": "96bc6bfd508fd0cebdf0023f6cf0195d9b76a6639d0e03c0f47559e1a680c3b0",
+    "spent": {
+      "calls": 63,
+      "nextCalls": 2,
+      "controls": 33,
+      "hosting": 0,
+      "writes": 355,
+      "gateway": 7,
+      "creations": 2
+    },
+    "limits": {
+      "controls": 80,
+      "creations": 3,
+      "preflightControls": 2,
+      "publisherControls": 20,
+      "runtimeControls": 19,
+      "hosting": 50
+    },
+    "creditReservationUsd": 1,
+    "minimumOtherReservationsUsd": 0.81
+  },
+  "preflight": {
+    "deploymentId": "dpl_5BMDwDHU3mp1k1RCMBjExsAr5mdj",
+    "status": "replaced-by-signed-runtime",
+    "controlRequests": 2
+  },
+  "vercelCreditReview": {
+    "plan": "pro",
+    "observedAt": "2026-11-11T03:47:28.293Z",
+    "periodStart": "2026-11-11T00:00:00.000Z",
+    "periodEnd": "2026-12-09T00:00:00.000Z",
+    "sufficientReviewedHeadroom": true,
+    "engineeringCreditReservationUsd": 1,
+    "otherReservationsUsd": 0.81,
+    "cumulativeEngineeringReservationsUsd": 1.81,
+    "billingCap": false
+  },
+  "automationOwnedRelease": true,
+  "providerExpires": false,
+  "bounds": {
+    "cumulativeCalls": 250,
+    "nextCallsIncludingPublisher": 90,
+    "writes": 950,
+    "ordinaryWrites": 850,
+    "cleanupWrites": 100,
+    "cumulativeGateway": 40,
+    "nextGateway": 20,
+    "hosting": 80,
+    "control": 170,
+    "cumulativeCreations": 7,
+    "publisherControl": 20,
+    "runnerControl": 19,
+    "workloadMs": 180000,
+    "ordinaryMs": 130000,
+    "cleanupMs": 50000,
+    "responseBytes": 1048576,
+    "adminRowsPerRead": 100
+  },
+  "assertions": {
+    "VercelProPlan": true,
+    "VercelProjectProtection": true,
+    "GitDisconnectPreserved": true,
+    "DailyHeadroom": true,
+    "SignedRuntimeReadiness": true,
+    "ClosedFingerprint": true,
+    "UnauthenticatedProtection": true,
+    "AuthorizedClosedResponse": true,
+    "AuthorizedApplicationIdentity": true,
+    "UnsignedConvexDenied": true,
+    "UnsignedConvexApplicationIdentity": true,
+    "AvailabilityOpened": true,
+    "NextSignup": true,
+    "ManagedSessionDeadline": true,
+    "ShortSignedJwtAccepted": true,
+    "ShortSignedJwtExpired401": true,
+    "ManagedJwtStillAccepted": true,
+    "FiveStudentRoster": true,
+    "RefreshedSessionDeadline": true
+  },
+  "negativeProbes": [
+    {
+      "name": "auth-method",
+      "expectedStatus": 405,
+      "observedStatus": 405,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "auth-malformed",
+      "expectedStatus": 400,
+      "observedStatus": 400,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "auth-oversized",
+      "expectedStatus": 413,
+      "observedStatus": 413,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "auth-origin",
+      "expectedStatus": 403,
+      "observedStatus": 403,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "public-method",
+      "expectedStatus": 405,
+      "observedStatus": 405,
+      "layer": "next-framework",
+      "privacyVerified": true
+    },
+    {
+      "name": "public-malformed",
+      "expectedStatus": 400,
+      "observedStatus": 400,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "public-oversized",
+      "expectedStatus": 413,
+      "observedStatus": 413,
+      "layer": "application",
+      "privacyVerified": true
+    },
+    {
+      "name": "public-origin",
+      "expectedStatus": 403,
+      "observedStatus": 403,
+      "layer": "application",
+      "privacyVerified": true
+    }
+  ],
+  "ipProvenance": {
+    "status": "unverified"
+  },
+  "physicalRequests": {
+    "hosting": 19,
+    "convexHttp": 12,
+    "control": 11
+  },
+  "admin": {
+    "connections": 0,
+    "blockedReconnects": 0,
+    "registrations": 0,
+    "callbacks": 0,
+    "sentBytes": 0,
+    "receivedBytes": 0
+  },
+  "browser": {
+    "blockedTeacherSockets": 0,
+    "stubbedTelemetry": 0,
+    "checkinRequests": 0,
+    "initializationAttempted": true,
+    "closeConfirmed": true,
+    "launchAttempted": true,
+    "closeAttempted": true,
+    "closeUncertain": false
+  },
+  "cleanup": {
+    "availabilityClosed": true,
+    "closureAcknowledged": true,
+    "browserClosed": true,
+    "logoutConfirmed": true,
+    "sessionRevocationVerified": false,
+    "capabilityRevoked": true,
+    "vercelDeleted": true,
+    "convexDeleted": false,
+    "providerExpires": false
+  },
+  "teamQuotaReview": {
+    "plan": "CONVEX_BASE",
+    "source": "convex-dashboard-user-report",
+    "observedAt": "2026-11-10T19:57:33.682Z",
+    "sufficientReviewedHeadroom": true,
+    "plannedHeadroom": {
+      "functionCalls": 1000,
+      "databaseIoGb": 0.025,
+      "databaseStorageGb": 0.005
+    }
+  },
+  "limitations": [
+    "Client reservations do not cap provider billing, backend internal work, scheduled jobs or OCC retries.",
+    "Managed one-hour JWT and 30-day session natural expiry remain unobserved; a signed 15-second test JWT checks hosted expiry enforcement.",
+    "A failure that requires early availability closure can defer the normal-flow old-JWT 401 assertion.",
+    "Only newly created Vercel resources are cleanup targets. Convex synthetic rows remain on the closed preview.",
+    "Free plan and team allowance rely on the fresh private dashboard review; provider usage may be provisional."
+  ],
+  "signupSubmitted": true,
+  "failedPhase": "isolated student browser",
+  "failureKind": "browser_cancelled",
+  "cancelled": false,
+  "counters": {
+    "calls": 142,
+    "writes": 585,
+    "gateway": 19,
+    "control": 149,
+    "hosting": 44,
+    "nextCalls": 54,
+    "nextGateway": 6,
+    "runnerControl": 11,
+    "creations": 7
+  },
+  "elapsedMs": 89604,
+  "finishedAt": "2026-11-11T04:18:09.213Z",
+  "passed": false
+}

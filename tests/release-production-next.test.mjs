@@ -31,9 +31,9 @@ async function scenario(options={}) {
     if(path.endsWith('/list_usage_limits'))return {body:{usageLimits:[{id:'limit1',metric:'functionCalls',window:'day',limitType:'disable',enabled:true,limit}]}};
     if(path.includes('/update_usage_limit/')) {limit=25000;return {body:{}};}
     if(path.startsWith('/v2/teams/'))return {body:{id:'team_fmwIPLne9w30y7G5JQrs3fzl',slug:'nomokaro625-9385s-projects',billing:{plan:'pro'}}};
-    if(path.startsWith('/v9/projects/')){const p=project(promoted?runCandidate:old);if(promoted)p.lastAliasRequest={type:'promote',toDeploymentId:options.wrongPromotion?'dpl_wrong':runCandidate,jobStatus:++promotionPolls<(options.promotionPolls??1)?'in-progress':'succeeded'};return {body:p};}
+    if(path.startsWith('/v9/projects/')){if(promoted&&promotionPolls<(options.promotionPolls??1))assert.equal(u.searchParams.get('rollbackInfo'),'true');const p=project(promoted?runCandidate:old);if(promoted)p.lastAliasRequest={type:'promote',toDeploymentId:options.wrongPromotion?'dpl_wrong':runCandidate,jobStatus:++promotionPolls<(options.promotionPolls??1)?'in-progress':'succeeded'};return {body:p};}
     if(path===`/v2/deployments/${old}/aliases`)return {body:options.aliasChanged&&metadata?{aliases:[{alias:'other.example.com',uid:'other'}]}:aliases};
-    if(path===`/v2/deployments/${runCandidate}/aliases`)return {body:promoted?aliases:{aliases:[]}};
+    if(path===`/v2/deployments/${runCandidate}/aliases`)return {body:promoted?(options.aliasUidChanged?{aliases:[{alias:'attendance.example.com',uid:'new-id'}]}:options.aliasNameChanged?{aliases:[{alias:'wrong.example.com',uid:'alias1'}]}:aliases):{aliases:[]}};
     if(path==='/v2/files')return {body:{}};
     if(path==='/v13/deployments') { metadata=init.body.meta; assert.equal(init.body.target,'production'); assert.equal(init.body.autoAssignCustomDomains,false); assert.equal(init.body.env.JWT_PRIVATE_KEY,undefined); return {body:{id:runCandidate,url:'candidate.vercel.app'}}; }
     if(path===`/v13/deployments/${runCandidate}`) {if(init.method==='DELETE')return {status:204}; if(init.allowedStatuses?.includes(404))return {status:404}; return {body:{id:runCandidate,ownerId:'team_fmwIPLne9w30y7G5JQrs3fzl',projectId:'prj_uOMK1a4PLAgsDr1A16InuImM1M3q',target:'production',url:'candidate.vercel.app',readyState:++polls<(options.readyPolls??1)?'BUILDING':'READY',meta:metadata}};}
@@ -58,3 +58,5 @@ test('third readiness poll leaves room for final revocation confirmation',async(
 
 test('queued promotion waits for the exact job and still confirms revocation after three readiness and promotion polls',async()=>{const {result}=await scenario({readyPolls:3,promotionPolls:3,queued:true});assert.equal(result.passed,true);assert.equal(result.counters.controls,23);assert.equal(result.cleanup.capabilityRevoked,true);});
 test('a different promotion job closes writes and preserves the candidate',async()=>{const {result}=await scenario({wrongPromotion:true});assert.equal(result.passed,false);assert.equal(result.cleanup.writesClosed,true);assert.equal(result.forwardRepairRequired,true);});
+
+test('promotion retains names and redirects while permitting changed opaque alias IDs',async()=>{assert.equal((await scenario({aliasUidChanged:true})).result.passed,true);const r=(await scenario({aliasNameChanged:true})).result;assert.equal(r.passed,false);assert.equal(r.cleanup.writesClosed,true);});

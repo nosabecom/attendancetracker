@@ -12,15 +12,15 @@ test('automation history and budget retain prior costs exactly once',()=>{
   validateOwnedFailed(readFileSync('docs/measurements/hosted-owned-development-setup.json','utf8'));
   assert.throws(()=>validateOwnedFailed('{}'));
   assert.throws(()=>validateAutomationProbe({...probe,revocationConfirmed:false}));
-  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:117,nextCalls:29,controls:148,hosting:25,writes:475,gateway:13,creations:7});
+  assert.deepEqual(automationTotals({controlRequests:20,applicationCalls:1,hostingRequests:2},probe),{calls:143,nextCalls:55,controls:171,hosting:46,writes:585,gateway:19,creations:8});
   const b=createBudget({controlRequests:20,applicationCalls:1,hostingRequests:2},{prebuilt:true,ownedDevelopment:true,automation:true,probe});
-  assert.equal(b.snapshot().control,148); assert.equal(b.snapshot().writes,475);
+  assert.equal(b.snapshot().control,171); assert.equal(b.snapshot().writes,585);
   assert.notEqual(AUTOMATION_PATHS.publication,'docs/measurements/hosted-owned-development-setup.json');
 });
 test('stopped header probe establishes only generation and revocation, with its costs retained',()=>{
   const actual=JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'));
   assert.equal(validateAutomationProbe(actual).headerAccepted,false);
-  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:116,nextCalls:28,controls:126,hosting:23,writes:475,gateway:13,creations:6});
+  assert.deepEqual(automationTotals({controlRequests:0,applicationCalls:0,hostingRequests:0},actual,0),{calls:142,nextCalls:54,controls:149,hosting:44,writes:585,gateway:19,creations:7});
   assert.throws(()=>validateAutomationProbe({...actual,failedPhase:'generate'}));
   assert.throws(()=>validateAutomationProbe({...actual,cleanupUncertain:true,revocationConfirmed:false}));
 });
@@ -41,4 +41,4 @@ test('uncertain project secret revocation does not prevent exact owned deploymen
 
 test('failed runtime artifact is immutable and never grants a successful release',()=>{const text=readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8');assert.equal(validateFailedAutomationPublication(text).passed,false);assert.throws(()=>validateFailedAutomationPublication(text+' '));});
 
-test('new runtime seed retains every spent gateway allowance',()=>{const b=createBudget({controlRequests:1,applicationCalls:1,hostingRequests:1},{prebuilt:true,ownedDevelopment:true,automation:true,probe});assert.equal(b.snapshot().gateway,13);assert.equal(b.snapshot().nextCalls,29);assert.equal(b.snapshot().writes,475);});
+test('new runtime seed retains every spent gateway allowance',()=>{const b=createBudget({controlRequests:1,applicationCalls:1,hostingRequests:1},{prebuilt:true,ownedDevelopment:true,automation:true,probe});assert.equal(b.snapshot().gateway,19);assert.equal(b.snapshot().nextCalls,55);assert.equal(b.snapshot().writes,585);});

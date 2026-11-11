@@ -72,7 +72,7 @@ export async function releaseProductionNext(opts, injected = {}) {
     check(opts && /^[a-f0-9]{40}$/.test(opts.reviewedHead ?? '') && deps.git(['rev-parse','HEAD']).trim() === opts.reviewedHead, 'reviewed_head');
     check(opts.convexProjectId === 3365270, 'production_project');
     check(opts.review?.astraApproved === true && /^[a-f0-9]{64}$/.test(opts.review?.evidenceSha256 ?? '') && opts.runtimeNormalExit === true, 'review_required');
-    const runtimeText = deps.readPublic('docs/measurements/hosted-browser-ready-automation-next-verification.json');
+    const runtimeText = deps.readPublic('docs/measurements/hosted-font-stubbed-automation-next-verification.json');
     report.runtimeSha256 = validateOwnedRuntime(runtimeText,opts.runtimeReportSha256);
     const runtimeSource = JSON.parse(runtimeText).sourceCommit;
     check(/^[a-f0-9]{64}$/.test(opts.fingerprint ?? ''), 'fingerprint');
@@ -149,7 +149,7 @@ export async function releaseProductionNext(opts, injected = {}) {
     phase = 'promotion confirmation';
     let promotionComplete=false;
     for(let i=0;i<3;i++) {
-      const promoted=(await vercel(`/v9/projects/${EXPECTED.projectId}`)).body;
+      const promoted=(await vercel(`/v9/projects/${EXPECTED.projectId}?rollbackInfo=true`)).body;
       validateProjectForPublication(promoted,{gitDisconnected:true});
       const job=promoted.lastAliasRequest;
       check(job?.toDeploymentId===m.id && job.type==='promote','promotion_job_identity');
@@ -158,7 +158,8 @@ export async function releaseProductionNext(opts, injected = {}) {
       if(i<2)await deps.wait(Math.min(10000,remaining()));
     }
     check(promotionComplete,'promotion_not_complete');
-    check(same(productionAliasBindings((await vercel(`/v2/deployments/${m.id}/aliases`)).body),aliases),'production_aliases');
+    const routing=list=>list.map(({alias,redirect})=>({alias,redirect}));
+    check(same(routing(productionAliasBindings((await vercel(`/v2/deployments/${m.id}/aliases`)).body)),routing(aliases)),'production_aliases');
     reserve('hosting',5); const publicPage=await (injected.fetch ?? fetch)(`https://${opts.stableAlias}/`,{redirect:'manual',signal:AbortSignal.timeout(remaining())}); await publicPage.body?.cancel(); check(publicPage.status === 200,'public_homepage');
     phase = 'capability revocation'; const revoked=(await vercel(AUTOMATION_PATH,{method:'PATCH',body:automationRevokeBody(capability)})).body; verifyAutomationRevoked((await vercel(`/v9/projects/${EXPECTED.projectId}`)).body,capability,automationBaseline); capability=undefined; report.cleanup.capabilityRevoked=true; report.cleanup.providerExpires=false;
     report.passed=true; report.functionCompleted=true; report.finishedAt=new Date(deps.now()).toISOString();

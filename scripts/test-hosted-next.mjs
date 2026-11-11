@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { AUTOMATION_PATH, automationRevokeBody, verifyAutomationRevoked } from './vercel-automation-access.mjs';
-import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, validateBrowserInterruptedRuntime, automationTotals } from './hosted-next-third.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, validateBrowserInterruptedRuntime, validateBrowserTargetFailure, automationTotals } from './hosted-next-third.mjs';
 // Opt-in, one-attempt verification. Importing this file performs no I/O.
 import { readFile, open, constants, lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -201,9 +201,9 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
       if (gateway) { next.gateway++; next.nextGateway++; } }
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
-    check(next.calls <= (automation ? 250 : 200) && next.nextCalls <= (automation ? 90 : 40) && next.writes <= (automation ? 950 : ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (automation ? 850 : ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
-      next.gateway <= (automation ? 40 : 20) && next.nextGateway <= (automation ? 20 : 13) && next.control <= (automation ? 170 : ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
-      next.hosting <= (automation ? 80 : ownedDevelopment || thirdContinuation ? 50 : 100), 'budget_exceeded');
+    check(next.calls <= (automation ? 250 : 200) && next.nextCalls <= (automation ? 100 : 40) && next.writes <= (automation ? 950 : ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (automation ? 850 : ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
+      next.gateway <= (automation ? 40 : 20) && next.nextGateway <= (automation ? 20 : 13) && next.control <= (automation ? 190 : ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
+      next.hosting <= (automation ? 100 : ownedDevelopment || thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
     ordinaryWrites = nextOrdinaryWrites; cleanupWrites = nextCleanupWrites;
     return snapshot();
@@ -448,6 +448,12 @@ export function createBrowserPolicy({ origin, legacyId, deploymentId }) {
   const seen = new Map();
   return request => {
     const url = new URL(request.url), method = request.method;
+    if (method==='GET' && url.origin==='https://fonts.googleapis.com' && url.pathname==='/css2' && !url.username && !url.password && !url.hash &&
+      [...url.searchParams.keys()].sort().join(',')==='display,family' && url.searchParams.get('display')==='swap' &&
+      url.searchParams.get('family')==='DM Sans:wght@400;450;500;550;600;650;700') {
+      check(!seen.has('font'), 'browser_retry_or_duplicate');seen.set('font',1);
+      return {stub:true,stubKind:'font',contentType:'text/css'};
+    }
     check(url.origin === origin && !url.username && !url.password && !url.hash, 'browser_target');
     if (['/_vercel/insights/script.js', '/_vercel/speed-insights/script.js'].includes(url.pathname)) {
       check(method === 'GET' && !url.search, 'browser_telemetry_target'); return { stub: true };
@@ -526,8 +532,8 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
           // Reading headers yields. A queued route must not dispatch once
           // teardown or cancellation has begun, even if headers just settled.
           check(!stopped && !signal?.aborted, 'browser_stopped');
-          if (admitted.stub) { observation.stubbedTelemetry++; return route.fulfill({ status: 200,
-            contentType: 'application/javascript', body: '' }); }
+          if (admitted.stub) { if(admitted.stubKind==='font')observation.stubbedFonts=(observation.stubbedFonts??0)+1;else observation.stubbedTelemetry++;
+            return route.fulfill({ status: 200,contentType: admitted.contentType??'application/javascript', body: '' }); }
           const result = await send(request, admitted);
           check(!stopped && !signal?.aborted, 'browser_stopped');
           check(result.status < 300 || result.status >= 400, 'browser_redirect');
@@ -560,9 +566,11 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
     });
     await step(() => launching);
     // Teacher cookies only visit the JSON auth handler; no teacher UI is mounted.
+    observation.phase='teacher context';
     const teacher = await context();
     await step(() => teacher.addCookies(AUTH_NAMES.slice(0, 2).map((name, i) => ({ name, value: i ? cookies.refresh : cookies.token,
       url: origin, httpOnly: true, secure: true, sameSite: 'Lax' }))));
+    observation.phase='teacher cookie probe';
     const probe = await step(() => teacher.newPage());
     await step(() => probe.goto(`${origin}/api/convex-auth`, { waitUntil: 'domcontentloaded', timeout: timeout() }));
     const visibleNames = await step(() => probe.evaluate(() => document.cookie.split(';').map(x => x.trim().split('=')[0])));
@@ -570,22 +578,28 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
     const stored = await step(() => teacher.cookies(origin));
     check(AUTH_NAMES.slice(0, 2).every(name => stored.some(c => c.name === name && c.httpOnly && c.secure &&
       c.sameSite === 'Lax' && c.path === '/' && !c.domain.startsWith('.'))), 'browser_cookie_attributes');
+    observation.phase='teacher refresh';
     const refreshStatus = await step(() => probe.evaluate(async () => {
       const response = await fetch('/api/convex-auth', { method: 'POST', credentials: 'same-origin', redirect: 'error',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'auth:signIn', args: { refreshToken: 'dummy' } }) });
       return response.status;
     }, { refresh: true }));
+    observation.phase='refreshed cookie attributes';
     const refreshed = await step(() => teacher.cookies(origin));
     check(refreshStatus === 200 && AUTH_NAMES.slice(0, 2).every(name => refreshed.some(c => c.name === name &&
       c.value !== stored.find(old => old.name === name)?.value && c.httpOnly && c.secure && c.sameSite === 'Lax' &&
       c.path === '/' && !c.domain.startsWith('.'))), 'browser_refresh_cookies');
     const refreshedVisible = await step(() => probe.evaluate(() => document.cookie.split(';').map(x => x.trim().split('=')[0])));
     check(AUTH_NAMES.every(name => !refreshedVisible.includes(name)), 'refreshed_http_only_javascript_visibility');
+    observation.phase='teacher context close';
     await step(() => teacher.close()); contexts.splice(contexts.indexOf(teacher), 1);
+    observation.phase='student context';
     const student = await context(), page = await step(() => student.newPage());
     check(!(await step(() => student.cookies(origin))).some(c => AUTH_NAMES.includes(c.name)), 'student_teacher_cookie_isolation');
     page.setDefaultTimeout(timeout());
+    observation.phase='student document';
     await step(() => page.goto(`${origin}/?join=${legacyId}`, { waitUntil: 'domcontentloaded', timeout: timeout() }));
+    observation.phase='student form';
     await step(() => page.getByLabel('Full name or student ID').waitFor({ state: 'visible', timeout: timeout() }));
     return {
       async firstCheckin() {
@@ -654,7 +668,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       validateStoppedThird(await deps.readPublic(THIRD_PATHS.publication), manifest);
       await deps.assertAbsent(THIRD_PATHS.attempt);
       if (expected.ownedDevelopment) validateOwnedStopped(await deps.readPublic(PREBUILT_PATHS.publication));
-      if (expected.automationOwnedRelease) { validateOwnedFailed(await deps.readPublic(OWNED_DEVELOPMENT_PATHS.publication));validateFailedAutomationPublication(await deps.readPublic('docs/measurements/hosted-automation-next-setup.json'));validateRepairedAutomationFailure(await deps.readPublic('docs/measurements/hosted-repaired-automation-next-setup.json'));validateBrowserInterruptedRuntime(await deps.readPublic('docs/measurements/hosted-propagated-automation-next-setup.json'),await deps.readPublic('docs/measurements/hosted-propagated-automation-next-verification.json'));validateFailedAutomationProbe(await deps.readPublic('docs/measurements/vercel-automation-access-probe.json')); const probe = validateAutomationProbe(JSON.parse(await deps.readPublic('docs/measurements/vercel-automation-access-probe-32.json'))); check(JSON.stringify(probe) === JSON.stringify(manifest.automationProbe), 'automation_probe_binding'); }
+      if (expected.automationOwnedRelease) { validateOwnedFailed(await deps.readPublic(OWNED_DEVELOPMENT_PATHS.publication));validateFailedAutomationPublication(await deps.readPublic('docs/measurements/hosted-automation-next-setup.json'));validateRepairedAutomationFailure(await deps.readPublic('docs/measurements/hosted-repaired-automation-next-setup.json'));validateBrowserInterruptedRuntime(await deps.readPublic('docs/measurements/hosted-propagated-automation-next-setup.json'),await deps.readPublic('docs/measurements/hosted-propagated-automation-next-verification.json'));validateBrowserTargetFailure(await deps.readPublic('docs/measurements/hosted-browser-ready-automation-next-setup.json'),await deps.readPublic('docs/measurements/hosted-browser-ready-automation-next-verification.json'));validateFailedAutomationProbe(await deps.readPublic('docs/measurements/vercel-automation-access-probe.json')); const probe = validateAutomationProbe(JSON.parse(await deps.readPublic('docs/measurements/vercel-automation-access-probe-32.json'))); check(JSON.stringify(probe) === JSON.stringify(manifest.automationProbe), 'automation_probe_binding'); }
       validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest, expected.ownedDevelopment, expected.automationOwnedRelease);
     } else validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
   } else if (expected.continuation) {
@@ -695,9 +709,9 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     ...(continuation ? { continuation } : {}),
     ...(thirdContinuation ? { thirdContinuation, preflight: { ...manifest.preflight }, vercelCreditReview } : {}),
     ...(expected.automationOwnedRelease ? { automationOwnedRelease:true, providerExpires:false } : {}),
-    bounds: { cumulativeCalls: expected.automationOwnedRelease ? 250 : 200, nextCallsIncludingPublisher: expected.automationOwnedRelease ? 90 : 40, writes: expected.automationOwnedRelease ? 950 : expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.automationOwnedRelease ? 850 : expected.ownedDevelopment ? 650 : 600,
-      cleanupWrites: 100, cumulativeGateway: expected.automationOwnedRelease ? 40 : 20, nextGateway: expected.automationOwnedRelease ? 20 : 13, hosting: expected.automationOwnedRelease ? 80 : thirdContinuation ? 50 : 100, control: expected.automationOwnedRelease ? 170 : expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
-      ...(continuation || thirdContinuation ? { cumulativeCreations: expected.automationOwnedRelease ? 7 : thirdContinuation ? 3 : 2 } : {}),
+    bounds: { cumulativeCalls: expected.automationOwnedRelease ? 250 : 200, nextCallsIncludingPublisher: expected.automationOwnedRelease ? 100 : 40, writes: expected.automationOwnedRelease ? 950 : expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.automationOwnedRelease ? 850 : expected.ownedDevelopment ? 650 : 600,
+      cleanupWrites: 100, cumulativeGateway: expected.automationOwnedRelease ? 40 : 20, nextGateway: expected.automationOwnedRelease ? 20 : 13, hosting: expected.automationOwnedRelease ? 100 : thirdContinuation ? 50 : 100, control: expected.automationOwnedRelease ? 190 : expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
+      ...(continuation || thirdContinuation ? { cumulativeCreations: expected.automationOwnedRelease ? 8 : thirdContinuation ? 3 : 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
     assertions: {}, negativeProbes: [], ipProvenance: { status: 'unverified' },
@@ -980,7 +994,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     report.functionalFlowCompleted = true;
   } catch (error) {
     report.failedPhase = phase;
-    report.failureKind = error instanceof GateError ? error.code : 'transport_or_guard_failure';
+    report.failureKind = fatalObservation ?? (error instanceof GateError ? error.code : 'transport_or_guard_failure');
   } finally {
     cleaning = true;
     ordinaryAbort.abort();
