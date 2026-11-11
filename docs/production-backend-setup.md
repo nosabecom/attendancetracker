@@ -82,7 +82,8 @@ remain spent. There is no automatic retry, resume, replacement target or cleanup
 mutation.
 
 Before publication it verifies canonical origins, records deployment usage,
-checks existing limits and refuses unknown existing auth/gateway configuration.
+checks existing limits and refuses anything except no limits or the single exact
+reviewed daily limit. It also refuses unknown existing auth/gateway configuration.
 It installs or verifies an enabled daily disable threshold of 1,000 function
 calls, generates independent RSA signing/JWKS and gateway key/audience, saves
 them privately before configuration, and compares exact private readback. This
@@ -100,7 +101,9 @@ Recognized visibility and read-only validator shapes are recorded separately;
 an unfamiliar shape remains `operator_review_required`, with
 `publishedFunctionMetadataVerified: false`. It cannot satisfy the ready-manifest
 gate. Root/Astra must resolve that actual evidence before import readiness; CLI
-success alone cannot establish atomic read-only activation.
+success alone cannot establish atomic read-only activation. Every terminal CLI
+exit triggers verified process-group cleanup. Lingering descendants make the
+publication uncertain even if the leader exited successfully.
 
 Publishing does not initialize the importer or open domain reads/writes. Missing
 deployment state denies application access. The import's initialization enforces

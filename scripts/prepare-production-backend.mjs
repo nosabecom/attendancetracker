@@ -173,10 +173,10 @@ function limits(value, required = false) {
     typeof x.metric === 'string' && x.metric.length > 0 && ['day', 'month'].includes(x.window) &&
     ['disable', 'warning'].includes(x.limitType) && Number.isFinite(x.limit) && x.limit >= 0 &&
     typeof x.enabled === 'boolean'), 'limits_unsupported');
-  const matches = value.usageLimits.filter(x => object(x) && x.metric === 'functionCalls' && x.window === 'day' && x.limitType === 'disable');
-  check(matches.length <= 1 && (!required || matches.length === 1) &&
-    matches.every(x => x.limit === 1000 && x.enabled === true), 'existing_limit_conflict');
-  return matches.length === 1;
+  check(value.usageLimits.length <= 1 && (!required || value.usageLimits.length === 1) &&
+    value.usageLimits.every(x => x.metric === 'functionCalls' && x.window === 'day' &&
+      x.limitType === 'disable' && x.limit === 1000 && x.enabled === true), 'existing_limit_conflict');
+  return value.usageLimits.length === 1;
 }
 function generateConfiguration() {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -219,6 +219,30 @@ async function bounded(operation, signal) {
   finally { signal.removeEventListener('abort', stop); }
 }
 
+// Detached publication owns this Linux session/process group exclusively.
+// A successful or failed leader can leave children after its `close` event.
+// Kill on EVERY terminal exit; zombies are already stopped and cannot publish.
+async function closePublicationGroup(group) {
+  if (process.platform !== 'linux' || !Number.isSafeInteger(group) || group <= 0) return { confirmed: false, lingering: true };
+  try { process.kill(-group, 'SIGKILL'); }
+  catch (error) { return { confirmed: error.code === 'ESRCH', lingering: error.code !== 'ESRCH' }; }
+  const deadline = performance.now() + 2000;
+  do {
+    let live = false;
+    for (const pid of await readdir('/proc')) {
+      if (!/^[0-9]+$/.test(pid)) continue;
+      let stat;
+      try { stat = await readFile(`/proc/${pid}/stat`, 'utf8'); }
+      catch (error) { if (error.code === 'ENOENT' || error.code === 'ESRCH') continue; return { confirmed: false, lingering: true }; }
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      if (Number(fields[2]) === group && !['Z', 'X'].includes(fields[0])) { live = true; break; }
+    }
+    if (!live) return { confirmed: true, lingering: true };
+    if (performance.now() >= deadline) return { confirmed: false, lingering: true };
+    await new Promise(resolveWait => setTimeout(resolveWait, 25));
+  } while (true);
+}
+
 /** Exactly one child process group; private handles never become console output. */
 export async function publishOnce({ envFile, stdout, stderr, signal }) {
   cancelled(signal);
@@ -239,11 +263,16 @@ export async function publishOnce({ envFile, stdout, stderr, signal }) {
       timer = setTimeout(stop, 180000);
       signal?.addEventListener('abort', stop, { once: true });
       child.once('error', () => { uncertain = true; });
-      child.once('close', (status, terminationSignal) => {
-        // The direct child can exit before a TERM-resistant descendant. The
-        // group belongs exclusively to this publication, so finish cancellation
-        // before clearing the escalation timer or reporting the outcome.
-        if (uncertain && child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+      child.once('close', async (status, terminationSignal) => {
+        // Finish and verify the owned group even when the leader exited on its
+        // own, including status 0. Unknown cleanup can never report success.
+        if (child.pid) {
+          try {
+            const cleanup = await closePublicationGroup(child.pid);
+            if (!cleanup.confirmed || cleanup.lingering) uncertain = true;
+          }
+          catch { uncertain = true; }
+        }
         clearTimeout(timer); clearTimeout(killTimer); signal?.removeEventListener('abort', stop);
         resolvePublication({ status, signal: terminationSignal, uncertain: uncertain || !!signal?.aborted });
       });

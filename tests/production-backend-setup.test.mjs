@@ -179,6 +179,10 @@ test('missing/unsupported environment or conflicting daily limits stop before an
     ['unknown limit', { limits: [{ ...limit, limit: 1001 }] }, null, 'existing_limit_conflict'],
     ['disabled limit', { limits: [{ ...limit, enabled: false }] }, null, 'existing_limit_conflict'],
     ['duplicate limit', { limits: [limit, limit] }, null, 'existing_limit_conflict'],
+    ['unknown metric', { limits: [{ ...limit, metric: 'unreviewedMetric' }] }, null, 'existing_limit_conflict'],
+    ['monthly disable', { limits: [{ ...limit, window: 'month', limit: 0 }] }, null, 'existing_limit_conflict'],
+    ['warning', { limits: [{ ...limit, limitType: 'warning' }] }, null, 'existing_limit_conflict'],
+    ['extra limit', { limits: [limit, { ...limit, window: 'month' }] }, null, 'existing_limit_conflict'],
     ['malformed limit', { limits: [{}] }, null, 'limits_unsupported'],
     ['missing environment', {}, (r, standard) => r.path === '/api/query' ? new Response(JSON.stringify({ status: 'success', value: null })) : standard(), 'environment_unsupported'],
   ]) await t.test(label, async t => {
@@ -367,6 +371,32 @@ test('cancellation kills the entire local CLI process group including a TERM-res
     controller.abort(); if (group) { try { process.kill(-group.pid, 'SIGKILL'); } catch {} }
     process.env.PATH = previous; await stdout.close(); await stderr.close();
   }
+});
+
+test('terminal CLI exits cannot leave a TERM-resistant descendant publishing', async t => {
+  for (const exitCode of [1, 0]) await t.test(`leader exit ${exitCode}`, async t => {
+    const h = await harness(t), bin = join(h.directory, 'bin'); await mkdir(bin, { mode: 0o700 });
+    const descendantReady = join(h.directory, 'terminal-descendant.json'), groupReady = join(h.directory, 'terminal-group.json');
+    const descendantCode = `process.on('SIGTERM',()=>{});require('node:fs').writeFileSync(${JSON.stringify(descendantReady)},JSON.stringify({pid:process.pid}));setInterval(()=>{},1000);`;
+    await writeFile(join(bin, 'pnpm'), `#!/usr/bin/env node\nconst fs=require('node:fs');const child=require('node:child_process').spawn(process.execPath,['--eval',${JSON.stringify(descendantCode)}],{stdio:'ignore'});fs.writeFileSync(${JSON.stringify(groupReady)},JSON.stringify({pid:process.pid,child:child.pid}));setInterval(()=>{if(fs.existsSync(${JSON.stringify(descendantReady)}))process.exit(${exitCode});},5);`, { mode: 0o700 });
+    const envFile = join(h.directory, 'terminal-target.env'); await writeFile(envFile, '', { mode: 0o600 });
+    const stdout = await open(join(h.directory, 'terminal-stdout'), 'wx', 0o600), stderr = await open(join(h.directory, 'terminal-stderr'), 'wx', 0o600);
+    const previous = process.env.PATH; let group;
+    process.env.PATH = `${bin}:${previous}`;
+    try {
+      const result = await publishOnce({ envFile, stdout: stdout.fd, stderr: stderr.fd });
+      group = JSON.parse(await readFile(groupReady));
+      const descendant = JSON.parse(await readFile(descendantReady)); assert.equal(descendant.pid, group.child);
+      assert.equal(result.status, exitCode); assert.equal(result.uncertain, true);
+      try {
+        const stat = await readFile(`/proc/${descendant.pid}/stat`, 'utf8');
+        assert.ok(['Z', 'X'].includes(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0]), 'Publication descendant survived terminal exit');
+      } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ESRCH') throw error; }
+    } finally {
+      if (group) { try { process.kill(-group.pid, 'SIGKILL'); } catch {} }
+      process.env.PATH = previous; await stdout.close(); await stderr.close();
+    }
+  });
 });
 
 test('actual installed selector fixture blocks network and ignores other deployment selectors', () => {
