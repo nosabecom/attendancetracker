@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "sourceCommit": "dc3ae77a0cd7f054c83b89eb2bbb956bcd8d5523",
+  "startedAt": "2026-11-11T04:05:53.601Z",
+  "passed": true,
+  "cancelled": false,
+  "counters": {
+    "controlRequests": 12,
+    "hostingRequests": 2,
+    "applicationCalls": 1
+  },
+  "creationRequests": 1,
+  "cleanup": {},
+  "productionMutationRequested": false,
+  "deploymentId": "dpl_BKjM3cJMPgET7ddx4ypukEganNuN",
+  "environmentVerification": {
+    "method": "local-prebuilt+signed-runtime-v1",
+    "sourceCommit": "dc3ae77a0cd7f054c83b89eb2bbb956bcd8d5523",
+    "outputSha256": "7023ca99ad0b34bea3fa0ff444d5253695c7443c3bcf5e0df741fbc27e35579a",
+    "readinessVerified": true
+  },
+  "persistenceFailed": false,
+  "cumulative": {
+    "calls": 94,
+    "nextCalls": 6,
+    "controls": 115,
+    "hosting": 10,
+    "writes": 381,
+    "gateway": 7,
+    "creations": 6
+  },
+  "finishedAt": "2026-11-11T04:06:33.321Z",
+  "runId": "attendance-next-0b8a7d873947e1f95c40987e5f54d24d",
+  "previousStoppedPublicationSha256": "5529e1af2f30e5fdd7e79f6bee1fe05f62c027c6c4e2c2274ace6a76121fecdd",
+  "sourcePrebuilt": {
+    "sourceCommit": "dc3ae77a0cd7f054c83b89eb2bbb956bcd8d5523",
+    "outputSha256": "7023ca99ad0b34bea3fa0ff444d5253695c7443c3bcf5e0df741fbc27e35579a",
+    "target": "preview"
+  },
+  "backendCompatibility": {
+    "backendCommit": "ff8a8553e8d4ee04dd48349a011350db2fab1083",
+    "sourceCommit": "dc3ae77a0cd7f054c83b89eb2bbb956bcd8d5523",
+    "runtimeBytesEqual": true,
+    "backendDependencyClosureEqual": true,
+    "ownedDevelopment": true
+  },
+  "preflight": {
+    "deploymentId": "dpl_5BMDwDHU3mp1k1RCMBjExsAr5mdj",
+    "status": "replaced-by-signed-runtime",
+    "controlRequests": 2
+  },
+  "thirdContinuation": {
+    "version": 1,
+    "predecessorRunId": "attendance-next-c46801e578baa2c52e070b25c05cfa6a",
+    "predecessorSourceCommit": "53b7965cb594407cf1dea3d5d2a5e04b38f03a32",
+    "predecessorDeploymentId": "dpl_4AAsug64RaRxhbVDToFQMhBUEVwQ",
+    "firstEvidenceSha256": "7ff21650d0c963bccb7e71edf8b222af7756b434053a747c44fa569788c53ae4",
+    "secondEvidenceSha256": "96bc6bfd508fd0cebdf0023f6cf0195d9b76a6639d0e03c0f47559e1a680c3b0",
+    "spent": {
+      "calls": 63,
+      "nextCalls": 2,
+      "controls": 33,
+      "hosting": 0,
+      "writes": 355,
+      "gateway": 7,
+      "creations": 2
+    },
+    "limits": {
+      "controls": 80,
+      "creations": 3,
+      "preflightControls": 2,
+      "publisherControls": 20,
+      "runtimeControls": 19,
+      "hosting": 50
+    },
+    "creditReservationUsd": 1,
+    "minimumOtherReservationsUsd": 0.81
+  },
+  "ownedDevelopment": true,
+  "setupUsage": {
+    "controlRequests": 9,
+    "applicationCalls": 27,
+    "logicalWriteReservations": 26
+  },
+  "previousPrebuiltSha256": "d0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7",
+  "backendManifestSha256": "a9873432bda92ad440ec3a42eeae40a4964c71a7abaa5020a4f3e9f040ca58f2",
+  "automationOwnedRelease": true,
+  "previousOwnedFailedSha256": "fe88f962830b821fd9f4836a71951473a0cf4900f68927d01e27d94b95390201",
+  "automationProbe": {
+    "version": 1,
+    "protocol": "project-automation-v1",
+    "projectId": "prj_uOMK1a4PLAgsDr1A16InuImM1M3q",
+    "teamId": "team_fmwIPLne9w30y7G5JQrs3fzl",
+    "passed": false,
+    "cancelled": false,
+    "controls": 5,
+    "hosting": 2,
+    "noResourceCreation": true,
+    "baselineProtected": true,
+    "headerAccepted": false,
+    "revocationConfirmed": true,
+    "preservedUnrelated": true,
+    "deploymentId": "dpl_CehR9Pm1ryBqR6XDVdayyqAWBnb7",
+    "failedPhase": "header",
+    "finishedAt": "2026-11-11T03:40:22.131Z"
+  },
+  "providerExpires": false,
+  "uniqueUrl": "https://attendance-tracker-jex2yw5st-nomokaro625-9385s-projects.vercel.app",
+  "productionTargetUnchanged": true,
+  "productionAliasBindingsUnchanged": true,
+  "gitDisconnectPreserved": true
+}

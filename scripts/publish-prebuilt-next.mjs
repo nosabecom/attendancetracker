@@ -9,7 +9,7 @@ import { makeFunctionReference } from 'convex/server';
 import * as old from './prepare-hosted-next.mjs';
 import { validateVercelCreditReview, validatePreviewBackendCompatibility, OWNED_DEVELOPMENT_PATHS, OWNED_STOPPED_SHA256, validateOwnedStopped, validateOwnedBackend, validateOwnedCompatibility, validateOwnedCanonical, ownedTotals } from './hosted-next-third.mjs';
 import { AUTOMATION_PATH, newAutomationSecret, automationGenerateBody, automationRevokeBody, verifyAutomationGenerated, verifyAutomationRevoked } from './vercel-automation-access.mjs';
-import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, automationTotals } from './hosted-next-third.mjs';
+import { AUTOMATION_PATHS, OWNED_FAILED_SHA256, validateOwnedFailed, validateAutomationProbe, validateFailedAutomationProbe, validateFailedAutomationPublication, validateRepairedAutomationFailure, validateBrowserInterruptedRuntime, automationTotals } from './hosted-next-third.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { signReadinessRequest, verifyReadinessResponse } from '../lib/release-readiness.mjs';
 
@@ -109,7 +109,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const left = (cleaning ? 600000 : 550000) - (Date.now() - started);
     check(left > 0 && (cleaning || !stopped), 'prebuilt_stopped'); return Math.min(left, 20000);
   };
-  const ledger = automation ? '.convex/owned-development-validation/propagated-automation-publication-ledger' : ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
+  const ledger = automation ? '.convex/owned-development-validation/browser-ready-automation-publication-ledger' : ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
   function save() {
     if (!m) return;
     m.counters = { ...report.counters };
@@ -141,7 +141,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, owne
     const predecessor = readFileSync('docs/measurements/hosted-next-third-preview-setup.json','utf8');
     const predecessorHash = validateStoppedPrebuiltPredecessor(predecessor);
     if (ownedDevelopment) validateOwnedStopped(readFileSync(PREBUILT_PATHS.publication, 'utf8'));
-    if (automation) { validateOwnedFailed(readFileSync(OWNED_DEVELOPMENT_PATHS.publication, 'utf8'));validateFailedAutomationPublication(readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8'));validateRepairedAutomationFailure(readFileSync('docs/measurements/hosted-repaired-automation-next-setup.json','utf8'));validateFailedAutomationProbe(readFileSync('docs/measurements/vercel-automation-access-probe.json','utf8')); probe = validateAutomationProbe(JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'))); }
+    if (automation) { validateOwnedFailed(readFileSync(OWNED_DEVELOPMENT_PATHS.publication, 'utf8'));validateFailedAutomationPublication(readFileSync('docs/measurements/hosted-automation-next-setup.json','utf8'));validateRepairedAutomationFailure(readFileSync('docs/measurements/hosted-repaired-automation-next-setup.json','utf8'));validateBrowserInterruptedRuntime(readFileSync('docs/measurements/hosted-propagated-automation-next-setup.json','utf8'),readFileSync('docs/measurements/hosted-propagated-automation-next-verification.json','utf8'));validateFailedAutomationProbe(readFileSync('docs/measurements/vercel-automation-access-probe.json','utf8')); probe = validateAutomationProbe(JSON.parse(readFileSync('docs/measurements/vercel-automation-access-probe-32.json','utf8'))); }
     const backendText = privateText(ownedDevelopment ? paths.backend : `${DIR}/preview-setup-manifest.json`);
     const backend = JSON.parse(backendText);
     const binding = ownedDevelopment ? validateOwnedBackend(backend, sourceCommit) : old.validateBackendManifest(backend, 'prestigious-jaguar-360');

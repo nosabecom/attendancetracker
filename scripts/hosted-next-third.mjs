@@ -151,10 +151,10 @@ export const OWNED_DEVELOPMENT_PATHS = freeze({
 });
 export const AUTOMATION_PATHS = freeze({
   backend: OWNED_DEVELOPMENT_PATHS.backend,
-  manifest: '.convex/owned-development-validation/propagated-automation-next-manifest.json',
-  publication: 'docs/measurements/hosted-propagated-automation-next-setup.json',
-  attempt: '.convex/owned-development-validation/propagated-automation-runtime-attempt.json',
-  evidence: 'docs/measurements/hosted-propagated-automation-next-verification.json',
+  manifest: '.convex/owned-development-validation/browser-ready-automation-next-manifest.json',
+  publication: 'docs/measurements/hosted-browser-ready-automation-next-setup.json',
+  attempt: '.convex/owned-development-validation/browser-ready-automation-runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-browser-ready-automation-next-verification.json',
 });
 export const OWNED_FAILED_SHA256 = 'fe88f962830b821fd9f4836a71951473a0cf4900f68927d01e27d94b95390201';
 export function validateOwnedFailed(text) {
@@ -178,6 +178,12 @@ export function validateRepairedAutomationFailure(text) {
   check(createHash('sha256').update(text).digest('hex')==='0b00e5ca2e7d5cabe650ec5dc97e64d85a713da13ae0d21c1e884d343f722a16','repaired_failure_hash');
   const p=JSON.parse(text);check(!p.passed && p.cancelled===false && p.failure?.httpStatus===401 && p.cleanup?.capabilityRevoked===true && p.cleanup.deploymentDeleted===true && JSON.stringify(p.cumulative)===JSON.stringify({calls:93,nextCalls:5,controls:103,hosting:8,writes:381,gateway:7,creations:5}),'repaired_failure');return p;
 }
+export function validateBrowserInterruptedRuntime(setupText,runtimeText) {
+  check(createHash('sha256').update(setupText).digest('hex')==='9acb254d9c80cbea00d3489cf2fcc96b1950703b456d396d7b919822d8b4e4ac','propagated_setup_hash');
+  check(createHash('sha256').update(runtimeText).digest('hex')==='0281231527da78a1f155436c62331520779d66401e3c6221fc982e69972d7ff7','interrupted_runtime_hash');
+  const s=JSON.parse(setupText),r=JSON.parse(runtimeText);
+  check(s.passed===true && r.passed===false && r.cancelled===false && r.failedPhase==='isolated student browser' && r.deploymentId===s.deploymentId && r.cleanup?.availabilityClosed===true && r.cleanup.closureAcknowledged===true && r.cleanup.logoutConfirmed===true && r.cleanup.capabilityRevoked===true && r.cleanup.vercelDeleted===true && JSON.stringify(r.counters)===JSON.stringify({calls:116,writes:475,gateway:13,control:126,hosting:23,nextCalls:28,nextGateway:6,runnerControl:11,creations:6}),'interrupted_runtime');return r;
+}
 export function validateAutomationProbe(p) {
   // Generation and confirmed revocation establish the supported mechanism.
   // Only signed readiness on the new candidate can establish its header access.
@@ -196,8 +202,8 @@ export function validateFailedAutomationProbe(text) {
 export function automationTotals(c, probe, creations = 1) {
   validateAutomationProbe(probe);
   check(count(c?.controlRequests,20) && count(c?.hostingRequests,4) && count(c?.applicationCalls,1) && count(creations,1), 'automation_counts');
-  return {calls:93+c.applicationCalls,nextCalls:5+c.applicationCalls,controls:98+probe.controls+c.controlRequests,
-    hosting:6+probe.hosting+c.hostingRequests,writes:381,gateway:7,creations:5+creations};
+  return {calls:116+c.applicationCalls,nextCalls:28+c.applicationCalls,controls:121+probe.controls+c.controlRequests,
+    hosting:21+probe.hosting+c.hostingRequests,writes:475,gateway:13,creations:6+creations};
 }
 export const OWNED_STOPPED_SHA256 = 'd0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7';
 export function validateOwnedStopped(text) {
