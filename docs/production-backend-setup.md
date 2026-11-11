@@ -1,15 +1,17 @@
 # Existing production backend setup
 
 Status: offline preparation. The frozen Blob source is saved and reconciled.
-The production import wrapper has received conditional Astra acceptance. No
-production capability has been created or captured, no production functions have
-been published, and no records have been imported in this step.
+The production import wrapper has received conditional Astra acceptance. One
+production capability was created, but its private capture timed out. No key was
+downloaded, no production functions have been published, and no records have
+been imported in this step. The stopped attempt remains spent.
 
 The target is the existing Production deployment `tremendous-elk-298`, in
 `convex-cyan-garden`, under Convex team `nomokaro625-9385-s-projects`. The cloud
 and site origins must match the separately observed owner dashboard and the
 capability-authenticated canonical-URL response. The dashboard currently says
-Never Deployed and shows no deployment keys. These are observations to refresh,
+Never Deployed. Before the attempted capture it showed no deployment keys.
+These are observations to refresh,
 not proof that every table is empty.
 
 ## Separate finite allocation
@@ -117,3 +119,40 @@ must cite actual publication, identity, quota, source and capability evidence.
 No ready manifest is fabricated by this setup tool. Import staging,
 verification, atomic read-only activation, independent production reconciliation,
 hosted Next/auth/IP/refresh/expiry checks and final cutover remain later gates.
+
+## Stopped capture and proposed same-key recovery
+
+At reviewed source `757586c`, root opened the ordinary creation form, selected
+ten deployment-scoped permissions for deploy, environment read/write, data
+read/write, internal queries/mutations, usage read and usage-limit read/write,
+and a seven-day expiry. One Create submission completed and displayed its key
+dialog. The helper's 120-second lifetime had started before configuring that
+form. It expired before Copy. A subsequent automation click had no matching
+target and timed out; it did not activate Copy. There were zero capability
+downloads, zero backend requests, zero configuration mutations and zero CLI
+publications. The initial controller remains failed/timeout, with its clipboard
+hook removed. The one creation and failed capture remain recorded; none of the
+20 backend requests or the CLI publication allowance has been spent.
+
+`PRODUCTION_CAPABILITY_RECOVERY1` is proposed for separate review: zero key
+creations, zero provider requests by the helper, at most one ordinary Copy of
+the same already-created visible key and one private download. The current
+owner dialog must still correspond to that exact key; missing or ambiguous
+identity means stop, without another reveal or creation. Root must durably bind
+the original allocation and stopped receipt, independently verify that the first
+attempt dispatched no download, and retain both histories. The helper's status
+alone cannot establish the latter provider/browser fact.
+
+Explicit `existing-owner-ui-recovery` mode requires the original failed/timeout
+controller. It installs one separately named recovery controller, preserves the
+original failure, and uses a distinct download filename. The recovery is armed
+only once the existing Copy control is ready, so its fresh 120-second lifetime
+does not include creation or permission selection. It follows the same exact
+page, opaque-byte, private-download, no-system-clipboard and visible-only fallback
+rules. Success, abort or timeout is terminal, and the recovery controller cannot
+be replaced. No third capture path or automatic retry is included.
+
+After an actual private-file verification, separately review/bind the updated
+source and original still-unused backend/publication allowance before continuing
+setup. This proposal does not reset `PRODUCTION_BACKEND_SETUP1`, create another
+key, or permit import or public traffic.

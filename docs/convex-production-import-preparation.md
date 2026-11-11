@@ -1,7 +1,8 @@
 # Production import preparation
 
-Status: offline implementation accepted conditionally. No production Convex key, publication, data import
-or traffic switch was performed. The [final frozen source](./blob-final-frozen-export.md)
+Status: implementation accepted conditionally. One production Convex key was
+created; private capture timed out. No publication, data import or traffic switch
+was performed. The [final frozen source](./blob-final-frozen-export.md)
 is now preserved; its recalculated plan confirms the same counts and bytes below.
 Production execution is still pending its own reviewed, enforced allocation.
 

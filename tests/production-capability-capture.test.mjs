@@ -4,6 +4,7 @@ import { armProductionCapabilityCapture as arm } from '../scripts/capture-produc
 
 const secret = 'OpaqueSyntheticCapability|0123456789:sentinel';
 const controllerKey = '__attendanceProductionCapabilityCapture';
+const recoveryKey = '__attendanceProductionCapabilityRecovery';
 function element(tag = 'pre', value = secret, options = {}) {
   let valueReads = 0;
   const node = {
@@ -47,7 +48,7 @@ function fixture(options = {}) {
         return { style: {}, remove() {}, click() {
           filename = this.download;
           time += options.dispatchAdvance ?? 0;
-          if (options.abortOnDispatch) env[controllerKey].abort();
+          if (options.abortOnDispatch) env[options.abortControllerKey ?? controllerKey].abort();
           let prevented = false;
           for (const fn of [...listeners]) fn({ target: this, preventDefault() { prevented = true; } });
           if (!prevented) downloads++;
@@ -257,4 +258,57 @@ test('serialized browser function is self-contained and abort preserves its fixe
   f.expire(); f.advance(120000);
   assert.deepEqual(f.controller().status(), { status: 'failed', code: 'aborted' });
   assert.equal(f.counts().downloads, 0);
+});
+
+test('separately allocated recovery preserves the timeout and captures the same visible key once', async () => {
+  const f = fixture(); arm(f.env); f.advance(120001);
+  const previous = f.controller(); assert.deepEqual(previous.status(), { status: 'failed', code: 'timeout' });
+  assert.equal(f.counts().downloads, 0);
+  assert.deepEqual(arm(f.env, 'existing-owner-ui-recovery'), { status: 'armed', code: 'ok' });
+  const recovery = f.env[recoveryKey], intercepted = f.clipboard.writeText;
+  assert.deepEqual(await intercepted(secret), { status: 'download_requested', code: 'ok' });
+  assert.equal(f.counts().downloads, 1);
+  assert.equal(f.counts().filename, 'attendance-production-capability-recovery.txt');
+  assert.equal(f.counts().payload, secret); assert.equal(f.counts().originalCalls, 0);
+  assert.strictEqual(f.controller(), previous);
+  assert.deepEqual(previous.status(), { status: 'failed', code: 'timeout' });
+  assert.deepEqual(arm(f.env, 'existing-owner-ui-recovery'), { status: 'failed', code: 'already_started' });
+  assert.deepEqual(recovery.captureVisibleKeyInDialog(), { status: 'download_requested', code: 'ok' });
+  assert.equal(f.counts().downloads, 1);
+  assert.deepEqual(Object.getOwnPropertyDescriptor(f.clipboard, 'writeText'), f.before);
+});
+
+test('recovery rejects missing, active, aborted and successful predecessors or unknown modes', async () => {
+  const missing = fixture();
+  assert.deepEqual(arm(missing.env, 'existing-owner-ui-recovery'), { status: 'failed', code: 'recovery_not_eligible' });
+  assert.deepEqual(arm(missing.env, 'other'), { status: 'failed', code: 'invalid_mode' });
+  for (const outcome of ['active', 'aborted', 'success']) {
+    const f = fixture(); arm(f.env);
+    if (outcome === 'aborted') f.controller().abort();
+    if (outcome === 'success') await f.clipboard.writeText(secret);
+    assert.deepEqual(arm(f.env, 'existing-owner-ui-recovery'), { status: 'failed', code: 'recovery_not_eligible' });
+    assert.equal(Object.hasOwn(f.env, recoveryKey), false);
+  }
+});
+
+test('recovery remains self-contained, terminal on cancellation and deadline, with local-only fallback', async () => {
+  const serialized = (0, eval)(`(${arm.toString()})`);
+  for (const options of [{}, { unsupported: true }, { abortOnDispatch: true, abortControllerKey: recoveryKey }]) {
+    const f = fixture({ ...options, dialogs: [dialog([element()])] }); serialized(f.env); f.advance(120001); f.controller().status();
+    assert.deepEqual(serialized(f.env, 'existing-owner-ui-recovery'), { status: 'armed', code: options.unsupported ? 'clipboard_unavailable' : 'ok' });
+    const controller = f.env[recoveryKey];
+    if (options.unsupported) {
+      assert.equal(controller.captureVisibleKeyInDialog().status, 'download_requested');
+      assert.equal(f.counts().downloads, 1);
+    } else if (options.abortOnDispatch) {
+      assert.deepEqual(await f.clipboard.writeText(secret), { status: 'failed', code: 'aborted' });
+      assert.equal(f.counts().downloads, 0);
+    } else {
+      f.advance(120001); assert.deepEqual(controller.status(), { status: 'failed', code: 'timeout' });
+      assert.equal(controller.captureVisibleKeyInDialog().status, 'failed');
+      assert.equal(f.counts().downloads, 0);
+    }
+    assert.deepEqual(f.controller().status(), { status: 'failed', code: 'timeout' });
+    assert.equal(f.counts().legacyCopies, 0); assert.equal(f.counts().originalCalls, 0);
+  }
 });

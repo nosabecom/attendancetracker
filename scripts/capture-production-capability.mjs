@@ -1,7 +1,17 @@
 // Offline browser helper: arm before the separately authorized ordinary UI action.
 // It neither creates/reveals a key nor reads the system clipboard or makes requests.
-export function armProductionCapabilityCapture(env = globalThis) {
-  const key = '__attendanceProductionCapabilityCapture', doc = env.document;
+export function armProductionCapabilityCapture(env = globalThis, mode = 'initial') {
+  const initialKey = '__attendanceProductionCapabilityCapture';
+  if (!['initial', 'existing-owner-ui-recovery'].includes(mode)) return { status: 'failed', code: 'invalid_mode' };
+  const recovery = mode === 'existing-owner-ui-recovery';
+  // A separately reviewed recovery reads the SAME already-created visible key.
+  // It never resets the initial controller, creates a key, or reveals one.
+  if (recovery) {
+    let previous;
+    try { previous = env[initialKey]?.status(); } catch {}
+    if (previous?.status !== 'failed' || previous.code !== 'timeout') return { status: 'failed', code: 'recovery_not_eligible' };
+  }
+  const key = recovery ? '__attendanceProductionCapabilityRecovery' : initialKey, doc = env.document;
   const now = () => (env.Date ?? Date).now(), deadline = now() + 120000;
   let state = 'armed', code = 'ok', capability, clipboard, original, hooked = false, timer, anchor;
   const terminal = () => state === 'failed' || state === 'download_requested';
@@ -47,7 +57,7 @@ export function armProductionCapabilityCapture(env = globalThis) {
       url = env.URL.createObjectURL(blob);
       if (!guard()) return record();
       anchor = doc.createElement('a'); anchor.href = url;
-      anchor.download = 'attendance-production-capability.txt'; anchor.style.display = 'none';
+      anchor.download = recovery ? 'attendance-production-capability-recovery.txt' : 'attendance-production-capability.txt'; anchor.style.display = 'none';
       doc.body.append(anchor);
       if (!guard()) return record();
       anchor.click();
