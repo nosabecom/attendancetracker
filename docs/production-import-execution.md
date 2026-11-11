@@ -3,7 +3,8 @@
 Status: the production import completed all three phases under reviewed source
 `f2c4ab6`. Server verification passed and activation confirmed reads enabled with
 writes disabled. Astra accepted the actual import milestone at `003e349`;
-independent semantic reconciliation, hosted validation and cutover remain pending.
+independent semantic reconciliation subsequently passed. Its actual milestone
+review, hosted validation and cutover remain pending.
 
 The completed run used 36 application-call reservations, 21 verification calls
 and 755 logical document-write reservations, within 55/40/774. All three attempts
@@ -17,8 +18,9 @@ three owner links, three reusable roster versions with 132 ordered member rows, 
 teacher memberships, seven attendance sessions, one closure and 198 sparse
 attendance rows. The planned 723 retained documents also include migration
 receipts/state; that total has not been measured independently. Server
-verification compares actual tables to import receipts. Independent comparison
-of business fields and relationships directly to the frozen source is next.
+verification compares actual tables to import receipts. The separate independent
+comparison of business fields and relationships directly to the frozen source
+also passed; see [the reconciliation result](./production-reconciliation.md).
 Public traffic remains disconnected. Retain this completed allocation; unused
 capacity is not permission for additional operations.
 

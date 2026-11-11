@@ -1,7 +1,13 @@
 # Independent production reconciliation
 
-Status: offline implementation and synthetic tests only. The production import
-milestone has been accepted by Astra. No live reconciliation requests have run.
+Status: the reviewed live comparison completed successfully at `f634203`.
+All 357 documents in the eleven populated tables matched the frozen source.
+The run used 17 requests, including 15 queries, and zero writes; its supervising
+process exited normally with code zero and no cancellation. Root verified the
+private ledger/receipt, all table files, permissions, request counts and unchanged
+source/comparator bindings, then repeated the comparison offline. There are no
+stopped markers. [Aggregate evidence](./measurements/production-reconciliation.json)
+is retained for Astra's actual milestone review.
 
 The reader compares the frozen canonical source directly to the eleven populated
 application tables, independently of the server-created migration receipts. It
@@ -47,4 +53,5 @@ defeat both marker paths, so process failure must never be ignored.
 These ordinary queries are not one atomic snapshot against privileged changes.
 The before/after checks supplement the continuous operator hold. The run does
 not enable writes, change configuration, publish, connect public traffic, or
-approve cutover. Astra pre-execution review is required before this allocation.
+approve cutover. Astra granted pre-execution review for this one allocation.
+That allocation is now spent; do not repeat the read set or reset its marker.
