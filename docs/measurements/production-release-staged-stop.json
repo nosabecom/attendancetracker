@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "passed": false,
+  "counters": {
+    "controls": 21,
+    "applicationCalls": 5,
+    "availabilityWrites": 2,
+    "hosting": 2,
+    "creations": 1
+  },
+  "cleanup": {
+    "writesClosed": true,
+    "capabilityRevoked": true,
+    "providerExpires": false
+  },
+  "runtimeSha256": "94b899c0a5dd832053a290e2c6602158567b27716ab2c27b1b9e52e3a2924df8",
+  "reviewedHead": "c3422fa380e6cd1db03d52318e898398a69ff145",
+  "artifactSourceCommit": "34f6a5d83259e6a678534758dec14cb1ef3f05ef",
+  "outputSha256": "4183b6233ecc1af347a67b6d28e48419c5e0ff32b2dd609dd8b21923bd0c6262",
+  "archiveSha256": "ebdf25cbe4bc186f9c9f337a7d80e6525379b70e2b08672a441ee89a487f6d8b",
+  "runId": "attendance-production-786c055e98f7de060af074c5b4ca006c",
+  "creationSubmitted": true,
+  "deploymentId": "dpl_8M4JWTSmfsyideF4fXJNB9j2EJid",
+  "failedPhase": "promotion confirmation",
+  "failure": {
+    "category": "unclassified"
+  },
+  "forwardRepairRequired": true
+}

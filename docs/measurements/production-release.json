@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "passed": true,
+  "forwardRepair": true,
+  "deploymentId": "dpl_8M4JWTSmfsyideF4fXJNB9j2EJid",
+  "reviewedHead": "c3422fa380e6cd1db03d52318e898398a69ff145",
+  "artifactSourceCommit": "34f6a5d83259e6a678534758dec14cb1ef3f05ef",
+  "outputSha256": "4183b6233ecc1af347a67b6d28e48419c5e0ff32b2dd609dd8b21923bd0c6262",
+  "archiveSha256": "ebdf25cbe4bc186f9c9f337a7d80e6525379b70e2b08672a441ee89a487f6d8b",
+  "runId": "attendance-production-786c055e98f7de060af074c5b4ca006c",
+  "origin": "https://attendance-tracker-gamma-orpin.vercel.app",
+  "runtimeSha256": "94b899c0a5dd832053a290e2c6602158567b27716ab2c27b1b9e52e3a2924df8",
+  "promotionConfirmed": true,
+  "aliasBindingsVerified": true,
+  "branchAliasReassigned": true,
+  "publicHomepage": true,
+  "convexAuthRoute": true,
+  "historicalMetadataMatchesFrozenSource": true,
+  "writesEnabled": true,
+  "availabilityConfirmed": true,
+  "normalCompletion": true,
+  "cancelled": false,
+  "counters": {
+    "controls": 27,
+    "applicationCalls": 9,
+    "availabilityWrites": 3,
+    "hosting": 5,
+    "creations": 1
+  },
+  "cleanup": {
+    "capabilityRevoked": true,
+    "providerExpires": false
+  },
+  "dailyFunctionDisableLimit": 25000,
+  "finishedAt": "2026-11-11T04:37:03.596Z"
+}

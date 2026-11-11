@@ -1,14 +1,23 @@
 # Convex cutover and recovery
 
-Status: the final frozen Blob source and offline historical reconciliation are
-complete and accepted by Astra. The legacy app remains held with revoked Blob
-credentials. The bounded existing-production backend publication and three-phase
-data import completed and Astra accepted the import evidence. Independent
-source-to-database reconciliation also passed. Reads are enabled and writes
-disabled; reconciliation evidence review, hosted validation and traffic cutover
-remain pending.
-This document is an operating procedure, not a record of completed cutover.
-Do not enable Convex against an empty target or discard the old data.
+Status, November 11: frozen export, import, independent production reconciliation,
+full hosted browser/gateway validation and production traffic cutover are complete.
+The live site uses `tremendous-elk-298`; reads and writes are enabled. All three
+existing application aliases point to the new production deployment. Existing
+accounts retain their passwords, and a historical session's public metadata was
+checked against the frozen source through the live Next gateway.
+
+The staged promotion finished after the initial polling window. Forward repair
+confirmed its successful job and assigned the existing main-branch alias, without
+creating another deployment or returning traffic to Blob. The original finite
+release used 27 controls, nine application calls, three availability writes, five
+hosting requests and one production creation. Its temporary automation secret
+was revoked. See [release evidence](./measurements/production-release.json).
+
+Final actual-result review, conditional unit cleanup, PR merge, Git restoration,
+and the requested Vercel cancellation/refund remain the final administrative steps.
+The following sections retain the historical procedure and observations; they are
+not instructions to repeat spent allocations. No further Blob export is needed.
 
 ## External prerequisites
 
