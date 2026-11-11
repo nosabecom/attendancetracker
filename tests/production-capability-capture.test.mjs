@@ -91,6 +91,24 @@ test('ordinary copied opaque capability goes only to one raw private download', 
   assert.deepEqual(arm(f.env), { status: 'failed', code: 'already_started' });
 });
 
+test('the exact unused development target has a separate one-shot capture namespace', async () => {
+  const f=fixture();
+  f.env.location.pathname='/t/nomokaro625-9385-s-projects/convex-cyan-garden/amicable-koala-816/settings';
+  assert.deepEqual(arm(f.env,'initial','amicable-koala-816'),{status:'armed',code:'ok'});
+  assert.equal(f.env[controllerKey],undefined);
+  await f.clipboard.writeText(secret);
+  assert.equal(f.counts().filename,'attendance-development-capability.txt');
+  assert.equal(f.counts().downloads,1);assert.equal(f.counts().originalCalls,0);
+  assert.equal(f.env.__attendanceDevelopmentCapabilityCapture.status().status,'download_requested');
+});
+
+test('a development capture cannot read the production page or an arbitrary target',()=>{
+  const f=fixture();
+  assert.equal(arm(f.env,'initial','another-deployment').code,'invalid_target');
+  assert.equal(arm(f.env,'initial','amicable-koala-816').code,'wrong_page');
+  assert.equal(f.counts().downloads,0);assert.equal(f.counts().scans,0);
+});
+
 test('validation accepts opaque formats and bounds without a product prefix', async () => {
   for (const raw of ['x'.repeat(20), 'x'.repeat(16384), secret, 'other-name:01234567890123456789|opaque']) {
     const f = fixture(); arm(f.env);

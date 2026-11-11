@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "sourceCommit": "06cd04472c8d0cbe58e458fd7a2bb4e781c61aff",
+  "startedAt": "2026-11-11T02:36:08.104Z",
+  "passed": false,
+  "cancelled": false,
+  "counters": {
+    "controlRequests": 1,
+    "hostingRequests": 0,
+    "applicationCalls": 0
+  },
+  "creationRequests": 0,
+  "cleanup": {},
+  "productionMutationRequested": false,
+  "failedPhase": "live identities",
+  "failure": {
+    "category": "http_status",
+    "httpStatus": 404
+  },
+  "persistenceFailed": false,
+  "cumulative": {
+    "calls": 63,
+    "nextCalls": 2,
+    "controls": 36,
+    "hosting": 0,
+    "writes": 355,
+    "gateway": 7,
+    "creations": 2
+  },
+  "finishedAt": "2026-11-11T02:36:10.268Z",
+  "runId": "attendance-next-9ea17f6e0490332782fbd8269545dba5",
+  "previousStoppedPublicationSha256": "5529e1af2f30e5fdd7e79f6bee1fe05f62c027c6c4e2c2274ace6a76121fecdd",
+  "sourcePrebuilt": {
+    "sourceCommit": "06cd04472c8d0cbe58e458fd7a2bb4e781c61aff",
+    "outputSha256": "3a29327982775325cf096ba4d5231a20160a957eb66dfe1b52ea66d217cfc516",
+    "target": "preview"
+  },
+  "backendCompatibility": {
+    "backendCommit": "b06caabfe3f713c40160e28843695bcc65ac2a19",
+    "sourceCommit": "06cd04472c8d0cbe58e458fd7a2bb4e781c61aff",
+    "runtimeBytesEqual": true,
+    "backendDependencyClosureEqual": true,
+    "lockProjectionSha256": "b165594dadee9366a8ab90fec9ffd9052546b7bc7f3f09cbb6eabe2516fef3da",
+    "excludedAdministrativeFile": "convex/migration.ts",
+    "frontendVersions": {
+      "next": "16.4.4",
+      "lucide": "1.66.0"
+    }
+  },
+  "preflight": {
+    "deploymentId": "dpl_5BMDwDHU3mp1k1RCMBjExsAr5mdj",
+    "status": "replaced-by-signed-runtime",
+    "controlRequests": 2
+  },
+  "thirdContinuation": {
+    "version": 1,
+    "predecessorRunId": "attendance-next-c46801e578baa2c52e070b25c05cfa6a",
+    "predecessorSourceCommit": "53b7965cb594407cf1dea3d5d2a5e04b38f03a32",
+    "predecessorDeploymentId": "dpl_4AAsug64RaRxhbVDToFQMhBUEVwQ",
+    "firstEvidenceSha256": "7ff21650d0c963bccb7e71edf8b222af7756b434053a747c44fa569788c53ae4",
+    "secondEvidenceSha256": "96bc6bfd508fd0cebdf0023f6cf0195d9b76a6639d0e03c0f47559e1a680c3b0",
+    "spent": {
+      "calls": 63,
+      "nextCalls": 2,
+      "controls": 33,
+      "hosting": 0,
+      "writes": 355,
+      "gateway": 7,
+      "creations": 2
+    },
+    "limits": {
+      "controls": 80,
+      "creations": 3,
+      "preflightControls": 2,
+      "publisherControls": 20,
+      "runtimeControls": 19,
+      "hosting": 50
+    },
+    "creditReservationUsd": 1,
+    "minimumOtherReservationsUsd": 0.81
+  },
+  "productionTargetUnchanged": false,
+  "productionAliasBindingsUnchanged": false,
+  "gitDisconnectPreserved": false
+}

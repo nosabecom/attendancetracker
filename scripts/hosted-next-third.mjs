@@ -141,6 +141,60 @@ export function validatePreviewBackendCompatibility(sourceCommit, backendCommit,
     lockProjectionSha256: createHash('sha256').update(locks[0]).digest('hex'),
     excludedAdministrativeFile: 'convex/migration.ts', frontendVersions: { next: '16.4.4', lucide: '1.66.0' } };
 }
+// The owned development target was observed separately and is never a production target.
+export const OWNED_DEVELOPMENT_PATHS = freeze({
+  backend: '.convex/owned-development-validation/backend-manifest.json',
+  manifest: '.convex/owned-development-validation/next-manifest.json',
+  publication: 'docs/measurements/hosted-owned-development-setup.json',
+  attempt: '.convex/owned-development-validation/runtime-attempt.json',
+  evidence: 'docs/measurements/hosted-owned-development-verification.json',
+});
+export const OWNED_STOPPED_SHA256 = 'd0e85f65b9e42bcbea3792539819edd295a90cff8c13e057cc02196dcda82ef7';
+export function validateOwnedStopped(text) {
+  check(createHash('sha256').update(text).digest('hex') === OWNED_STOPPED_SHA256, 'owned_stopped_hash');
+  const p = JSON.parse(text);
+  check(p.passed === false && p.cancelled === false && p.failedPhase === 'live identities' &&
+    p.failure?.category === 'http_status' && p.failure.httpStatus === 404 && p.creationRequests === 0 &&
+    JSON.stringify(p.counters) === JSON.stringify({ controlRequests: 1, hostingRequests: 0, applicationCalls: 0 }) &&
+    JSON.stringify(p.cumulative) === JSON.stringify({ calls: 63, nextCalls: 2, controls: 36, hosting: 0, writes: 355, gateway: 7, creations: 2 }), 'owned_stopped_evidence');
+  return p;
+}
+export function validateOwnedBackend(m, sourceCommit) {
+  const i = m?.managementIdentity, u = m?.setupUsage;
+  check(m?.deploymentName === 'amicable-koala-816' && m.team === 'nomokaro625-9385-s-projects' &&
+    m.project === 'convex-cyan-garden' && m.isNewDeployment === false && m.ownedEmptyDevelopment === true &&
+    i?.id === 6789777 && i.projectId === 3365270 && i.kind === 'cloud' && i.name === 'amicable-koala-816' &&
+    i.deploymentType === 'dev' && i.isDefault === false && i.reference === 'dev/vercel' &&
+    i.deploymentUrl === 'https://amicable-koala-816.convex.cloud' && m.reference === i.reference &&
+    m.cloudUrl === i.deploymentUrl && m.siteUrl === 'https://amicable-koala-816.convex.site' &&
+    m.fingerprint === 'a3ceb7886db76f635b60fcb05541abfc3d7f425cb0322d2211afd2299eb037ba' &&
+    m.publication === 'succeeded' && m.environmentConfigured === true && m.limitVerified === true &&
+    m.adminCapabilityVerified === true && m.availabilityClosed === true && m.reviewedSourceCommit === sourceCommit &&
+    /^[a-f0-9]{40}$/.test(sourceCommit ?? '') && count(u?.controlRequests, 20) && count(u?.applicationCalls, 40) &&
+    count(u?.logicalWriteReservations, 40) && u.controlRequests > 0 && u.applicationCalls > 0 && u.logicalWriteReservations > 0 && typeof m.adminKey === 'string' && m.adminKey.length > 0 && m.adminKey.length <= 16384 &&
+    !/[\u0000-\u001f\u007f]/.test(m.adminKey) && typeof m.config?.ATTENDANCE_GATEWAY_KEY === 'string' &&
+    m.config.ATTENDANCE_GATEWAY_KEY.length >= 32 && typeof m.config?.ATTENDANCE_GATEWAY_AUDIENCE === 'string' &&
+    m.config.ATTENDANCE_GATEWAY_AUDIENCE.length > 0, 'owned_backend_manifest');
+  return { name: i.name, id: i.id, projectId: i.projectId, reference: i.reference,
+    cloudUrl: m.cloudUrl, siteUrl: m.siteUrl, fingerprint: m.fingerprint };
+}
+export function validateOwnedCompatibility(sourceCommit, backendCommit, git = args => execFileSync('git', args, { encoding: 'utf8' })) {
+  check(/^[a-f0-9]{40}$/.test(sourceCommit ?? '') && backendCommit === sourceCommit &&
+    git(['rev-parse', 'HEAD']).trim() === sourceCommit, 'owned_backend_commit');
+  git(['diff', '--exit-code', backendCommit, sourceCommit, '--', 'app', 'convex', 'lib', 'patches', 'package.json',
+    'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json', 'proxy.ts', 'next.config.ts', 'next.config.js', 'next.config.mjs', 'vercel.json', 'tsconfig.json']);
+  return { backendCommit, sourceCommit, runtimeBytesEqual: true, backendDependencyClosureEqual: true, ownedDevelopment: true };
+}
+export function validateOwnedCanonical(canonical, backend) {
+  check(canonical?.convexCloudUrl === backend.cloudUrl && canonical?.convexSiteUrl === backend.siteUrl, 'owned_canonical');
+}
+export function ownedTotals(c, u, creations = 1) {
+  check(count(c?.controlRequests, 20) && count(c?.applicationCalls, 1) && count(c?.hostingRequests, 3) &&
+    count(u?.controlRequests, 20) && count(u?.applicationCalls, 40) && count(u?.logicalWriteReservations, 40) && count(creations, 1), 'owned_counts');
+  return { calls: 63 + u.applicationCalls + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
+    controls: 36 + u.controlRequests + c.controlRequests, hosting: c.hostingRequests,
+    writes: 355 + u.logicalWriteReservations, gateway: 7, creations: 2 + creations };
+}
 export function validateArchiveSourceBinding(value, sourceCommit) {
   check(value?.metadata?.sourceCommit === sourceCommit && /^[a-f0-9]{40}$/.test(sourceCommit ?? '') &&
     /^[a-f0-9]{40}$/.test(value.metadata.sourceTree ?? '') && /^[a-f0-9]{40}$/.test(value.sha1 ?? '') &&

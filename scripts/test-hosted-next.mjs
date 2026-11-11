@@ -16,7 +16,8 @@ import * as publisher from './prepare-hosted-next.mjs';
 import { CONTINUATION, ORIGINAL_PATHS, CONTINUATION_PATHS, validateContinuationHistory,
   validateContinuationSnapshot, continuationTotals, validateContinuationPublication } from './hosted-next-continuation.mjs';
 import { THIRD, THIRD_PATHS, vercelCreditReviewPath, validateThirdSnapshot, validateThirdHistory,
-  validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview, validateArchiveSourceBinding } from './hosted-next-third.mjs';
+  validateThirdPublication, validateThirdPreflight, thirdTotals, validateVercelCreditReview, validateArchiveSourceBinding,
+  OWNED_DEVELOPMENT_PATHS, OWNED_STOPPED_SHA256, validateOwnedStopped, validateOwnedBackend, validateOwnedCompatibility, validateOwnedCanonical, ownedTotals } from './hosted-next-third.mjs';
 
 export const PREBUILT_PATHS = Object.freeze({ manifest: '.convex/hosted-validation/prebuilt-preview-manifest.json',
   publication: 'docs/measurements/hosted-next-prebuilt-setup.json', attempt: '.convex/hosted-validation/prebuilt-runtime-attempt.json',
@@ -43,11 +44,13 @@ const record = value => value && typeof value === 'object' && !Array.isArray(val
 export function parseArgs(args) {
   const continued = args.length === 6 && args[4] === '--continue-after' && args[5] === CONTINUATION.predecessorDeploymentId;
   const third = args.length === 6 && args[4] === '--continue-after' && args[5] === THIRD.predecessorDeploymentId;
-  const prebuilt = args.length === 6 && args[4] === '--prebuilt-release' && /^[a-f0-9]{40}$/.test(args[5]);
+  const owned = args.length === 6 && args[4] === '--owned-development-release' && /^[a-f0-9]{40}$/.test(args[5]);
+  const prebuilt = owned || (args.length === 6 && args[4] === '--prebuilt-release' && /^[a-f0-9]{40}$/.test(args[5]));
   check((args.length === 4 || continued || third || prebuilt) && args[0] === '--expected-vercel-deployment' &&
     /^dpl_[A-Za-z0-9]+$/.test(args[1]) && args[2] === '--expected-preview' &&
     /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(args[3]), 'invalid_arguments');
-  return { deploymentId: args[1], backendName: args[3], ...(continued ? { continuation: true } : {}), ...(third || prebuilt ? { third: true } : {}), ...(prebuilt ? { prebuilt: true, sourceCommit: args[5] } : {}) };
+  check(!owned || args[3] === 'amicable-koala-816', 'owned_target');
+  return { deploymentId: args[1], backendName: args[3], ...(owned ? { ownedDevelopment: true } : {}), ...(continued ? { continuation: true } : {}), ...(third || prebuilt ? { third: true } : {}), ...(prebuilt ? { prebuilt: true, sourceCommit: args[5] } : {}) };
 }
 
 export function validateManifest(m, expected, now = Date.now()) {
@@ -86,7 +89,7 @@ export function validateManifest(m, expected, now = Date.now()) {
     /^[a-z0-9-]+\.vercel\.app$/.test(url.hostname), 'vercel_url');
   check(b?.name === expected.backendName && /^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(b.name) &&
     identity(b.id) && identity(b.projectId) &&
-    /^preview\/attendance-validation-[a-f0-9]{32}$/.test(b.reference ?? '') &&
+    (expected.ownedDevelopment ? b.id === 6789777 && b.projectId === 3365270 && b.reference === 'dev/vercel' && m.ownedDevelopment === true : /^preview\/attendance-validation-[a-f0-9]{32}$/.test(b.reference ?? '')) &&
     b.cloudUrl === `https://${b.name}.convex.cloud` && b.siteUrl === `https://${b.name}.convex.site` &&
     b.fingerprint === FINGERPRINT, 'backend_binding');
   const expiry = Date.parse(a?.expiresAt);
@@ -118,7 +121,7 @@ export function validateStoppedThird(text, manifest) {
     JSON.stringify(r.cumulative) === JSON.stringify({ calls: 63, nextCalls: 2, controls: 35, hosting: 0, writes: 355, gateway: 7, creations: 2 }), 'prebuilt_stopped_evidence');
   return true;
 }
-export function validatePrebuiltPublication(report, manifest) {
+export function validatePrebuiltPublication(report, manifest, ownedDevelopment = false) {
   check(report?.version === 1 && report.passed === true && report.cancelled === false && !report.failedPhase &&
     report.runId === manifest.runId && report.sourceCommit === manifest.sourceCommit &&
     report.deploymentId === manifest.vercel.deploymentId && report.uniqueUrl === manifest.vercel.url &&
@@ -133,8 +136,9 @@ export function validatePrebuiltPublication(report, manifest) {
     JSON.stringify(report.counters) === JSON.stringify(manifest.counters) &&
     JSON.stringify(report.cumulative) === JSON.stringify(manifest.cumulative), 'prebuilt_publication_evidence');
   const c = manifest.counters;
-  check(JSON.stringify(manifest.cumulative) === JSON.stringify({ calls: 63 + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
+  check(JSON.stringify(manifest.cumulative) === JSON.stringify(ownedDevelopment ? ownedTotals(c, manifest.setupUsage) : { calls: 63 + c.applicationCalls, nextCalls: 2 + c.applicationCalls,
     controls: 35 + c.controlRequests, hosting: c.hostingRequests, writes: 355, gateway: 7, creations: 3 }), 'prebuilt_cumulative');
+  if (ownedDevelopment) check(report.ownedDevelopment === true && report.previousPrebuiltSha256 === OWNED_STOPPED_SHA256 && manifest.previousPrebuiltSha256 === OWNED_STOPPED_SHA256 && /^[a-f0-9]{64}$/.test(manifest.backendManifestSha256 ?? '') && report.backendManifestSha256 === manifest.backendManifestSha256 && JSON.stringify(report.setupUsage) === JSON.stringify(manifest.setupUsage), 'owned_publication_binding');
   validateThirdSnapshot(report.thirdContinuation);
   return true;
 }
@@ -167,19 +171,19 @@ export function validatePriorEvidence(prior, backend, manifest) {
 }
 
 // Counters never reset between the backend rehearsal, publisher and runtime.
-export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false } = {}) {
+export function createBudget(publisherCounters, { now = () => performance.now(), continuation, thirdContinuation, preflight, prebuilt = false, ownedDevelopment = false, setupUsage } = {}) {
   check(count(publisherCounters?.controlRequests) && publisherCounters.controlRequests <= 20 &&
     count(publisherCounters?.hostingRequests) && publisherCounters.hostingRequests <= (prebuilt ? 3 : 2) &&
     publisherCounters.applicationCalls === 1, 'publisher_counters');
   const start = now();
   if (continuation) validateContinuationSnapshot(continuation);
   if (thirdContinuation) { check(!continuation, 'third_budget_mode'); validateThirdSnapshot(thirdContinuation); if (prebuilt) validatePrebuiltPreflight(preflight); else validateThirdPreflight(preflight); }
-  const seed = thirdContinuation ? (prebuilt ? { calls: 63 + publisherCounters.applicationCalls, nextCalls: 2 + publisherCounters.applicationCalls, controls: 35 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests, creations: 3 } : thirdTotals(publisherCounters, 1, preflight.controlRequests)) : continuation ? continuationTotals(publisherCounters, 1) : {
+  const seed = ownedDevelopment ? ownedTotals(publisherCounters, setupUsage) : thirdContinuation ? (prebuilt ? { calls: 63 + publisherCounters.applicationCalls, nextCalls: 2 + publisherCounters.applicationCalls, controls: 35 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests, creations: 3 } : thirdTotals(publisherCounters, 1, preflight.controlRequests)) : continuation ? continuationTotals(publisherCounters, 1) : {
     calls: 62, nextCalls: 1, controls: 1 + publisherCounters.controlRequests, hosting: publisherCounters.hostingRequests };
-  const totals = { calls: seed.calls, writes: 355, gateway: 7, control: seed.controls,
+  const totals = { calls: seed.calls, writes: ownedDevelopment ? seed.writes : 355, gateway: 7, control: seed.controls,
     hosting: seed.hosting, nextCalls: seed.nextCalls, nextGateway: 0, runnerControl: 0,
     ...(continuation || thirdContinuation ? { creations: seed.creations } : {}) };
-  let ordinaryWrites = 355, cleanupWrites = 0;
+  let ordinaryWrites = totals.writes, cleanupWrites = 0;
   const snapshot = () => ({ ...totals });
   function reserve({ kind, writes = 0, gateway = false, cleanup = false }) {
     const elapsed = now() - start;
@@ -193,9 +197,9 @@ export function createBudget(publisherCounters, { now = () => performance.now(),
       if (gateway) { next.gateway++; next.nextGateway++; } }
     if (kind === 'control') { next.control++; next.runnerControl++; }
     if (kind === 'hosting') next.hosting++;
-    check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= 700 && nextOrdinaryWrites <= 600 && nextCleanupWrites <= 100 &&
-      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
-      next.hosting <= (thirdContinuation ? 50 : 100), 'budget_exceeded');
+    check(next.calls <= 200 && next.nextCalls <= 40 && next.writes <= (ownedDevelopment ? 750 : 700) && nextOrdinaryWrites <= (ownedDevelopment ? 650 : 600) && nextCleanupWrites <= 100 &&
+      next.gateway <= 20 && next.nextGateway <= 13 && next.control <= (ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40) && next.runnerControl <= 19 &&
+      next.hosting <= (ownedDevelopment || thirdContinuation ? 50 : 100), 'budget_exceeded');
     Object.assign(totals, next);
     ordinaryWrites = nextOrdinaryWrites; cleanupWrites = nextCleanupWrites;
     return snapshot();
@@ -234,8 +238,8 @@ export function createShortJwtFixture(token, backend, now) {
   try {
     const [head, payload, signature] = token.split('.');
     const header = JSON.parse(Buffer.from(head, 'base64url')), claims = JSON.parse(Buffer.from(payload, 'base64url'));
-    check(signature && header.alg === 'RS256' && backend.isNewDeployment === true &&
-      backend.managementIdentity?.deploymentType === 'preview' && claims.iss === backend.siteUrl &&
+    check(signature && header.alg === 'RS256' && ((backend.isNewDeployment === true &&
+      backend.managementIdentity?.deploymentType === 'preview') || (validateOwnedBackend(backend, backend.reviewedSourceCommit) && backend.ownedEmptyDevelopment === true)) && claims.iss === backend.siteUrl &&
       claims.aud === 'convex' && typeof claims.sub === 'string' && claims.sub.split('|').every(Boolean) &&
       claims.sub.split('|').length === 2 && Number.isSafeInteger(claims.sessionExpiresAt) &&
       claims.sessionExpiresAt > now && Number.isFinite(now), 'short_jwt_fixture');
@@ -600,7 +604,7 @@ export async function createBrowserHarness({ origin, legacyId, deploymentId, coo
 }
 
 async function exclusiveAttempt(recordValue, path) {
-  check([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, THIRD_PATHS.attempt].includes(path), 'attempt_path');
+  check([ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, THIRD_PATHS.attempt, PREBUILT_PATHS.attempt, OWNED_DEVELOPMENT_PATHS.attempt].includes(path), 'attempt_path');
   const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try { await file.writeFile(JSON.stringify(recordValue, null, 2) + '\n'); await file.sync(); } finally { await file.close(); }
 }
@@ -622,22 +626,31 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     shortJwt: createShortJwtFixture, wait: (ms, signal) => sleep(ms, undefined, { signal }),
     ...injected };
   const expected = parseArgs(argv);
-  const paths = expected.prebuilt ? PREBUILT_PATHS : expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
+  const paths = expected.ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : expected.prebuilt ? PREBUILT_PATHS : expected.third ? THIRD_PATHS : expected.continuation ? CONTINUATION_PATHS : ORIGINAL_PATHS;
   const manifest = JSON.parse(await deps.readPrivateText(paths.manifest));
   validateManifest(manifest, expected, deps.wallNow());
-  const backend = JSON.parse(await deps.readPrivateText(backendPath));
+  const backendText = await deps.readPrivateText(expected.ownedDevelopment ? paths.backend : backendPath);
+  const backend = JSON.parse(backendText);
+  const historicalBackend = expected.ownedDevelopment ? JSON.parse(await deps.readPrivateText(backendPath)) : backend;
+  const historicalBinding = expected.ownedDevelopment ? publisher.validateBackendManifest(historicalBackend, historicalBackend.deploymentName) : manifest.backend;
+  if (expected.ownedDevelopment) {
+    const binding = validateOwnedBackend(backend, manifest.sourceCommit);
+    check(JSON.stringify(binding) === JSON.stringify(manifest.backend) && JSON.stringify(backend.setupUsage) === JSON.stringify(manifest.setupUsage) &&
+      createHash('sha256').update(backendText).digest('hex') === manifest.backendManifestSha256, 'owned_backend_binding');
+  }
   const prior = JSON.parse(await deps.readPublic(priorPath));
-  const previous = validatePriorEvidence(prior, backend, manifest);
+  const previous = validatePriorEvidence(prior, historicalBackend, expected.ownedDevelopment ? { backend: historicalBinding } : manifest);
   let continuation, thirdContinuation;
   if (expected.third) {
     thirdContinuation = validateThirdHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
       JSON.parse(await deps.readPrivateText(ORIGINAL_PATHS.manifest)), await deps.readPublic(CONTINUATION_PATHS.publication),
-      JSON.parse(await deps.readPrivateText(CONTINUATION_PATHS.manifest)), manifest.backend);
+      JSON.parse(await deps.readPrivateText(CONTINUATION_PATHS.manifest)), historicalBinding);
     for (const path of [ORIGINAL_PATHS.attempt, CONTINUATION_PATHS.attempt, paths.evidence]) await deps.assertAbsent(path);
     if (expected.prebuilt) {
       validateStoppedThird(await deps.readPublic(THIRD_PATHS.publication), manifest);
       await deps.assertAbsent(THIRD_PATHS.attempt);
-      validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
+      if (expected.ownedDevelopment) validateOwnedStopped(await deps.readPublic(PREBUILT_PATHS.publication));
+      validatePrebuiltPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest, expected.ownedDevelopment);
     } else validateThirdPublication(JSON.parse(await deps.readPublic(paths.publication)), manifest);
   } else if (expected.continuation) {
     continuation = validateContinuationHistory(await deps.readPublic(ORIGINAL_PATHS.publication),
@@ -649,7 +662,7 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   const core = ['app', 'convex', 'lib', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'convex.json'];
   check(deps.git(['rev-parse', 'HEAD']).trim() === manifest.sourceCommit, 'head_mismatch');
   if (expected.third) {
-    const compatibility = publisher.validateSource(manifest.sourceCommit, backend.reviewedSourceCommit, deps.git, { third: true });
+    const compatibility = expected.ownedDevelopment ? validateOwnedCompatibility(manifest.sourceCommit, backend.reviewedSourceCommit, deps.git) : publisher.validateSource(manifest.sourceCommit, backend.reviewedSourceCommit, deps.git, { third: true });
     check(JSON.stringify(compatibility) === JSON.stringify(manifest.backendCompatibility), 'third_backend_compatibility');
   } else deps.git(['diff', '--exit-code', backend.reviewedSourceCommit, manifest.sourceCommit, '--', ...core]);
   deps.git(['diff', '--exit-code', manifest.sourceCommit, '--', ...core, 'proxy.ts', 'next.config.ts', 'vercel.json']);
@@ -657,12 +670,12 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
   const quota = await deps.quota(deps.wallNow());
   check(quota.plan === 'CONVEX_BASE', 'free_plan_review');
   const vercelCreditReview = expected.third ? validateVercelCreditReview(JSON.parse(await deps.readPrivateText(vercelCreditReviewPath)), deps.wallNow()) : undefined;
-  const key = (await deps.readPrivateText(env.ATTENDANCE_PREVIEW_KEY_FILE)).trim();
-  check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') && key.split('|').length === 2 &&
+  const key = expected.ownedDevelopment ? backend.adminKey : (await deps.readPrivateText(env.ATTENDANCE_PREVIEW_KEY_FILE)).trim();
+  if (!expected.ownedDevelopment) check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|') && key.split('|').length === 2 &&
     !/[\u0000-\u0020\u007f]/.test(key), 'preview_key_scope');
   const vercelToken = await deps.readVercelToken(env.ATTENDANCE_VERCEL_AUTH_FILE);
   const started = deps.now(), budget = createBudget(manifest.counters, { now: deps.now, continuation,
-    thirdContinuation, preflight: manifest.preflight, prebuilt: expected.prebuilt });
+    thirdContinuation, preflight: manifest.preflight, prebuilt: expected.prebuilt, ownedDevelopment: expected.ownedDevelopment, setupUsage: manifest.setupUsage });
   const attempt = { version: 1, runId: manifest.runId, sourceCommit: manifest.sourceCommit,
     vercelDeploymentId: expected.deploymentId, backendId: manifest.backend.id,
     backendReference: manifest.backend.reference, fingerprint: FINGERPRINT,
@@ -676,8 +689,8 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
     deploymentName: expected.backendName, priorBackend: previous,
     ...(continuation ? { continuation } : {}),
     ...(thirdContinuation ? { thirdContinuation, preflight: { ...manifest.preflight }, vercelCreditReview } : {}),
-    bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: 40, writes: 700, ordinaryWrites: 600,
-      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: thirdContinuation ? 80 : continuation ? 60 : 40,
+    bounds: { cumulativeCalls: 200, nextCallsIncludingPublisher: 40, writes: expected.ownedDevelopment ? 750 : 700, ordinaryWrites: expected.ownedDevelopment ? 650 : 600,
+      cleanupWrites: 100, cumulativeGateway: 20, nextGateway: 13, hosting: thirdContinuation ? 50 : 100, control: expected.ownedDevelopment ? 100 : thirdContinuation ? 80 : continuation ? 60 : 40,
       ...(continuation || thirdContinuation ? { cumulativeCreations: thirdContinuation ? 3 : 2 } : {}),
       publisherControl: 20, runnerControl: 19, workloadMs: 180000, ordinaryMs: 130000,
       cleanupMs: 50000, responseBytes: 1048576, adminRowsPerRead: 100 },
@@ -802,9 +815,9 @@ export async function runHostedNext(argv = process.argv.slice(2), env = process.
       project.framework === 'nextjs' && project.ssoProtection?.deploymentType === 'all_except_custom_domains' &&
       project.targets?.production?.target === 'production' && project.targets.production.id !== expected.deploymentId);
     if (expected.third) assertion('GitDisconnectPreserved', project.link == null);
-    const actual = await control(`https://api.convex.dev/v1/deployments/${expected.backendName}`, `Bearer ${key}`);
+    const actual = expected.ownedDevelopment ? undefined : await control(`https://api.convex.dev/v1/deployments/${expected.backendName}`, `Bearer ${key}`);
     const canonical = await control(`${manifest.backend.cloudUrl}/api/v1/get_canonical_urls`, `Convex ${backend.adminKey}`);
-    publisher.validateLiveIdentity(backend, actual, canonical);
+    if (expected.ownedDevelopment) validateOwnedCanonical(canonical, backend); else publisher.validateLiveIdentity(backend, actual, canonical);
     publisher.validateDailyLimit(await control(`${manifest.backend.cloudUrl}/api/v1/list_usage_limits`, `Convex ${backend.adminKey}`));
     const usage = await control(`${manifest.backend.cloudUrl}/api/v1/get_current_usage`, `Convex ${backend.adminKey}`);
     const day = usage?.metrics?.functionCalls?.usage?.current_day;

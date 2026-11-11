@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import * as old from './prepare-hosted-next.mjs';
-import { validateVercelCreditReview, validatePreviewBackendCompatibility } from './hosted-next-third.mjs';
+import { validateVercelCreditReview, validatePreviewBackendCompatibility, OWNED_DEVELOPMENT_PATHS, OWNED_STOPPED_SHA256, validateOwnedStopped, validateOwnedBackend, validateOwnedCompatibility, validateOwnedCanonical, ownedTotals } from './hosted-next-third.mjs';
 import { readQuotaReview } from './hosted-validation-policy.mjs';
 import { signReadinessRequest, verifyReadinessResponse } from '../lib/release-readiness.mjs';
 
@@ -64,7 +64,9 @@ export async function cleanupPrebuiltOwned(m,request) {
   return result;
 }
 
-export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, injected = {}) {
+export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath, ownedDevelopment = false }, injected = {}) {
+  const paths = ownedDevelopment ? OWNED_DEVELOPMENT_PATHS : PREBUILT_PATHS;
+  let setupUsage;
   const transport = injected.providerJson ?? old.providerJson;
   const privateText = injected.privateText ?? old.readPrivateText;
   const output = injected.output ?? console.log;
@@ -75,28 +77,29 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
   const stop = () => { stopped = true; report.cancelled = true; };
   function decorateReport() {
     report.cancelled=stopped; report.persistenceFailed=failedPersistence;
-    report.cumulative={calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
+    report.cumulative=ownedDevelopment && setupUsage ? ownedTotals(report.counters, setupUsage, report.creationRequests) : {calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
       controls:35+report.counters.controlRequests,hosting:report.counters.hostingRequests,writes:355,gateway:7,creations:2+report.creationRequests};
     report.finishedAt=new Date().toISOString();
     if(m){m.cumulative=report.cumulative;Object.assign(report,{runId:m.runId,previousStoppedPublicationSha256:m.previousStoppedPublicationSha256,
       sourcePrebuilt:m.vercel.sourcePrebuilt,backendCompatibility:m.backendCompatibility,preflight:m.preflight,thirdContinuation:m.thirdContinuation,
+      ...(ownedDevelopment ? { ownedDevelopment: true, setupUsage, previousPrebuiltSha256: m.previousPrebuiltSha256, backendManifestSha256: m.backendManifestSha256 } : {}),
       uniqueUrl:m.vercel.url,productionTargetUnchanged:report.passed,productionAliasBindingsUnchanged:report.passed,gitDisconnectPreserved:report.passed});}
   }
   function persistEvidence() {
-    if(!evidenceOwned){const fd=openSync(PREBUILT_PATHS.publication,constants.O_CREAT|constants.O_EXCL|constants.O_WRONLY,0o644);closeSync(fd);evidenceOwned=true;}
-    writeFileSync(PREBUILT_PATHS.publication,JSON.stringify(report,null,2)+'\n',{mode:0o644,flush:true});
+    if(!evidenceOwned){const fd=openSync(paths.publication,constants.O_CREAT|constants.O_EXCL|constants.O_WRONLY,0o644);closeSync(fd);evidenceOwned=true;}
+    writeFileSync(paths.publication,JSON.stringify(report,null,2)+'\n',{mode:0o644,flush:true});
   }
   const duration = () => {
     const left = (cleaning ? 600000 : 550000) - (Date.now() - started);
     check(left > 0 && (cleaning || !stopped), 'prebuilt_stopped'); return Math.min(left, 20000);
   };
-  const ledger = `${DIR}/prebuilt-publication-ledger`;
+  const ledger = ownedDevelopment ? '.convex/owned-development-validation/publication-ledger' : `${DIR}/prebuilt-publication-ledger`;
   function save() {
     if (!m) return;
     m.counters = { ...report.counters };
     try {
-      writeFileSync(`${PREBUILT_PATHS.manifest}.tmp`, JSON.stringify(m, null, 2) + '\n', { mode: 0o600, flush: true });
-      renameSync(`${PREBUILT_PATHS.manifest}.tmp`, PREBUILT_PATHS.manifest);
+      writeFileSync(`${paths.manifest}.tmp`, JSON.stringify(m, null, 2) + '\n', { mode: 0o600, flush: true });
+      renameSync(`${paths.manifest}.tmp`, paths.manifest);
     } catch { failedPersistence = true; if (!cleaning) throw Error('prebuilt_persistence'); }
   }
   async function control(url, options = {}) {
@@ -117,12 +120,15 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
   let phase = 'local gates';
   try {
     check(/^[a-f0-9]{40}$/.test(sourceCommit) && execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim() === sourceCommit, 'prebuilt_source');
-    for (const p of Object.values(PREBUILT_PATHS)) check(!existsSync(p), 'prebuilt_existing_attempt');
+    for (const p of Object.values(paths).filter(p => p !== paths.backend)) check(!existsSync(p), 'prebuilt_existing_attempt');
     const predecessor = readFileSync('docs/measurements/hosted-next-third-preview-setup.json','utf8');
     const predecessorHash = validateStoppedPrebuiltPredecessor(predecessor);
-    const backend = JSON.parse(privateText(`${DIR}/preview-setup-manifest.json`));
-    const binding = old.validateBackendManifest(backend, 'prestigious-jaguar-360');
-    const compatibility = validatePreviewBackendCompatibility(sourceCommit, backend.reviewedSourceCommit);
+    if (ownedDevelopment) validateOwnedStopped(readFileSync(PREBUILT_PATHS.publication, 'utf8'));
+    const backendText = privateText(ownedDevelopment ? paths.backend : `${DIR}/preview-setup-manifest.json`);
+    const backend = JSON.parse(backendText);
+    const binding = ownedDevelopment ? validateOwnedBackend(backend, sourceCommit) : old.validateBackendManifest(backend, 'prestigious-jaguar-360');
+    setupUsage = ownedDevelopment ? backend.setupUsage : undefined;
+    const compatibility = ownedDevelopment ? validateOwnedCompatibility(sourceCommit, backend.reviewedSourceCommit) : validatePreviewBackendCompatibility(sourceCommit, backend.reviewedSourceCommit);
     const receipt = readPrebuiltReceipt(buildReceiptPath);
     check(receipt.commit === sourceCommit && receipt.target === 'preview' && receipt.cloudUrl === binding.cloudUrl &&
       receipt.siteUrl === binding.siteUrl && /^[a-f0-9]{64}$/.test(receipt.outputSha256), 'prebuilt_artifact');
@@ -132,15 +138,16 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
     const quota = await readQuotaReview();
     const credit = validateVercelCreditReview(JSON.parse(privateText(`${DIR}/vercel-credit-review.json`)));
     token = old.readVercelToken('/home/nosa/.local/share/com.vercel.cli/auth.json');
-    const key = privateText(`${DIR}/retained-project-preview-key.raw`).trim();
-    check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|'), 'prebuilt_preview_key');
+    const key = ownedDevelopment ? backend.adminKey : privateText(`${DIR}/retained-project-preview-key.raw`).trim();
+    if (!ownedDevelopment) check(key.startsWith('preview:nomokaro625-9385-s-projects:convex-cyan-garden|'), 'prebuilt_preview_key');
     mkdirSync(ledger, { mode: 0o700 });
     writeFileSync(`${ledger}/ALLOCATION.json`, JSON.stringify({ version: 1, sourceCommit, predecessorHash,
-      prior: { calls: 63, controls: 35, writes: 355, gateway: 7, creations: 2 }, maximumControls: 20,
+      prior: ownedDevelopment ? ownedTotals({controlRequests: 0, applicationCalls: 0, hostingRequests: 0}, setupUsage, 0) : { calls: 63, controls: 35, writes: 355, gateway: 7, creations: 2 }, maximumControls: 20,
       cleanupControls: 4, maximumCreations: 1, maximumHosting: 3, maximumApplicationCalls: 1,
       quotaObservedAt: quota.observedAt, creditObservedAt: credit.observedAt }), { mode: 0o400, flag: 'wx', flush: true });
     const runId = `attendance-next-${randomBytes(16).toString('hex')}`;
     m = { version: 1, runId, sourceCommit, publication: 'preflight', backend: binding,
+      ...(ownedDevelopment ? { ownedDevelopment: true, setupUsage, previousPrebuiltSha256: OWNED_STOPPED_SHA256, backendManifestSha256: hash(backendText) } : {}),
       previousStoppedPublicationSha256: predecessorHash,
       backendCompatibility: compatibility,
       preflight: { deploymentId: JSON.parse(predecessor).preflight.deploymentId, status: 'replaced-by-signed-runtime', controlRequests: 2 },
@@ -150,9 +157,9 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
     m.thirdContinuation = JSON.parse(predecessor).thirdContinuation;
     save(); process.on('SIGINT', stop); process.on('SIGTERM', stop);
     phase = 'live identities';
-    const live = (await control(`https://api.convex.dev/v1/deployments/${binding.name}`, { headers: { Authorization: `Bearer ${key}` } })).body;
+    const live = ownedDevelopment ? undefined : (await control(`https://api.convex.dev/v1/deployments/${binding.name}`, { headers: { Authorization: `Bearer ${key}` } })).body;
     const canonical = (await control(`${binding.cloudUrl}/api/v1/get_canonical_urls`, { headers: { Authorization: `Convex ${backend.adminKey}` } })).body;
-    old.validateLiveIdentity(backend, live, canonical);
+    if (ownedDevelopment) validateOwnedCanonical(canonical, backend); else old.validateLiveIdentity(backend, live, canonical);
     old.validateDailyLimit((await control(`${binding.cloudUrl}/api/v1/list_usage_limits`, { headers: { Authorization: `Convex ${backend.adminKey}` } })).body);
     let submitted = false;
     const c = new ConvexHttpClient(binding.cloudUrl, { logger: false, fetch: async (input, init) => {

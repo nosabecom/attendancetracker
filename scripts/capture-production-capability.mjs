@@ -1,7 +1,10 @@
 // Offline browser helper: arm before the separately authorized ordinary UI action.
 // It neither creates/reveals a key nor reads the system clipboard or makes requests.
-export function armProductionCapabilityCapture(env = globalThis, mode = 'initial') {
-  const initialKey = '__attendanceProductionCapabilityCapture';
+export function armProductionCapabilityCapture(env = globalThis, mode = 'initial', deploymentName = 'tremendous-elk-298') {
+  if (!['tremendous-elk-298', 'amicable-koala-816'].includes(deploymentName)) return { status: 'failed', code: 'invalid_target' };
+  const development = deploymentName === 'amicable-koala-816';
+  if (development && mode !== 'initial') return { status: 'failed', code: 'invalid_mode' };
+  const initialKey = development ? '__attendanceDevelopmentCapabilityCapture' : '__attendanceProductionCapabilityCapture';
   if (!['initial', 'existing-owner-ui-recovery'].includes(mode)) return { status: 'failed', code: 'invalid_mode' };
   const recovery = mode === 'existing-owner-ui-recovery';
   // A separately reviewed recovery reads the SAME already-created visible key.
@@ -17,7 +20,7 @@ export function armProductionCapabilityCapture(env = globalThis, mode = 'initial
   const terminal = () => state === 'failed' || state === 'download_requested';
   const record = () => ({ status: state, code });
   const page = () => env.location?.origin === 'https://dashboard.convex.dev' &&
-    env.location.pathname === '/t/nomokaro625-9385-s-projects/convex-cyan-garden/tremendous-elk-298/settings';
+    env.location.pathname === `/t/nomokaro625-9385-s-projects/convex-cyan-garden/${deploymentName}/settings`;
   const removeListener = () => doc?.removeEventListener('click', onClick, true);
   const cleanup = () => {
     capability = undefined;
@@ -57,7 +60,7 @@ export function armProductionCapabilityCapture(env = globalThis, mode = 'initial
       url = env.URL.createObjectURL(blob);
       if (!guard()) return record();
       anchor = doc.createElement('a'); anchor.href = url;
-      anchor.download = recovery ? 'attendance-production-capability-recovery.txt' : 'attendance-production-capability.txt'; anchor.style.display = 'none';
+      anchor.download = development ? 'attendance-development-capability.txt' : recovery ? 'attendance-production-capability-recovery.txt' : 'attendance-production-capability.txt'; anchor.style.display = 'none';
       doc.body.append(anchor);
       if (!guard()) return record();
       anchor.click();
