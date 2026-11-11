@@ -1,5 +1,5 @@
 // One isolated, prebuilt Preview. No environment pull, backend publication or Git reconnection.
-import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, openSync, fstatSync, closeSync, constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
@@ -35,16 +35,57 @@ export function validatePrebuiltDeployment(d, m, ready = true) {
     /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(m.vercel.url) && `https://${d.url}` === m.vercel.url &&
     (!ready || d.readyState === 'READY'), 'prebuilt_deployment');
 }
+export function readPrebuiltReceipt(path) {
+  const fd=openSync(path,constants.O_RDONLY|constants.O_NOFOLLOW);
+  try {
+    const s=fstatSync(fd); check(s.isFile()&&s.uid===process.getuid()&&!(s.mode&0o077)&&s.size<=4*1024*1024,'prebuilt_receipt_permissions');
+    const text=readFileSync(fd,'utf8');check(Buffer.byteLength(text)<=4*1024*1024,'prebuilt_receipt_size');return JSON.parse(text);
+  } finally {closeSync(fd);}
+}
+export function persistPrebuiltSuccess(report,{save,persistEvidence}) {
+  report.passed=true;report.persistenceFailed=false;
+  try { save();persistEvidence(); }
+  catch(error) {report.passed=false;report.persistenceFailed=true;throw error;}
+}
+export async function cleanupPrebuiltOwned(m,request) {
+  const result={};
+  const d=(await request(`/v13/deployments/${m.vercel.deploymentId}`)).body;
+  if(!m.vercel.url&&/^[a-z0-9-]+\.vercel\.app$/.test(d.url))m.vercel.url=`https://${d.url}`;
+  validatePrebuiltDeployment(d,m,false);result.ownershipVerified=true;
+  result.capabilityRevoked=!m.access?.token&&!m.shareCapabilitySubmitted;
+  if(m.access?.token) {
+    try {await request(`/aliases/${m.vercel.deploymentId}/protection-bypass`,{method:'PATCH',body:{revoke:{secret:m.access.token,regenerate:false}}});result.capabilityRevoked=true;}
+    catch {result.capabilityRevocationUncertain=true;}
+  }
+  // Failed capability revocation must never skip the independently owned deletion.
+  await request(`/v13/deployments/${m.vercel.deploymentId}`,{method:'DELETE',allowedStatuses:[200,204]});
+  result.deploymentDeleted=(await request(`/v13/deployments/${m.vercel.deploymentId}`,{allowedStatuses:[404]})).status===404;
+  result.capabilityInvalidatedByDeletion=result.deploymentDeleted;
+  return result;
+}
 
 export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, injected = {}) {
   const transport = injected.providerJson ?? old.providerJson;
   const privateText = injected.privateText ?? old.readPrivateText;
   const output = injected.output ?? console.log;
   const started = Date.now();
-  let stopped = false, cleaning = false, failedPersistence = false, token, m;
+  let stopped = false, cleaning = false, failedPersistence = false, evidenceOwned=false, token, m;
   const report = { version: 1, sourceCommit, startedAt: new Date(started).toISOString(), passed: false, cancelled: false,
     counters: { controlRequests: 0, hostingRequests: 0, applicationCalls: 0 }, creationRequests: 0, cleanup: {}, productionMutationRequested: false };
   const stop = () => { stopped = true; report.cancelled = true; };
+  function decorateReport() {
+    report.cancelled=stopped; report.persistenceFailed=failedPersistence;
+    report.cumulative={calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
+      controls:35+report.counters.controlRequests,hosting:report.counters.hostingRequests,writes:355,gateway:7,creations:2+report.creationRequests};
+    report.finishedAt=new Date().toISOString();
+    if(m){m.cumulative=report.cumulative;Object.assign(report,{runId:m.runId,previousStoppedPublicationSha256:m.previousStoppedPublicationSha256,
+      sourcePrebuilt:m.vercel.sourcePrebuilt,backendCompatibility:m.backendCompatibility,preflight:m.preflight,thirdContinuation:m.thirdContinuation,
+      uniqueUrl:m.vercel.url,productionTargetUnchanged:report.passed,productionAliasBindingsUnchanged:report.passed,gitDisconnectPreserved:report.passed});}
+  }
+  function persistEvidence() {
+    if(!evidenceOwned){const fd=openSync(PREBUILT_PATHS.publication,constants.O_CREAT|constants.O_EXCL|constants.O_WRONLY,0o644);closeSync(fd);evidenceOwned=true;}
+    writeFileSync(PREBUILT_PATHS.publication,JSON.stringify(report,null,2)+'\n',{mode:0o644,flush:true});
+  }
   const duration = () => {
     const left = (cleaning ? 600000 : 550000) - (Date.now() - started);
     check(left > 0 && (cleaning || !stopped), 'prebuilt_stopped'); return Math.min(left, 20000);
@@ -82,12 +123,12 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
     const backend = JSON.parse(privateText(`${DIR}/preview-setup-manifest.json`));
     const binding = old.validateBackendManifest(backend, 'prestigious-jaguar-360');
     const compatibility = validatePreviewBackendCompatibility(sourceCommit, backend.reviewedSourceCommit);
-    const receipt = JSON.parse(privateText(buildReceiptPath));
+    const receipt = readPrebuiltReceipt(buildReceiptPath);
     check(receipt.commit === sourceCommit && receipt.target === 'preview' && receipt.cloudUrl === binding.cloudUrl &&
       receipt.siteUrl === binding.siteUrl && /^[a-f0-9]{64}$/.test(receipt.outputSha256), 'prebuilt_artifact');
     const { archivePrebuiltOutput } = await import('./build-hosted-prebuilt.mjs');
     const archive = await archivePrebuiltOutput(receipt);
-    check(archive.outputSha256 === receipt.outputSha256, 'prebuilt_changed_output');
+    check(archive.outputSha256 === receipt.outputSha256 && archive.bodyBuffer.length<=4*1024*1024,'prebuilt_changed_or_oversized_output');
     const quota = await readQuotaReview();
     const credit = validateVercelCreditReview(JSON.parse(privateText(`${DIR}/vercel-credit-review.json`)));
     token = old.readVercelToken('/home/nosa/.local/share/com.vercel.cli/auth.json');
@@ -165,6 +206,7 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
     const challenged = await fetch(m.vercel.url, { redirect: 'manual', signal: AbortSignal.timeout(duration()) });
     await challenged.body?.cancel();
     check([302,303,307,308,401,403].includes(challenged.status), 'prebuilt_unprotected');
+    m.shareCapabilitySubmitted=true;save();
     const capability = (await vercel(`/aliases/${created.id}/protection-bypass`, { method: 'PATCH', body: { ttl: 900 } })).body;
     check(typeof capability === 'string' && capability.length > 0 && capability.length <= 16384 && !/[\u0000-\u0020\u007f]/.test(capability), 'prebuilt_scoped_capability');
     m.access = { kind: 'deployment-shareable', token: capability, expiresAt: new Date(Date.now()+900000).toISOString(), headerVerified: false }; save();
@@ -178,34 +220,20 @@ export async function publishPrebuiltNext({ sourceCommit, buildReceiptPath }, in
     m.readinessProof = { request, response: ready.body }; m.publication = 'ready'; save();
     check(!stopped && !failedPersistence, 'prebuilt_not_successful'); report.passed = true;
     report.environmentVerification = m.environmentVerification;
-  } catch (e) { report.failedPhase = phase; report.failure = old.safePublisherDiagnostic(e); }
+    decorateReport();
+    // Both final writes run while failures still enter catch and owned cleanup.
+    persistPrebuiltSuccess(report,{save,persistEvidence});
+  } catch (e) { report.passed=false; report.failedPhase = phase; report.failure = old.safePublisherDiagnostic(e); failedPersistence ||= report.persistenceFailed===true; }
   finally {
     cleaning = true;
     if (!report.passed && m?.vercel.deploymentId) {
       try {
-        const d=(await vercel(`/v13/deployments/${m.vercel.deploymentId}`)).body;
-        if (!m.vercel.url && /^[a-z0-9-]+\.vercel\.app$/.test(d.url)) m.vercel.url=`https://${d.url}`;
-        validatePrebuiltDeployment(d,m,false); report.cleanup.ownershipVerified=true;
-        if(m.access?.token) await vercel(`/aliases/${m.vercel.deploymentId}/protection-bypass`, { method:'PATCH',body:{revoke:{secret:m.access.token,regenerate:false}} });
-        report.cleanup.capabilityRevoked=true;
-        await vercel(`/v13/deployments/${m.vercel.deploymentId}`,{method:'DELETE',allowedStatuses:[200,204]});
-        report.cleanup.deploymentDeleted=(await vercel(`/v13/deployments/${m.vercel.deploymentId}`,{allowedStatuses:[404]})).status===404;
+        report.cleanup=await cleanupPrebuiltOwned(m,vercel);
       } catch { report.cleanup.incomplete=true; }
     }
-    if (m) { m.publication=report.passed?'ready':'stopped'; m.cleanup=report.cleanup; save(); }
-    report.cancelled=stopped; report.persistenceFailed=failedPersistence;
-    report.passed=report.passed&&!stopped&&!failedPersistence;
-    report.cumulative={ calls:63+report.counters.applicationCalls,nextCalls:2+report.counters.applicationCalls,
-      controls:35+report.counters.controlRequests,hosting:report.counters.hostingRequests,writes:355,gateway:7,creations:2+report.creationRequests };
-    if(m) {
-      m.cumulative=report.cumulative; save();
-      Object.assign(report,{runId:m.runId,previousStoppedPublicationSha256:m.previousStoppedPublicationSha256,
-        sourcePrebuilt:m.vercel.sourcePrebuilt,backendCompatibility:m.backendCompatibility,preflight:m.preflight,
-        thirdContinuation:m.thirdContinuation,uniqueUrl:m.vercel.url,
-        productionTargetUnchanged:report.passed,productionAliasBindingsUnchanged:report.passed,gitDisconnectPreserved:report.passed});
-    }
-    report.finishedAt=new Date().toISOString();
-    if(m) writeFileSync(PREBUILT_PATHS.publication,JSON.stringify(report,null,2)+'\n',{mode:0o644,flag:'wx',flush:true});
+    // Success has no additional fallible write after its committed evidence.
+    if(!report.passed&&m){m.publication='stopped';m.cleanup=report.cleanup;decorateReport();save();
+      report.persistenceFailed=failedPersistence;try{persistEvidence();}catch{report.persistenceFailed=true;}}
     process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);
   }
   output(JSON.stringify({passed:report.passed,phase:report.failedPhase,counters:report.counters,cleanup:report.cleanup}));
