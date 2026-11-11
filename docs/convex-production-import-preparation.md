@@ -1,6 +1,6 @@
 # Production import preparation
 
-Status: offline planning only. No production Convex key, publication, data import
+Status: offline implementation accepted conditionally. No production Convex key, publication, data import
 or traffic switch was performed. The [final frozen source](./blob-final-frozen-export.md)
 is now preserved; its recalculated plan confirms the same counts and bytes below.
 Production execution is still pending its own reviewed, enforced allocation.
@@ -17,13 +17,14 @@ ceiling of 40 pages would give 55 application calls through confirmed read-only
 state and 774 logical document writes, using the reviewed formulas
 `K + V + 8` and `2D + 2K + V + 6`. This is a **separate future production
 allocation**, not permission to spend a preview ledger's unused margin.
-The current importer's verification loop does not enforce that proposed ceiling;
-the reviewed execution wrapper must reserve and enforce it before any dispatch.
+The underlying importer's verification loop does not enforce that proposed ceiling;
+the separately reviewed [execution wrapper](./production-import-execution.md)
+now reserves and enforces it before every dispatch, including interruption/resume.
 Publication, configuration, independent reconciliation, provider retries and
 authentication/hosting traffic are excluded and need their own accounting.
 Recompute every count and byte size from the final frozen snapshot before
 execution; the private planning record binds this calculation to the preserved
-provisional input without publishing identities, credentials or fingerprints.
+frozen input without publishing identities, credentials or fingerprints.
 
 The offline backend review found that initialization and begin enforce an empty,
 closed application/auth/import target. Existing-target CLI selection can bind
@@ -46,3 +47,4 @@ or reverse export rather than returning to a stale Blob snapshot.
 Hosted Next/cookie/IP/JWT/refresh/expiry provenance, production reconciliation and
 final Astra approval remain required. The frozen source is reconciled; no
 production publication or import has been executed or authorized by this document.
+The next step is the separately reviewed [existing-backend setup](./production-backend-setup.md).
