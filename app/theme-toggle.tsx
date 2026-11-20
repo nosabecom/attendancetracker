@@ -36,7 +36,11 @@ export default function ThemeToggle() {
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       onClick={toggle}
     >
-      <span className="theme-toggle-icon" aria-hidden="true">
+      <span
+        key={dark ? "sun" : "moon"}
+        className="theme-toggle-icon"
+        aria-hidden="true"
+      >
         {dark ? <Sun size={15} /> : <Moon size={15} />}
       </span>
       <span className="theme-toggle-label">
