@@ -23,14 +23,26 @@ import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import { ConvexError } from "convex/values";
 import {
-  CheckCheck,
-  ClipboardList,
+  ArrowUpDown,
+  ArrowUpRight,
+  CalendarDays,
+  Check,
+  Clock,
+  Copy,
   Download,
-  Lock,
+  Loader2,
+  LogOut,
   Plus,
   QrCode,
+  Search,
+  ShieldCheck,
   Upload,
+  UserCheck,
+  UserCog,
   Users,
+  UserX,
+  WifiOff,
+  X,
 } from "lucide-react";
 import QRCode from "qrcode";
 import Papa from "papaparse";
@@ -39,6 +51,20 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import ConvexClassManager from "./convex-class-manager";
 import { verifiedLogout } from "../lib/convex-logout.mjs";
+import {
+  AttendanceProgressBar,
+  AuthShowcase,
+  Brand,
+  ConfirmModal,
+  EmptyWorkspaceStage,
+  PasswordInput,
+  ProjectorModal,
+  ProjectQrButton,
+  RosterPreview,
+  StudentAvatar,
+  type RosterFilter,
+  type RosterSort,
+} from "./ui-components";
 
 export function accessError(e: unknown) {
   const data = e instanceof ConvexError ? e.data : null;
@@ -53,6 +79,7 @@ export function errorMessage(e: unknown) {
     ? data.message
     : "Something went wrong. Please try again.";
 }
+
 const SessionDeadline = createContext(0);
 const claim = makeFunctionReference<
   "mutation",
@@ -64,14 +91,7 @@ const claimStatus = makeFunctionReference<
   { ownerKey: string },
   { complete: boolean }
 >("legacy:claimStatus");
-const Brand = () => (
-  <div className="brand">
-    <span className="brandmark">
-      <CheckCheck size={24} />
-    </span>
-    rollcall<span className="brand-dot">.</span>
-  </div>
-);
+
 class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -80,20 +100,30 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   render() {
     return this.state.failed ? (
       <main className="student-page">
-        <Brand />
-        <section className="student-card">
-          <h1>Workspace unavailable</h1>
-          <p>Your session or access may have changed. Please sign in again.</p>
-          <button className="primary" onClick={() => location.reload()}>
-            Continue
-          </button>
-        </section>
+        <div className="student-shell">
+          <div className="student-header">
+            <Brand size="md" />
+          </div>
+          <section className="student-card">
+            <h1>Workspace unavailable</h1>
+            <p>
+              Your session or access may have changed. Please sign in again.
+            </p>
+            <button
+              className="primary full"
+              onClick={() => location.reload()}
+            >
+              Continue
+            </button>
+          </section>
+        </div>
       </main>
     ) : (
       this.props.children
     );
   }
 }
+
 export default function ConvexHome() {
   const { isLoading, isAuthenticated, isRefreshing } = useConvexAuth();
   const { signIn } = useAuthActions();
@@ -104,6 +134,7 @@ export default function ConvexHome() {
     [busy, setBusy] = useState(false),
     [visible, setVisible] = useState(false),
     [legacyKey, setLegacyKey] = useState("");
+
   useEffect(() => {
     const hash = new URLSearchParams(location.hash.slice(1)).get("teacher");
     const old =
@@ -124,6 +155,7 @@ export default function ConvexHome() {
     document.addEventListener("visibilitychange", change);
     return () => document.removeEventListener("visibilitychange", change);
   }, []);
+
   async function authenticate(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -137,103 +169,115 @@ export default function ConvexHome() {
       setBusy(false);
     }
   }
+
   if (!visible || isLoading || isRefreshing)
-    return <div className="loading">Opening Rollcall…</div>;
+    return (
+      <div className="loading">
+        <Loader2 size={18} className="spin" />
+        <span>Opening Rollcall…</span>
+      </div>
+    );
+
   if (!isAuthenticated)
     return (
-      <main className="student-page">
-        <Brand />
-        <section className="student-card auth-card">
-          <span className="eyebrow">YOUR TEACHER WORKSPACE</span>
-          <h1>
-            {mode === "login" ? "Welcome back." : "Make room for your classes."}
-          </h1>
-          <p>
-            {mode === "login"
-              ? "Sign in to find your saved classes and attendance."
-              : "Create an account to keep your classes in your own private workspace."}
-          </p>
-          <div className="auth-tabs">
-            <button
-              className={mode === "login" ? "selected" : ""}
-              onClick={() => {
-                setMode("login");
-                setError("");
-              }}
-            >
-              Sign in
-            </button>
-            <button
-              className={mode === "signup" ? "selected" : ""}
-              onClick={() => {
-                setMode("signup");
-                setError("");
-              }}
-            >
-              Create account
-            </button>
+      <main className="auth-layout">
+        <AuthShowcase />
+        <section className="auth-panel">
+          <div className="auth-mobile-brand">
+            <Brand size="md" />
           </div>
-          <form onSubmit={authenticate}>
-            <label htmlFor="username">Username</label>
-            <input
-              id="username"
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              minLength={3}
-              maxLength={40}
-              pattern="[A-Za-z0-9._-]{3,40}"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete={
-                mode === "signup" ? "new-password" : "current-password"
-              }
-              required
-              minLength={10}
-              maxLength={128}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {mode === "signup" && (
-              <p className="auth-help">
-                Save your username and password. Password recovery isn’t
-                available yet.
+          <div className="student-card auth-card">
+            <h1>{mode === "login" ? "Sign in" : "Create account"}</h1>
+            <div className="auth-tabs" role="tablist">
+              <button
+                type="button"
+                className={mode === "login" ? "selected" : ""}
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={mode === "signup" ? "selected" : ""}
+                onClick={() => {
+                  setMode("signup");
+                  setError("");
+                }}
+              >
+                Create account
+              </button>
+            </div>
+            <form onSubmit={authenticate}>
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                minLength={3}
+                maxLength={40}
+                pattern="[A-Za-z0-9._\-]{3,40}"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <label htmlFor="password">Password</label>
+              <PasswordInput
+                id="password"
+                autoComplete={
+                  mode === "signup" ? "new-password" : "current-password"
+                }
+                required
+                minLength={10}
+                maxLength={128}
+                placeholder="At least 10 characters"
+                value={password}
+                onChange={setPassword}
+                showStrength={mode === "signup"}
+              />
+              {mode === "signup" && (
+                <p className="auth-help">
+                  Password recovery isn’t available yet — save your login.
+                </p>
+              )}
+              {error && (
+                <div role="alert" className="error">
+                  {error}
+                </div>
+              )}
+              <button className="primary full btn-lg" disabled={busy}>
+                {busy ? (
+                  <>
+                    <Loader2 size={17} className="spin" /> Please wait…
+                  </>
+                ) : mode === "signup" ? (
+                  "Create my workspace"
+                ) : (
+                  "Sign in"
+                )}
+              </button>
+            </form>
+            {legacyKey && (
+              <p className="auth-help auth-legacy-note">
+                Previous classes found on this browser. Sign in to import them.
               </p>
             )}
-            {error && (
-              <div role="alert" className="error">
-                {error}
-              </div>
-            )}
-            <button className="primary full" disabled={busy}>
-              {busy
-                ? "Please wait…"
-                : mode === "signup"
-                  ? "Create my workspace"
-                  : "Sign in"}
-            </button>
-          </form>
-          {legacyKey && (
-            <p className="auth-help">
-              Your previous workspace is on this browser. After signing in, you
-              can import its classes.
-            </p>
-          )}
+          </div>
         </section>
       </main>
     );
+
   return (
     <Boundary>
       <Viewer legacyKey={legacyKey} clearLegacy={() => setLegacyKey("")} />
     </Boundary>
   );
 }
+
 function Viewer({
   legacyKey,
   clearLegacy,
@@ -249,6 +293,7 @@ function Viewer({
   const token = useAuthToken();
   const connection = useConvexConnectionState();
   const [online, setOnline] = useState(true);
+
   useEffect(() => {
     setOnline(navigator.onLine);
     const offline = () => setOnline(false);
@@ -260,14 +305,17 @@ function Viewer({
       window.removeEventListener("online", reconnect);
     };
   }, []);
+
   useEffect(() => {
     if (connection.isWebSocketConnected && connection.connectionCount > 1)
       location.reload();
   }, [connection.isWebSocketConnected, connection.connectionCount]);
+
   const connected =
     online &&
     connection.isWebSocketConnected &&
     connection.connectionCount === 1;
+
   async function leave() {
     setSigningOut(true);
     setLogoutError("");
@@ -278,6 +326,7 @@ function Viewer({
       setSigningOut(false);
     }
   }
+
   useEffect(() => {
     if (!token || !connected) return;
     let active = true;
@@ -299,12 +348,14 @@ function Viewer({
       active = false;
     };
   }, [token, connected]);
+
   const viewer = useQuery(
     api.attendance.viewer,
     expired || signingOut || !connected || !token || verifiedToken !== token
       ? "skip"
       : {},
   );
+
   useEffect(() => {
     if (!viewer) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -316,47 +367,77 @@ function Viewer({
     schedule();
     return () => clearTimeout(timer);
   }, [viewer]);
+
   if (verificationFailed) throw new Error("Authentication check failed");
-  if (signingOut) return <div className="loading">Signing out…</div>;
+  if (signingOut)
+    return (
+      <div className="loading">
+        <Loader2 size={18} className="spin" />
+        <span>Signing out…</span>
+      </div>
+    );
   if (logoutError)
     return (
       <main className="student-page">
-        <Brand />
-        <section className="student-card">
-          <h1>Sign-out did not finish</h1>
-          <p role="alert">{logoutError}</p>
-          <button className="primary" onClick={() => void leave()}>
-            Try again
-          </button>
-        </section>
+        <div className="student-shell">
+          <div className="student-header">
+            <Brand size="md" />
+          </div>
+          <section className="student-card">
+            <h1>Sign-out did not finish</h1>
+            <p role="alert">{logoutError}</p>
+            <button className="primary full" onClick={() => void leave()}>
+              Try again
+            </button>
+          </section>
+        </div>
       </main>
     );
   if (expired)
     return (
       <main className="student-page">
-        <Brand />
-        <section className="student-card">
-          <h1>Session expired</h1>
-          <p>Please sign in again.</p>
-          <button className="primary" onClick={() => void leave()}>
-            Sign in
-          </button>
-        </section>
+        <div className="student-shell">
+          <div className="student-header">
+            <Brand size="md" />
+          </div>
+          <section className="student-card">
+            <h1>Session expired</h1>
+            <p>Please sign in again.</p>
+            <button className="primary full" onClick={() => void leave()}>
+              Sign in
+            </button>
+          </section>
+        </div>
       </main>
     );
   if (!connected)
     return (
       <main className="student-page">
-        <Brand />
-        <section className="student-card">
-          <h1>Reconnecting…</h1>
-          <p>
-            Attendance will reopen with fresh data when your connection returns.
-          </p>
-        </section>
+        <div className="student-shell">
+          <div className="student-header">
+            <Brand size="md" />
+          </div>
+          <section className="student-card">
+            <div className="reconnect-icon">
+              <WifiOff size={26} />
+            </div>
+            <h1>Reconnecting…</h1>
+            <p>
+              Attendance will reopen with fresh data when your connection
+              returns.
+            </p>
+          </section>
+        </div>
       </main>
     );
-  if (!viewer) return <div className="loading">Opening Rollcall…</div>;
+  if (!viewer)
+    return (
+      <div className="loading">
+        <Loader2 size={18} className="spin" />
+        <span>Opening Rollcall…</span>
+      </div>
+    );
+
   return (
     <SessionDeadline.Provider value={viewer.expiresAt}>
       <Workspace
@@ -368,6 +449,7 @@ function Viewer({
     </SessionDeadline.Provider>
   );
 }
+
 function Workspace({
   username,
   legacyKey,
@@ -390,11 +472,16 @@ function Workspace({
   const [selectedClass, setSelectedClass] = useState<Id<"classes"> | null>(
       null,
     ),
+    [classFilter, setClassFilter] = useState(""),
     [modal, setModal] = useState(false),
     [title, setTitle] = useState(""),
     [csv, setCsv] = useState(""),
     [fileName, setFileName] = useState(""),
+    [previewStudents, setPreviewStudents] = useState<
+      { name: string; code: string }[]
+    >([]),
     [count, setCount] = useState(0),
+    [dragging, setDragging] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [pending, setPending] = useState("");
@@ -403,6 +490,7 @@ function Workspace({
     claimStatus,
     pending ? { ownerKey: pending } : "skip",
   );
+
   useEffect(() => {
     if (status?.complete) {
       localStorage.removeItem("rollcall-key");
@@ -410,26 +498,61 @@ function Workspace({
       setPending("");
     }
   }, [status, clearLegacy]);
+
   useEffect(() => {
     if (!selectedClass && classes.results.length)
       setSelectedClass(classes.results[0].classId);
   }, [classes.results, selectedClass]);
+
+  useEffect(() => {
+    if (!modal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) setModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modal, busy]);
+
   if (fatal) throw new Error("Access changed");
+
+  function loadParsedCsv(text: string, name: string) {
+    const parsed = parseRoster(text);
+    setCount(parsed.length);
+    setPreviewStudents(
+      parsed.slice(0, 5).map((s) => ({ name: s.name, code: s.code })),
+    );
+    setCsv(text);
+    setFileName(name);
+    setError("");
+  }
+
   async function readFile(f?: File) {
     if (!f) return;
     try {
       if (f.size > 500000) throw new Error("Choose a CSV smaller than 500 KB.");
       const text = await f.text();
-      setCount(parseRoster(text).length);
-      setCsv(text);
-      setFileName(f.name);
-      setError("");
+      loadParsedCsv(text, f.name);
     } catch (e) {
       setCsv("");
       setCount(0);
+      setPreviewStudents([]);
+      setFileName("");
       setError(e instanceof Error ? e.message : "Invalid CSV.");
     }
   }
+
+  async function useSampleRoster() {
+    try {
+      const r = await fetch("/sample-roster.csv");
+      if (!r.ok) throw new Error("Unable to load sample roster.");
+      const text = await r.text();
+      loadParsedCsv(text, "sample-roster.csv");
+      if (!title.trim()) setTitle("Demo Seminar 101");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load sample CSV.");
+    }
+  }
+
   async function createClass(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -441,6 +564,7 @@ function Workspace({
       setCsv("");
       setTitle("");
       setFileName("");
+      setPreviewStudents([]);
       setCount(0);
     } catch (e) {
       if (accessError(e)) setFatal(true);
@@ -449,6 +573,7 @@ function Workspace({
       setBusy(false);
     }
   }
+
   async function migrate() {
     setBusy(true);
     setError("");
@@ -462,86 +587,157 @@ function Workspace({
       setBusy(false);
     }
   }
+
+  const activeClass = classes.results.find((c) => c.classId === selectedClass);
+  const visibleClasses = classFilter.trim()
+    ? classes.results.filter((c) =>
+        c.title.toLowerCase().includes(classFilter.trim().toLowerCase()),
+      )
+    : classes.results;
+
   return (
     <div className="app">
       <aside className="sidebar">
-        <Brand />
-        <div className="workspace-label">TEACHER WORKSPACE</div>
-        <div className="nav-active">
-          <ClipboardList size={19} /> Attendance
+        <div className="sidebar-brand-row">
+          <Brand size="md" />
+          <div className="mobile-profile">
+            <StudentAvatar name={username} />
+            <button
+              type="button"
+              className="mobile-signout"
+              onClick={() => void onSignOut()}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
+
         <div className="session-label">
-          YOUR CLASSES{" "}
-          <button aria-label="New class" onClick={() => setModal(true)}>
-            <Plus size={17} />
+          <span>
+            CLASSES{" "}
+            {classes.results.length > 0 && (
+              <em className="class-count-pill">{classes.results.length}</em>
+            )}
+          </span>
+          <button
+            type="button"
+            className="sidebar-add-btn"
+            aria-label="New class"
+            onClick={() => {
+              setError("");
+              setModal(true);
+            }}
+          >
+            <Plus size={15} />
           </button>
         </div>
+
+        {classes.results.length > 5 && (
+          <div className="sidebar-search">
+            <Search size={14} />
+            <input
+              aria-label="Filter classes"
+              placeholder="Find a class…"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+            />
+          </div>
+        )}
+
         <div className="session-list">
-          {classes.results.map((c) => (
+          {visibleClasses.map((c) => (
             <button
               key={c.classId}
+              type="button"
               className={
                 selectedClass === c.classId ? "session selected" : "session"
               }
               onClick={() => setSelectedClass(c.classId)}
             >
-              <span>
-                {c.title}
+              <span className="session-dot" aria-hidden="true" />
+              <span className="session-meta">
+                <strong>{c.title}</strong>
                 <small>{c.count} students</small>
               </span>
             </button>
           ))}
           {classes.status === "CanLoadMore" && (
-            <button className="secondary" onClick={() => classes.loadMore(25)}>
-              Load more classes
+            <button
+              type="button"
+              className="secondary compact full"
+              onClick={() => classes.loadMore(25)}
+            >
+              Load more
             </button>
           )}
           {classes.status === "Exhausted" && !classes.results.length && (
-            <p className="sidebar-empty">
-              Your saved classes will appear here.
-            </p>
+            <p className="sidebar-empty">No classes yet.</p>
           )}
         </div>
+
         <div className="teacher-access">
-          <span className="avatar">T</span>
-          <div>
-            <strong>{username}</strong>
-            <button onClick={() => void onSignOut()}>Sign out</button>
+          <StudentAvatar name={username} />
+          <div className="teacher-access-info">
+            <strong title={username}>{username}</strong>
+            <button type="button" onClick={() => void onSignOut()}>
+              <LogOut size={12} /> Sign out
+            </button>
           </div>
         </div>
       </aside>
+
       <main className="main">
-        <header>
-          <span>
-            Workspace <span className="breadcrumb">/</span> Attendance
-          </span>
-          <span className="header-note">
-            <Lock size={14} /> Private workspace
-          </span>
+        <header className="topbar">
+          <div className="topbar-crumbs">
+            <span>Classes</span>
+            {activeClass && (
+              <>
+                <span className="breadcrumb">/</span>
+                <strong className="topbar-current">{activeClass.title}</strong>
+              </>
+            )}
+          </div>
         </header>
+
         <div className="content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">LESS ADMIN, MORE TEACHING</div>
-              <h1>Attendance</h1>
-              <p>Everyone accounted for. All in one place.</p>
+              <h1>{activeClass ? activeClass.title : "Classes"}</h1>
+              {activeClass && <p>{activeClass.count} students</p>}
             </div>
-            <button className="primary" onClick={() => setModal(true)}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                setError("");
+                setModal(true);
+              }}
+            >
               <Plus size={18} /> New class
             </button>
           </div>
+
           {error && !modal && (
             <div className="error" role="alert">
-              {error}
+              <span>{error}</span>
+              <button
+                type="button"
+                aria-label="Dismiss error"
+                onClick={() => setError("")}
+              >
+                <X size={16} />
+              </button>
             </div>
           )}
+
           {legacyKey && (
             <div className="migration-banner">
               <div>
-                <strong>Bring your previous classes with you</strong>
-                <p>Import this browser’s old workspace into {username}.</p>
+                <strong>Import previous classes</strong>
+                <p>Move this browser’s older classes into {username}.</p>
               </div>
               <button
+                type="button"
                 className="secondary"
                 disabled={busy || !!pending}
                 onClick={migrate}
@@ -550,69 +746,85 @@ function Workspace({
               </button>
             </div>
           )}
+
           {selectedClass ? (
             <ClassView key={selectedClass} classId={selectedClass} />
           ) : (
-            <div className="empty-roster">
-              <Users size={36} />
-              <h3>A fresh start for your next class</h3>
-              <p>
-                Import a CSV of student names to create your first attendance
-                session.
-              </p>
-              <button className="primary" onClick={() => setModal(true)}>
-                <Upload size={17} /> Import student CSV
-              </button>
-              <a href="/sample-roster.csv" download>
-                Download 20 fake students
-              </a>
-            </div>
+            <EmptyWorkspaceStage
+              onImport={() => {
+                setError("");
+                setModal(true);
+              }}
+            />
           )}
         </div>
       </main>
+
       {modal && (
-        <div className="modal-backdrop">
-          <section className="modal" role="dialog" aria-modal="true">
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busy) setModal(false);
+          }}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-class-title"
+          >
             <button
+              type="button"
               className="modal-close"
               aria-label="Close"
+              disabled={busy}
               onClick={() => setModal(false)}
             >
-              ×
+              <X size={19} />
             </button>
-            <h2>Let’s set up your class.</h2>
-            <p>
-              Name your class and import your roster once. It’s saved for next
-              time.
-            </p>
+            <h2 id="new-class-title">New class</h2>
             <form onSubmit={createClass}>
               <label htmlFor="session-name">Class name</label>
               <input
                 id="session-name"
+                autoFocus
                 required
                 maxLength={100}
+                placeholder="e.g. Biology 101"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
-              <label htmlFor="roster-file">Student roster</label>
+              <div className="roster-label-row">
+                <label htmlFor="roster-file">Student roster</label>
+                <button
+                  type="button"
+                  className="inline-link-btn"
+                  onClick={() => void useSampleRoster()}
+                >
+                  Load sample CSV
+                </button>
+              </div>
               <button
                 type="button"
-                className="dropzone"
+                className={`dropzone ${dragging ? "dragging" : ""} ${count ? "loaded" : ""}`}
                 onClick={() => file.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
                 onDrop={(e) => {
                   e.preventDefault();
+                  setDragging(false);
                   void readFile(e.dataTransfer.files[0]);
                 }}
               >
-                <Upload size={27} />
-                <strong>
-                  {fileName || "Click to choose or drop your CSV"}
-                </strong>
+                <Upload size={22} />
+                <strong>{fileName || "Choose or drop CSV"}</strong>
                 <span>
                   {count
-                    ? `${count} students ready to import`
-                    : "CSV files up to 500 KB · Up to 1,000 students"}
+                    ? `${count} students ready`
+                    : "Up to 500 KB · 1,000 students"}
                 </span>
               </button>
               <input
@@ -623,12 +835,13 @@ function Workspace({
                 accept=".csv,text/csv"
                 onChange={(e) => void readFile(e.target.files?.[0])}
               />
+              <RosterPreview students={previewStudents} total={count} />
               <p className="csv-help">
-                Use a name column or first_name and last_name. Add student_id to
-                distinguish students.
+                Columns: <code>name</code> (or <code>first_name</code>,{" "}
+                <code>last_name</code>) and optional <code>student_id</code>.
               </p>
               <a href="/sample-roster.csv" download className="sample-link">
-                Download fake student CSV
+                Download sample CSV <ArrowUpRight size={14} />
               </a>
               {error && (
                 <div className="error" role="alert">
@@ -636,10 +849,18 @@ function Workspace({
                 </div>
               )}
               <button
-                className="primary full"
+                className="primary full create-button btn-lg"
                 disabled={busy || !csv || !title.trim()}
               >
-                Create class &amp; start attendance
+                {busy ? (
+                  <>
+                    <Loader2 size={17} className="spin" /> Creating session…
+                  </>
+                ) : (
+                  <>
+                    <Plus size={17} /> Create class &amp; start attendance
+                  </>
+                )}
               </button>
             </form>
           </section>
@@ -648,6 +869,7 @@ function Workspace({
     </div>
   );
 }
+
 function ClassView({ classId }: { classId: Id<"classes"> }) {
   const history = usePaginatedQuery(
     api.attendance.history,
@@ -657,14 +879,19 @@ function ClassView({ classId }: { classId: Id<"classes"> }) {
   const [selected, setSelected] = useState(""),
     [manager, setManager] = useState<"roster" | "teachers" | null>(null),
     [error, setError] = useState(""),
+    [startingNew, setStartingNew] = useState(false),
     [fatal, setFatal] = useState(false);
   const repeat = useMutation(api.attendance.repeat);
+
   useEffect(() => {
     if (!selected && history.results.length) setSelected(history.results[0].id);
   }, [history.results, selected]);
+
   if (fatal) throw new Error("Access changed");
+
   async function startAgain() {
-    if (!selected) return;
+    if (!selected || startingNew) return;
+    setStartingNew(true);
     try {
       const r = await repeat({ legacyId: selected, newId: newId() });
       setSelected(r.id);
@@ -672,8 +899,11 @@ function ClassView({ classId }: { classId: Id<"classes"> }) {
     } catch (e) {
       if (accessError(e)) setFatal(true);
       else setError(errorMessage(e));
+    } finally {
+      setStartingNew(false);
     }
   }
+
   return (
     <>
       {manager && (
@@ -684,61 +914,91 @@ function ClassView({ classId }: { classId: Id<"classes"> }) {
         />
       )}
       <div className="class-toolbar">
-        <div>
-          <label htmlFor="session-history">Attendance history</label>
-          <select
-            id="session-history"
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-          >
-            {selected && !history.results.some((s) => s.id === selected) && (
-              <option value={selected}>New session</option>
+        <div className="history-picker">
+          <label htmlFor="session-history">
+            <CalendarDays size={13} /> Attendance history
+          </label>
+          <div className="history-controls">
+            <select
+              id="session-history"
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+            >
+              {selected && !history.results.some((s) => s.id === selected) && (
+                <option value={selected}>New session</option>
+              )}
+              {history.results.map((s) => (
+                <option value={s.id} key={s.id}>
+                  {new Date(s.createdAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </option>
+              ))}
+            </select>
+            {history.status === "CanLoadMore" && (
+              <button
+                type="button"
+                className="secondary compact"
+                onClick={() => history.loadMore(25)}
+              >
+                Load more history
+              </button>
             )}
-            {history.results.map((s) => (
-              <option value={s.id} key={s.id}>
-                {new Date(s.createdAt).toLocaleString(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </option>
-            ))}
-          </select>
-          {history.status === "CanLoadMore" && (
-            <button className="secondary" onClick={() => history.loadMore(25)}>
-              Load more history
-            </button>
-          )}
+          </div>
         </div>
+
         <div className="class-buttons">
-          <button className="secondary" onClick={() => setManager("roster")}>
-            Edit students
-          </button>
-          <button className="secondary" onClick={() => setManager("teachers")}>
-            Teacher access
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setManager("roster")}
+          >
+            <Users size={15} /> Edit students
           </button>
           <button
+            type="button"
             className="secondary"
-            disabled={!selected}
+            onClick={() => setManager("teachers")}
+          >
+            <UserCog size={15} /> Teacher access
+          </button>
+          <button
+            type="button"
+            className="secondary accent-outline"
+            disabled={!selected || startingNew}
             onClick={startAgain}
           >
-            <Plus size={17} /> Take attendance again
+            {startingNew ? (
+              <Loader2 size={15} className="spin" />
+            ) : (
+              <Plus size={16} />
+            )}{" "}
+            Take attendance again
           </button>
         </div>
       </div>
+
       {error && (
         <div className="error" role="alert">
           {error}
         </div>
       )}
+
       {selected ? (
         <SessionView key={selected} id={selected} />
       ) : (
-        <p>Loading attendance history…</p>
+        <div className="session-skeleton">
+          <Loader2 size={18} className="spin" />
+          <span>Loading attendance history…</span>
+        </div>
       )}
     </>
   );
 }
+
 type Fact = { studentId: string; checkedInAt?: string; excusedAt?: string };
+
 function SessionView({ id }: { id: string }) {
   const convex = useConvex();
   const expiresAt = useContext(SessionDeadline);
@@ -747,6 +1007,8 @@ function SessionView({ id }: { id: string }) {
   const exportState = useRef({ active: true, token, id });
   exportState.current.token = token;
   exportState.current.id = id;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const [exporting, setExporting] = useState(false);
   useEffect(() => {
     exportState.current.active = true;
@@ -755,6 +1017,7 @@ function SessionView({ id }: { id: string }) {
       exportRequest.current?.abort();
     };
   }, []);
+
   const session = useQuery(api.attendance.session, { legacyId: id }),
     roster = useQuery(api.attendance.roster, { legacyId: id });
   const bucketQueries = useMemo(
@@ -770,18 +1033,29 @@ function SessionView({ id }: { id: string }) {
   const buckets = useQueries(bucketQueries);
   const close = useMutation(api.attendance.close),
     excuse = useMutation(api.attendance.excuse);
+
   const [qr, setQr] = useState(""),
     [search, setSearch] = useState(""),
+    [filter, setFilter] = useState<RosterFilter>("all"),
+    [sort, setSort] = useState<RosterSort>("roster"),
+    [projectorOpen, setProjectorOpen] = useState(false),
+    [confirmCloseOpen, setConfirmCloseOpen] = useState(false),
+    [copiedLink, setCopiedLink] = useState(false),
+    [excusingId, setExcusingId] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [fatal, setFatal] = useState(false);
+
+  const joinUrl =
+    typeof window !== "undefined" ? `${location.origin}/?join=${id}` : "";
+
   useEffect(() => {
     let active = true;
     QRCode.toDataURL(`${location.origin}/?join=${id}`, {
-      width: 600,
+      width: 720,
       margin: 2,
-      color: { dark: "#102344", light: "#ffffff" },
+      color: { dark: "#111827", light: "#ffffff" },
       errorCorrectionLevel: "M",
     }).then((value) => {
       if (active) setQr(value);
@@ -790,9 +1064,44 @@ function SessionView({ id }: { id: string }) {
       active = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 4200);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if (typing) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (
+        (e.key === "p" || e.key === "P") &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        setProjectorOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (fatal) throw new Error("Access changed");
   for (const value of Object.values(buckets))
     if (value instanceof Error) throw value;
+
   const ready =
     !!session &&
     !!roster &&
@@ -801,6 +1110,7 @@ function SessionView({ id }: { id: string }) {
   if (ready)
     for (const values of Object.values(buckets) as Fact[][])
       for (const row of values) facts.set(row.studentId, row);
+
   const present = ready
       ? roster.filter(
           (s) => facts.get(s.id)?.checkedInAt && !facts.get(s.id)?.excusedAt,
@@ -809,29 +1119,80 @@ function SessionView({ id }: { id: string }) {
     excused = ready
       ? roster.filter((s) => facts.get(s.id)?.excusedAt).length
       : 0,
-    total = ready ? roster.length : 0;
+    total = ready ? roster.length : 0,
+    waiting = Math.max(0, total - present - excused);
+
   const filtered = ready
-    ? roster.filter((s) =>
-        `${s.name} ${s.code}`.toLowerCase().includes(search.toLowerCase()),
-      )
+    ? roster
+        .filter((s) => {
+          const matchesQuery = `${s.name} ${s.code}`
+            .toLowerCase()
+            .includes(search.toLowerCase());
+          if (!matchesQuery) return false;
+          const fact = facts.get(s.id);
+          if (filter === "present")
+            return Boolean(fact?.checkedInAt && !fact?.excusedAt);
+          if (filter === "excused") return Boolean(fact?.excusedAt);
+          if (filter === "waiting")
+            return !fact?.excusedAt && !fact?.checkedInAt;
+          return true;
+        })
+        .sort((a, b) => {
+          if (sort === "name") return a.name.localeCompare(b.name);
+          if (sort === "time") {
+            const ta = facts.get(a.id)?.checkedInAt || "";
+            const tb = facts.get(b.id)?.checkedInAt || "";
+            return tb.localeCompare(ta);
+          }
+          if (sort === "status") {
+            const rank = (sid: string) => {
+              const f = facts.get(sid);
+              if (f?.excusedAt) return 1;
+              if (f?.checkedInAt) return 0;
+              return 2;
+            };
+            return rank(a.id) - rank(b.id) || a.name.localeCompare(b.name);
+          }
+          return 0;
+        })
     : [];
+
   async function run(
     action: "close" | "excuse",
     studentId = "",
-    excused = false,
+    excusedFlag = false,
   ) {
     setBusy(true);
+    if (action === "excuse") setExcusingId(studentId);
     setError("");
     try {
-      if (action === "close") await close({ legacyId: id });
-      else await excuse({ legacyId: id, studentId, excused });
+      if (action === "close") {
+        await close({ legacyId: id });
+        setConfirmCloseOpen(false);
+        setNotice("Check-in is now closed for this session.");
+      } else {
+        await excuse({ legacyId: id, studentId, excused: excusedFlag });
+      }
     } catch (e) {
       if (accessError(e)) setFatal(true);
       else setError(errorMessage(e));
     } finally {
       setBusy(false);
+      setExcusingId("");
     }
   }
+
+  async function copyJoinLink() {
+    try {
+      await navigator.clipboard.writeText(`${location.origin}/?join=${id}`);
+      setCopiedLink(true);
+      setNotice("Student check-in link copied.");
+      setTimeout(() => setCopiedLink(false), 2200);
+    } catch {
+      setError("Clipboard unavailable.");
+    }
+  }
+
   function exportAllowed() {
     const current = convex.connectionState();
     return (
@@ -848,6 +1209,7 @@ function SessionView({ id }: { id: string }) {
       expiresAt > Date.now()
     );
   }
+
   async function exportCsv() {
     if (!exportAllowed() || exportRequest.current) return;
     const controller = new AbortController();
@@ -857,9 +1219,12 @@ function SessionView({ id }: { id: string }) {
     try {
       const http = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!, {
         logger: false,
-        fetch: (input, init) => globalThis.fetch(input, {
-          ...init, signal: controller.signal, redirect: "error",
-        }),
+        fetch: (input, init) =>
+          globalThis.fetch(input, {
+            ...init,
+            signal: controller.signal,
+            redirect: "error",
+          }),
       });
       http.setAuth(token!);
       const snapshot = await http.query(api.attendance.exportSnapshot, {
@@ -910,75 +1275,206 @@ function SessionView({ id }: { id: string }) {
       }
     }
   }
-  if (!ready) return <p>Loading attendance…</p>;
+
+  if (!ready)
+    return (
+      <div className="session-skeleton">
+        <Loader2 size={18} className="spin" />
+        <span>Loading attendance…</span>
+      </div>
+    );
+
+  const dateLabel = new Date(session.createdAt).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const presentPct = total ? Math.round((present / total) * 100) : 0;
+
   return (
     <>
       {error && (
         <div className="error" role="alert">
-          {error}
+          <span>{error}</span>
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            onClick={() => setError("")}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
       {notice && (
         <div className="notice" role="status">
-          {notice}
+          <Check size={16} />
+          <span>{notice}</span>
+          <button
+            type="button"
+            aria-label="Dismiss notice"
+            onClick={() => setNotice("")}
+          >
+            <X size={15} />
+          </button>
         </div>
       )}
+
       <div className="stats">
-        {[
-          ["Students on roster", total, "blue"],
-          ["Present", present, "green"],
-          [
-            session.closed ? "Absent" : "Not yet checked in",
-            total - present - excused,
-            "orange",
-          ],
-          ["Excused", excused, "excused"],
-        ].map(([label, value, color]) => (
-          <div className="stat" key={label}>
-            <span className={`stat-icon ${color}`}>
-              <Users size={21} />
-            </span>
-            <div>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
+        <button
+          type="button"
+          className={`stat stat-clickable ${filter === "all" ? "stat-active" : ""}`}
+          onClick={() => setFilter("all")}
+        >
+          <span className="stat-icon blue">
+            <Users size={20} />
+          </span>
+          <div>
+            <span>Roster</span>
+            <strong>{total}</strong>
           </div>
-        ))}
+        </button>
+
+        <button
+          type="button"
+          className={`stat stat-clickable ${filter === "present" ? "stat-active" : ""}`}
+          onClick={() => setFilter(filter === "present" ? "all" : "present")}
+        >
+          <span className="stat-icon green">
+            <UserCheck size={20} />
+          </span>
+          <div>
+            <span>Present</span>
+            <strong>
+              {present}
+              {total > 0 && <small>{presentPct}%</small>}
+            </strong>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className={`stat stat-clickable ${filter === "waiting" ? "stat-active" : ""}`}
+          onClick={() => setFilter(filter === "waiting" ? "all" : "waiting")}
+        >
+          <span className="stat-icon orange">
+            {session.closed ? <UserX size={20} /> : <Clock size={20} />}
+          </span>
+          <div>
+            <span>{session.closed ? "Absent" : "Waiting"}</span>
+            <strong>{waiting}</strong>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className={`stat stat-clickable ${filter === "excused" ? "stat-active" : ""}`}
+          onClick={() => setFilter(filter === "excused" ? "all" : "excused")}
+        >
+          <span className="stat-icon excused">
+            <ShieldCheck size={20} />
+          </span>
+          <div>
+            <span>Excused</span>
+            <strong>{excused}</strong>
+          </div>
+        </button>
       </div>
+
+      <AttendanceProgressBar
+        present={present}
+        excused={excused}
+        total={total}
+        closed={session.closed}
+      />
+
       <div className="dashboard-grid">
         <section className="panel roster-panel">
           <div className="panel-heading">
             <div>
               <h2>{session.title}</h2>
-              <p>
-                {new Date(session.createdAt).toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
+              <p>{dateLabel}</p>
             </div>
-            <button
-              className="secondary compact"
-              disabled={exporting}
-              onClick={() => void exportCsv()}
-            >
-              <Download size={16} /> Export
-            </button>
+            <div className="panel-heading-actions">
+              <span className={"badge " + (session.closed ? "neutral" : "")}>
+                <span /> {session.closed ? "Closed" : "Check-in open"}
+              </span>
+              <button
+                type="button"
+                className="secondary compact"
+                disabled={exporting}
+                onClick={() => void exportCsv()}
+              >
+                <Download size={15} /> Export
+              </button>
+            </div>
           </div>
+
           <div className="roster-tools">
             <div className="search">
+              <Search size={15} />
               <input
+                ref={searchInputRef}
                 aria-label="Search students"
-                placeholder="Search students…"
+                placeholder="Search students or ID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search ? (
+                <button
+                  type="button"
+                  className="search-clear"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                >
+                  <X size={13} />
+                </button>
+              ) : (
+                <kbd className="search-kbd">/</kbd>
+              )}
             </div>
-            <span className={"badge " + (session.closed ? "neutral" : "")}>
-              <span /> {session.closed ? "Closed" : "Check-in open"}
-            </span>
+
+            <div className="roster-controls-right">
+              <div className="filter-pills" role="group" aria-label="Filter by status">
+                {(
+                  [
+                    ["all", `All`, total],
+                    ["present", "Present", present],
+                    [
+                      "waiting",
+                      session.closed ? "Absent" : "Waiting",
+                      waiting,
+                    ],
+                    ["excused", "Excused", excused],
+                  ] as const
+                ).map(([key, label, num]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`filter-pill ${filter === key ? "active" : ""}`}
+                    onClick={() => setFilter(key)}
+                  >
+                    {label} <span>{num}</span>
+                  </button>
+                ))}
+              </div>
+
+              <label className="sort-control" aria-label="Sort students">
+                <ArrowUpDown size={13} />
+                <select
+                  aria-label="Sort students"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as RosterSort)}
+                >
+                  <option value="roster">Roster order</option>
+                  <option value="name">Name A–Z</option>
+                  <option value="time">Latest check-in</option>
+                  <option value="status">By status</option>
+                </select>
+              </label>
+            </div>
           </div>
+
           <div className="table-scroll">
             <table>
               <thead>
@@ -986,24 +1482,19 @@ function SessionView({ id }: { id: string }) {
                   <th>STUDENT</th>
                   <th>STATUS</th>
                   <th>CHECK-IN TIME</th>
-                  <th>ACTIONS</th>
+                  <th className="th-right">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((s) => {
                   const fact = facts.get(s.id);
+                  const isExcused = Boolean(fact?.excusedAt);
+                  const isPresent = Boolean(fact?.checkedInAt && !isExcused);
                   return (
                     <tr key={s.id}>
                       <td>
                         <div className="student-name">
-                          <span className="initials">
-                            {s.name
-                              .split(" ")
-                              .map((x) => x[0])
-                              .slice(0, 2)
-                              .join("")
-                              .toUpperCase()}
-                          </span>
+                          <StudentAvatar name={s.name} />
                           <div>
                             <strong>{s.name}</strong>
                             {s.code && <small>{s.code}</small>}
@@ -1013,23 +1504,30 @@ function SessionView({ id }: { id: string }) {
                       <td>
                         <span
                           className={
-                            fact?.excusedAt
+                            isExcused
                               ? "status excused"
-                              : fact?.checkedInAt
+                              : isPresent
                                 ? "status present"
-                                : "status"
+                                : session.closed
+                                  ? "status absent"
+                                  : "status"
                           }
                         >
-                          {fact?.excusedAt
+                          {isExcused ? (
+                            <ShieldCheck size={12} />
+                          ) : isPresent ? (
+                            <Check size={12} />
+                          ) : null}
+                          {isExcused
                             ? "Excused"
-                            : fact?.checkedInAt
+                            : isPresent
                               ? "Present"
                               : session.closed
                                 ? "Absent"
                                 : "Waiting"}
                         </span>
                       </td>
-                      <td>
+                      <td className="time-cell">
                         {fact?.checkedInAt
                           ? new Date(fact.checkedInAt).toLocaleTimeString([], {
                               hour: "2-digit",
@@ -1037,15 +1535,17 @@ function SessionView({ id }: { id: string }) {
                             })
                           : "—"}
                       </td>
-                      <td>
+                      <td className="action-cell">
                         <button
-                          className="secondary compact excuse-action"
+                          type="button"
+                          className={`secondary compact excuse-action ${isExcused ? "is-excused" : ""}`}
                           disabled={busy}
-                          onClick={() =>
-                            void run("excuse", s.id, !fact?.excusedAt)
-                          }
+                          onClick={() => void run("excuse", s.id, !isExcused)}
                         >
-                          {fact?.excusedAt ? "Undo excused" : "Mark excused"}
+                          {excusingId === s.id && (
+                            <Loader2 size={13} className="spin" />
+                          )}
+                          {isExcused ? "Undo excused" : "Mark excused"}
                         </button>
                       </td>
                     </tr>
@@ -1054,53 +1554,77 @@ function SessionView({ id }: { id: string }) {
               </tbody>
             </table>
             {!filtered.length && (
-              <p className="no-results">No students match your search.</p>
+              <div className="no-results">
+                <p>No students match your current search or filter.</p>
+                {(search || filter !== "all") && (
+                  <button
+                    type="button"
+                    className="secondary compact"
+                    onClick={() => {
+                      setSearch("");
+                      setFilter("all");
+                    }}
+                  >
+                    Reset filters
+                  </button>
+                )}
+              </div>
             )}
           </div>
+
           <div className="table-footer">
-            {filtered.length} students{" "}
-            <span>{session.closed ? "Session closed" : "Live updates"}</span>
+            <span>
+              Showing {filtered.length} of {total} students
+            </span>
+            <span className="footer-live">
+              {!session.closed && <i className="pulse-dot" />}
+              {session.closed ? "Session closed" : "Live updates"}
+            </span>
           </div>
         </section>
+
         <aside className="right-column">
           <section className="panel qr-panel">
             <div className="panel-heading">
-              <div>
-                <h2>
-                  <QrCode size={19} /> Let students check in
-                </h2>
-                <p>One scan. And they’re on the list.</p>
-              </div>
+              <h2>
+                <QrCode size={17} /> Check-in QR
+              </h2>
             </div>
-            <div className="qr-space">
-              {qr && (
-                <img
-                  src={qr}
-                  width="220"
-                  height="220"
-                  alt="Scan this QR code to check in to the current attendance session"
-                />
-              )}
-            </div>
-            <p className="qr-description">
-              {session.closed
-                ? "This session is closed. Start a new session for your next class."
-                : "Display this QR code so students can scan and sign themselves in."}
-            </p>
-            <div className="qr-actions">
+
+            <div className="qr-stage-box">
               <button
-                className="secondary full"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(
-                      `${location.origin}/?join=${id}`,
-                    );
-                    setNotice("Student check-in link copied.");
-                  } catch {
-                    setError("Clipboard unavailable.");
-                  }
-                }}
+                type="button"
+                className="qr-space qr-space-interactive"
+                aria-label="Open full-screen QR projection mode"
+                onClick={() => setProjectorOpen(true)}
               >
+                {qr ? (
+                  <img
+                    src={qr}
+                    width="220"
+                    height="220"
+                    alt="Scan this QR code to check in to the current attendance session"
+                  />
+                ) : (
+                  <div className="qr-placeholder">
+                    <QrCode size={96} strokeWidth={1.2} />
+                  </div>
+                )}
+              </button>
+            </div>
+
+            {session.closed && (
+              <p className="qr-description">Check-in closed for this session.</p>
+            )}
+
+            <div className="qr-actions">
+              <ProjectQrButton onClick={() => setProjectorOpen(true)} />
+              <button
+                type="button"
+                className="secondary full"
+                onClick={() => void copyJoinLink()}
+              >
+                {copiedLink ? <Check size={15} /> : <Copy size={15} />}
                 Copy check-in link
               </button>
               <a
@@ -1108,20 +1632,14 @@ function SessionView({ id }: { id: string }) {
                 href={qr}
                 download={`rollcall-${id.slice(0, 8)}.png`}
               >
-                <Download size={15} /> Download QR code
+                <Download size={14} /> Download QR code
               </a>
               {!session.closed && (
                 <button
+                  type="button"
                   className="close-session"
                   disabled={busy}
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Close check-in? Students will no longer be able to sign into this session.",
-                      )
-                    )
-                      void run("close");
-                  }}
+                  onClick={() => setConfirmCloseOpen(true)}
                 >
                   Close check-in
                 </button>
@@ -1130,6 +1648,32 @@ function SessionView({ id }: { id: string }) {
           </section>
         </aside>
       </div>
+
+      <ProjectorModal
+        open={projectorOpen}
+        onClose={() => setProjectorOpen(false)}
+        title={session.title}
+        dateLabel={dateLabel}
+        qr={qr}
+        joinUrl={joinUrl}
+        present={present}
+        excused={excused}
+        total={total}
+        closed={session.closed}
+        onCopy={() => void copyJoinLink()}
+        downloadName={`rollcall-${id.slice(0, 8)}.png`}
+      />
+
+      <ConfirmModal
+        open={confirmCloseOpen}
+        title="Close check-in?"
+        description="Students won’t be able to check in anymore. You can still mark excuses or export CSV."
+        confirmLabel="Close check-in"
+        tone="danger"
+        busy={busy}
+        onConfirm={() => void run("close")}
+        onCancel={() => setConfirmCloseOpen(false)}
+      />
     </>
   );
 }
