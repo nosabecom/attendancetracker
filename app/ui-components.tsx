@@ -9,9 +9,6 @@ import {
   EyeOff,
   Maximize2,
   QrCode,
-  Radio,
-  ShieldCheck,
-  Sparkles,
   Upload,
   Users,
   X,
@@ -59,10 +56,7 @@ export function Brand({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
 export function StudentAvatar({ name }: { name: string }) {
   return (
-    <span
-      className={`initials ${getAvatarTone(name)}`}
-      aria-hidden="true"
-    >
+    <span className={`initials ${getAvatarTone(name)}`} aria-hidden="true">
       {getInitials(name)}
     </span>
   );
@@ -126,9 +120,7 @@ export function PasswordInput({
             />
           </div>
           <span className={`password-meter-text ${ready ? "ready" : ""}`}>
-            {ready
-              ? "Length requirement met"
-              : `${value.length} / ${minLength} characters minimum`}
+            {ready ? "10+ characters" : `${value.length} / ${minLength} characters`}
           </span>
         </div>
       )}
@@ -142,22 +134,16 @@ export function AuthShowcase() {
       <div className="auth-showcase-inner">
         <Brand size="md" />
         <div className="auth-showcase-copy">
-          <span className="eyebrow">CLASSROOM ATTENDANCE STUDIO</span>
           <h2>
-            Roll call that <em>respects</em> the room.
+            Live classroom attendance, <em>zero friction.</em>
           </h2>
-          <p>
-            Import your roster once, project a crisp check-in QR code on the
-            board, and watch students arrive in real time—without paper sheets
-            or spreadsheets.
-          </p>
         </div>
 
         <div className="showcase-preview">
           <div className="showcase-preview-head">
             <div>
-              <strong>Architecture 201 · Studio</strong>
-              <span>Live session · 24 students</span>
+              <strong>CS 204 · Algorithms</strong>
+              <span>24 students</span>
             </div>
             <span className="live-pill">
               <span className="pulse-dot" /> Live
@@ -175,9 +161,9 @@ export function AuthShowcase() {
           </div>
           <div className="showcase-rows">
             {[
-              { name: "Avery Brooks", code: "ARC-014", status: "Present", time: "09:01 AM", cls: "present" },
-              { name: "Riley Chen", code: "ARC-019", status: "Present", time: "09:02 AM", cls: "present" },
-              { name: "Morgan Patel", code: "ARC-022", status: "Excused", time: "—", cls: "excused" },
+              { name: "Avery Brooks", code: "CS-014", status: "Present", time: "09:01", cls: "present" },
+              { name: "Riley Chen", code: "CS-019", status: "Present", time: "09:02", cls: "present" },
+              { name: "Morgan Patel", code: "CS-022", status: "Excused", time: "—", cls: "excused" },
             ].map((row) => (
               <div className="showcase-row" key={row.code}>
                 <StudentAvatar name={row.name} />
@@ -189,21 +175,6 @@ export function AuthShowcase() {
                 <span className="showcase-row-time">{row.time}</span>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="showcase-pillars">
-          <div>
-            <QrCode size={16} />
-            <span>Full-screen QR projection for lecture halls</span>
-          </div>
-          <div>
-            <Radio size={16} />
-            <span>Real-time updates, zero page refreshes</span>
-          </div>
-          <div>
-            <ShieldCheck size={16} />
-            <span>Private rosters with one-click CSV export</span>
           </div>
         </div>
       </div>
@@ -245,7 +216,7 @@ export function AttendanceProgressBar({
           </span>
         </div>
         <span className="attendance-meter-rate">
-          <strong>{accountedPct}%</strong> accounted for
+          <strong>{accountedPct}%</strong>
         </span>
       </div>
       <div
@@ -330,7 +301,7 @@ export function ProjectorModal({
           <Brand size="sm" />
           <div className="projector-topbar-right">
             <span className={`badge ${closed ? "neutral" : ""}`}>
-              <span /> {closed ? "Closed" : "Check-in open"}
+              <span /> {closed ? "Closed" : "Open"}
             </span>
             <button
               type="button"
@@ -345,14 +316,13 @@ export function ProjectorModal({
 
         <div className="projector-body">
           <div className="projector-info">
-            <span className="eyebrow">SCAN TO CHECK IN</span>
             <h2 id="projector-title">{title}</h2>
             <p className="projector-date">{dateLabel}</p>
 
             <div className="projector-counter">
               <div className="projector-counter-nums">
                 <strong>{present + excused}</strong>
-                <span>/ {total} students checked in</span>
+                <span>/ {total} checked in</span>
               </div>
               <div className="projector-bar">
                 <span style={{ width: `${pct}%` }} />
@@ -364,20 +334,9 @@ export function ProjectorModal({
               </div>
             </div>
 
-            <div className="projector-steps">
-              <div>
-                <span>1</span>
-                Point your phone camera at the QR code
-              </div>
-              <div>
-                <span>2</span>
-                Enter your full name or student ID
-              </div>
-              <div>
-                <span>3</span>
-                Tap <strong>Check me in</strong> — no account needed
-              </div>
-            </div>
+            <p className="projector-instruction">
+              Scan the QR code and enter your name or student ID.
+            </p>
 
             <div className="projector-actions">
               <button
@@ -390,7 +349,7 @@ export function ProjectorModal({
                 }}
               >
                 {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Link copied" : "Copy link"}
+                {copied ? "Copied" : "Copy link"}
               </button>
               {qr && (
                 <a className="secondary" href={qr} download={downloadName}>
@@ -423,7 +382,7 @@ export function ProjectorModal({
               )}
             </div>
             <span className="projector-hint">
-              Press <kbd>Esc</kbd> to return to roster
+              <kbd>Esc</kbd> to exit
             </span>
           </div>
         </div>
@@ -514,10 +473,8 @@ export function RosterPreview({
   return (
     <div className="roster-preview">
       <div className="roster-preview-head">
-        <span>
-          <Sparkles size={13} /> Roster preview
-        </span>
-        <strong>{total} students detected</strong>
+        <span>Preview</span>
+        <strong>{total} students</strong>
       </div>
       <div className="roster-preview-list">
         {sample.map((s, idx) => (
@@ -534,32 +491,24 @@ export function RosterPreview({
   );
 }
 
-export function EmptyWorkspaceStage({
-  onImport,
-}: {
-  onImport: () => void;
-}) {
+export function EmptyWorkspaceStage({ onImport }: { onImport: () => void }) {
   return (
     <section className="panel empty-stage">
       <div className="empty-stage-main">
         <div className="upload-art">
-          <Users size={34} />
+          <Users size={30} />
           <span>
-            <Upload size={13} />
+            <Upload size={12} />
           </span>
         </div>
-        <span className="eyebrow">READY IN 30 SECONDS</span>
-        <h2>A fresh start for your next class</h2>
-        <p>
-          Import a CSV of student names once to create your class. Rollcall
-          saves the roster so every future session starts with a single click.
-        </p>
+        <h2>No classes yet</h2>
+        <p>Import a CSV roster to start taking attendance.</p>
         <div className="empty-stage-actions">
           <button type="button" className="primary" onClick={onImport}>
-            <Upload size={17} /> Import student CSV
+            <Upload size={16} /> Import CSV
           </button>
           <a className="secondary" href="/sample-roster.csv" download>
-            <Download size={16} /> Download 20 fake students
+            <Download size={15} /> Sample CSV
           </a>
         </div>
         <div className="csv-hint">
@@ -567,24 +516,6 @@ export function EmptyWorkspaceStage({
           <span>
             student_id <small>(optional)</small>
           </span>
-        </div>
-      </div>
-
-      <div className="empty-stage-steps">
-        <div className="step-card">
-          <span className="step-num">01</span>
-          <strong>Import your roster</strong>
-          <p>Drop a CSV with student names and optional IDs.</p>
-        </div>
-        <div className="step-card">
-          <span className="step-num">02</span>
-          <strong>Project the QR code</strong>
-          <p>Show it full-screen on the board or share the link.</p>
-        </div>
-        <div className="step-card">
-          <span className="step-num">03</span>
-          <strong>Export clean records</strong>
-          <p>Mark excuses, close check-in, and download CSV anytime.</p>
         </div>
       </div>
     </section>
@@ -598,7 +529,7 @@ export function ProjectQrButton({ onClick }: { onClick: () => void }) {
       className="primary full project-qr-btn"
       onClick={onClick}
     >
-      <Maximize2 size={16} /> Project QR full-screen
+      <Maximize2 size={15} /> Project QR
     </button>
   );
 }

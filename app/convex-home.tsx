@@ -27,19 +27,15 @@ import {
   ArrowUpRight,
   CalendarDays,
   Check,
-  CheckCheck,
-  ClipboardList,
   Clock,
   Copy,
   Download,
   Loader2,
-  Lock,
   LogOut,
   Plus,
   QrCode,
   Search,
   ShieldCheck,
-  Sparkles,
   Upload,
   UserCheck,
   UserCog,
@@ -109,7 +105,6 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
             <Brand size="md" />
           </div>
           <section className="student-card">
-            <span className="eyebrow">SESSION NOTICE</span>
             <h1>Workspace unavailable</h1>
             <p>
               Your session or access may have changed. Please sign in again.
@@ -192,17 +187,7 @@ export default function ConvexHome() {
             <Brand size="md" />
           </div>
           <div className="student-card auth-card">
-            <span className="eyebrow">YOUR TEACHER WORKSPACE</span>
-            <h1>
-              {mode === "login"
-                ? "Welcome back."
-                : "Make room for your classes."}
-            </h1>
-            <p>
-              {mode === "login"
-                ? "Sign in to find your saved classes and live attendance."
-                : "Create an account to keep your rosters in your own private workspace."}
-            </p>
+            <h1>{mode === "login" ? "Sign in" : "Create account"}</h1>
             <div className="auth-tabs" role="tablist">
               <button
                 type="button"
@@ -236,7 +221,7 @@ export default function ConvexHome() {
                 minLength={3}
                 maxLength={40}
                 pattern="[A-Za-z0-9._\-]{3,40}"
-                placeholder="e.g. prof.morgan"
+                placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -256,8 +241,7 @@ export default function ConvexHome() {
               />
               {mode === "signup" && (
                 <p className="auth-help">
-                  Save your username and password. Password recovery isn’t
-                  available yet.
+                  Password recovery isn’t available yet — save your login.
                 </p>
               )}
               {error && (
@@ -279,14 +263,10 @@ export default function ConvexHome() {
             </form>
             {legacyKey && (
               <p className="auth-help auth-legacy-note">
-                Your previous workspace is on this browser. After signing in,
-                you can import its classes.
+                Previous classes found on this browser. Sign in to import them.
               </p>
             )}
           </div>
-          <span className="student-footer">
-            A little less admin. A little more teaching.
-          </span>
         </section>
       </main>
     );
@@ -404,7 +384,6 @@ function Viewer({
             <Brand size="md" />
           </div>
           <section className="student-card">
-            <span className="eyebrow">SIGN-OUT STATUS</span>
             <h1>Sign-out did not finish</h1>
             <p role="alert">{logoutError}</p>
             <button className="primary full" onClick={() => void leave()}>
@@ -422,7 +401,6 @@ function Viewer({
             <Brand size="md" />
           </div>
           <section className="student-card">
-            <span className="eyebrow">SESSION NOTICE</span>
             <h1>Session expired</h1>
             <p>Please sign in again.</p>
             <button className="primary full" onClick={() => void leave()}>
@@ -634,14 +612,9 @@ function Workspace({
           </div>
         </div>
 
-        <div className="workspace-label">TEACHER WORKSPACE</div>
-        <div className="nav-active">
-          <ClipboardList size={18} /> Attendance
-        </div>
-
         <div className="session-label">
           <span>
-            YOUR CLASSES{" "}
+            CLASSES{" "}
             {classes.results.length > 0 && (
               <em className="class-count-pill">{classes.results.length}</em>
             )}
@@ -694,13 +667,11 @@ function Workspace({
               className="secondary compact full"
               onClick={() => classes.loadMore(25)}
             >
-              Load more classes
+              Load more
             </button>
           )}
           {classes.status === "Exhausted" && !classes.results.length && (
-            <p className="sidebar-empty">
-              Your saved classes will appear here after your first CSV import.
-            </p>
+            <p className="sidebar-empty">No classes yet.</p>
           )}
         </div>
 
@@ -718,9 +689,7 @@ function Workspace({
       <main className="main">
         <header className="topbar">
           <div className="topbar-crumbs">
-            <span>Workspace</span>
-            <span className="breadcrumb">/</span>
-            <span>Attendance</span>
+            <span>Classes</span>
             {activeClass && (
               <>
                 <span className="breadcrumb">/</span>
@@ -728,21 +697,13 @@ function Workspace({
               </>
             )}
           </div>
-          <span className="header-note">
-            <Lock size={13} /> Private workspace
-          </span>
         </header>
 
         <div className="content">
           <div className="page-heading">
             <div>
-              <span className="eyebrow">LESS ADMIN, MORE TEACHING</span>
-              <h1>{activeClass ? activeClass.title : "Attendance"}</h1>
-              <p>
-                {activeClass
-                  ? `${activeClass.count} students on saved roster · Real-time check-in ready`
-                  : "Everyone accounted for. All in one place."}
-              </p>
+              <h1>{activeClass ? activeClass.title : "Classes"}</h1>
+              {activeClass && <p>{activeClass.count} students</p>}
             </div>
             <button
               type="button"
@@ -772,8 +733,8 @@ function Workspace({
           {legacyKey && (
             <div className="migration-banner">
               <div>
-                <strong>Bring your previous classes with you</strong>
-                <p>Import this browser’s old workspace into {username}.</p>
+                <strong>Import previous classes</strong>
+                <p>Move this browser’s older classes into {username}.</p>
               </div>
               <button
                 type="button"
@@ -796,11 +757,6 @@ function Workspace({
               }}
             />
           )}
-
-          <footer className="app-footer">
-            <CheckCheck size={15} /> More time for what matters.
-            <span>Made for calm classrooms.</span>
-          </footer>
         </div>
       </main>
 
@@ -826,14 +782,7 @@ function Workspace({
             >
               <X size={19} />
             </button>
-            <span className="stat-icon blue">
-              <ClipboardList size={21} />
-            </span>
-            <h2 id="new-class-title">Let’s set up your class.</h2>
-            <p>
-              Name your class and import your roster once. It’s saved so every
-              future session takes one click.
-            </p>
+            <h2 id="new-class-title">New class</h2>
             <form onSubmit={createClass}>
               <label htmlFor="session-name">Class name</label>
               <input
@@ -841,7 +790,7 @@ function Workspace({
                 autoFocus
                 required
                 maxLength={100}
-                placeholder="e.g. Biology 101 · Section A"
+                placeholder="e.g. Biology 101"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -852,7 +801,7 @@ function Workspace({
                   className="inline-link-btn"
                   onClick={() => void useSampleRoster()}
                 >
-                  <Sparkles size={13} /> Load 20 sample students
+                  Load sample CSV
                 </button>
               </div>
               <button
@@ -870,14 +819,12 @@ function Workspace({
                   void readFile(e.dataTransfer.files[0]);
                 }}
               >
-                <Upload size={25} />
-                <strong>
-                  {fileName || "Click to choose or drop your CSV"}
-                </strong>
+                <Upload size={22} />
+                <strong>{fileName || "Choose or drop CSV"}</strong>
                 <span>
                   {count
-                    ? `${count} students ready to import`
-                    : "CSV files up to 500 KB · Up to 1,000 students"}
+                    ? `${count} students ready`
+                    : "Up to 500 KB · 1,000 students"}
                 </span>
               </button>
               <input
@@ -890,12 +837,11 @@ function Workspace({
               />
               <RosterPreview students={previewStudents} total={count} />
               <p className="csv-help">
-                Use a <code>name</code> column, or <code>first_name</code> and{" "}
-                <code>last_name</code>. Add <code>student_id</code> to
-                distinguish students with the same name.
+                Columns: <code>name</code> (or <code>first_name</code>,{" "}
+                <code>last_name</code>) and optional <code>student_id</code>.
               </p>
               <a href="/sample-roster.csv" download className="sample-link">
-                Download fake student CSV <ArrowUpRight size={14} />
+                Download sample CSV <ArrowUpRight size={14} />
               </a>
               {error && (
                 <div className="error" role="alert">
@@ -1384,11 +1330,8 @@ function SessionView({ id }: { id: string }) {
             <Users size={20} />
           </span>
           <div>
-            <span>Students on roster</span>
-            <strong>
-              {total}
-              <small>in this session</small>
-            </strong>
+            <span>Roster</span>
+            <strong>{total}</strong>
           </div>
         </button>
 
@@ -1404,7 +1347,7 @@ function SessionView({ id }: { id: string }) {
             <span>Present</span>
             <strong>
               {present}
-              <small>{total ? `${presentPct}% attendance` : "Ready"}</small>
+              {total > 0 && <small>{presentPct}%</small>}
             </strong>
           </div>
         </button>
@@ -1418,13 +1361,8 @@ function SessionView({ id }: { id: string }) {
             {session.closed ? <UserX size={20} /> : <Clock size={20} />}
           </span>
           <div>
-            <span>{session.closed ? "Absent" : "Not yet checked in"}</span>
-            <strong>
-              {waiting}
-              <small>
-                {session.closed ? "session ended" : "awaiting arrival"}
-              </small>
-            </strong>
+            <span>{session.closed ? "Absent" : "Waiting"}</span>
+            <strong>{waiting}</strong>
           </div>
         </button>
 
@@ -1438,10 +1376,7 @@ function SessionView({ id }: { id: string }) {
           </span>
           <div>
             <span>Excused</span>
-            <strong>
-              {excused}
-              <small>marked by teacher</small>
-            </strong>
+            <strong>{excused}</strong>
           </div>
         </button>
       </div>
@@ -1651,12 +1586,9 @@ function SessionView({ id }: { id: string }) {
         <aside className="right-column">
           <section className="panel qr-panel">
             <div className="panel-heading">
-              <div>
-                <h2>
-                  <QrCode size={18} /> Let students check in
-                </h2>
-                <p>One scan. And they’re on the list.</p>
-              </div>
+              <h2>
+                <QrCode size={17} /> Check-in QR
+              </h2>
             </div>
 
             <div className="qr-stage-box">
@@ -1676,17 +1608,14 @@ function SessionView({ id }: { id: string }) {
                 ) : (
                   <div className="qr-placeholder">
                     <QrCode size={96} strokeWidth={1.2} />
-                    <span>Generating QR…</span>
                   </div>
                 )}
               </button>
             </div>
 
-            <p className="qr-description">
-              {session.closed
-                ? "This session is closed. Start a new session for your next class."
-                : "Project this QR code for the room or share the direct check-in link."}
-            </p>
+            {session.closed && (
+              <p className="qr-description">Check-in closed for this session.</p>
+            )}
 
             <div className="qr-actions">
               <ProjectQrButton onClick={() => setProjectorOpen(true)} />
@@ -1717,18 +1646,6 @@ function SessionView({ id }: { id: string }) {
               )}
             </div>
           </section>
-
-          <div className="shortcut-card">
-            <span className="eyebrow">QUICK SHORTCUTS</span>
-            <div className="shortcut-row">
-              <span>Project QR full-screen</span>
-              <kbd>P</kbd>
-            </div>
-            <div className="shortcut-row">
-              <span>Jump to student search</span>
-              <kbd>/</kbd>
-            </div>
-          </div>
         </aside>
       </div>
 
@@ -1749,8 +1666,8 @@ function SessionView({ id }: { id: string }) {
 
       <ConfirmModal
         open={confirmCloseOpen}
-        title="Close check-in for this session?"
-        description="Students will no longer be able to sign themselves in. Anyone who has not checked in will be shown as Absent. You can still excuse students or export CSV afterward."
+        title="Close check-in?"
+        description="Students won’t be able to check in anymore. You can still mark excuses or export CSV."
         confirmLabel="Close check-in"
         tone="danger"
         busy={busy}

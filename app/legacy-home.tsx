@@ -5,20 +5,16 @@ import {
   ArrowUpRight,
   CalendarDays,
   Check,
-  CheckCheck,
-  ClipboardList,
   Clock,
   Copy,
   Download,
   Loader2,
-  Lock,
   LogOut,
   Plus,
   QrCode,
   Search,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Upload,
   UserCheck,
   UserCog,
@@ -550,11 +546,10 @@ export default function Home() {
             )}
           </div>
           <section className="student-card">
-            <span className="eyebrow">STUDENT CHECK-IN</span>
             {success ? (
               <div className="checkin-receipt">
                 <div className="success-icon">
-                  <Check size={34} strokeWidth={2.5} />
+                  <Check size={32} strokeWidth={2.5} />
                 </div>
                 <h1>You’re all set.</h1>
                 <p className="receipt-greeting">{success}</p>
@@ -564,20 +559,17 @@ export default function Home() {
                     <strong>{publicInfo?.title || "Class attendance"}</strong>
                   </div>
                   <div>
-                    <span>Recorded</span>
+                    <span>Time</span>
                     <strong>
-                      <Clock size={13} /> {checkedAt || "Just now"}
+                      <Clock size={13} /> {checkedAt || "Now"}
                     </strong>
                   </div>
                 </div>
-                <p className="muted receipt-note">
-                  <Sparkles size={14} /> Your teacher has your attendance. You
-                  can close this page.
-                </p>
+                <p className="muted receipt-note">You can close this page.</p>
               </div>
             ) : (
               <>
-                <h1>{publicInfo?.title || "Class attendance"}</h1>
+                <h1>{publicInfo?.title || "Attendance"}</h1>
                 {error && (
                   <div role="alert" className="error">
                     <ShieldAlert size={16} />
@@ -586,14 +578,10 @@ export default function Home() {
                 )}
                 {publicInfo?.closed ? (
                   <div className="closed-notice">
-                    <p>Check-in has closed. Please speak to your teacher.</p>
+                    <p>Check-in is closed. Speak to your teacher if needed.</p>
                   </div>
                 ) : publicInfo ? (
                   <form onSubmit={checkin} className="student-form">
-                    <p>
-                      Enter your name as it appears on the class roster, or use
-                      your student ID.
-                    </p>
                     <label htmlFor="identity">Full name or student ID</label>
                     <input
                       id="identity"
@@ -603,7 +591,7 @@ export default function Home() {
                       onChange={(e) => setIdentity(e.target.value)}
                       required
                       maxLength={160}
-                      placeholder="e.g. Avery Brooks or DEMO001"
+                      placeholder="Alex Morgan or ID"
                     />
                     <button className="primary full btn-lg" disabled={busy}>
                       {busy ? (
@@ -616,23 +604,16 @@ export default function Home() {
                         </>
                       )}
                     </button>
-                    <p className="privacy-note">
-                      <Lock size={13} /> Your details are only visible to your
-                      teacher.
-                    </p>
                   </form>
                 ) : !error ? (
                   <div className="student-loading">
                     <Loader2 size={18} className="spin" />
-                    <span>Loading your session…</span>
+                    <span>Loading…</span>
                   </div>
                 ) : null}
               </>
             )}
           </section>
-          <span className="student-footer">
-            A little less admin. A little more teaching.
-          </span>
         </div>
       </main>
     );
@@ -646,17 +627,7 @@ export default function Home() {
             <Brand size="md" />
           </div>
           <div className="student-card auth-card">
-            <span className="eyebrow">YOUR TEACHER WORKSPACE</span>
-            <h1>
-              {authMode === "login"
-                ? "Welcome back."
-                : "Make room for your classes."}
-            </h1>
-            <p>
-              {authMode === "login"
-                ? "Sign in to find your saved classes and attendance."
-                : "Create an account to keep your classes in your own private workspace."}
-            </p>
+            <h1>{authMode === "login" ? "Sign in" : "Create account"}</h1>
             <div className="auth-tabs" role="tablist">
               <button
                 type="button"
@@ -691,7 +662,7 @@ export default function Home() {
                 maxLength={40}
                 value={loginName}
                 onChange={(e) => setLoginName(e.target.value)}
-                placeholder="Your username"
+                placeholder="Username"
               />
               <label htmlFor="password">Password</label>
               <PasswordInput
@@ -709,8 +680,7 @@ export default function Home() {
               />
               {authMode === "signup" && (
                 <p className="auth-help">
-                  Save your username and password. Password recovery isn’t
-                  available yet.
+                  Password recovery isn’t available yet — save your login.
                 </p>
               )}
               {error && (
@@ -728,14 +698,10 @@ export default function Home() {
             </form>
             {legacyKey && (
               <p className="auth-help auth-legacy-note">
-                Your previous workspace is on this browser. After signing in,
-                you can import its classes.
+                Previous classes found on this browser. Sign in to import them.
               </p>
             )}
           </div>
-          <span className="student-footer">
-            A little less admin. A little more teaching.
-          </span>
         </section>
       </main>
     );
@@ -784,13 +750,9 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <div className="workspace-label">TEACHER WORKSPACE</div>
-        <div className="nav-active">
-          <ClipboardList size={18} /> Attendance
-        </div>
         <div className="session-label">
           <span>
-            YOUR CLASSES{" "}
+            CLASSES{" "}
             {uniqueClasses.length > 0 && (
               <em className="class-count-pill">{uniqueClasses.length}</em>
             )}
@@ -835,9 +797,7 @@ export default function Home() {
             </button>
           ))}
           {!sessions.length && (
-            <p className="sidebar-empty">
-              Your saved classes will appear here.
-            </p>
+            <p className="sidebar-empty">No classes yet.</p>
           )}
         </div>
         <div className="teacher-access">
@@ -854,9 +814,7 @@ export default function Home() {
       <main className="main">
         <header className="topbar">
           <div className="topbar-crumbs">
-            <span>Workspace</span>
-            <span className="breadcrumb">/</span>
-            <span>Attendance</span>
+            <span>Classes</span>
             {active && (
               <>
                 <span className="breadcrumb">/</span>
@@ -864,21 +822,13 @@ export default function Home() {
               </>
             )}
           </div>
-          <span className="header-note">
-            <Lock size={13} /> Private workspace
-          </span>
         </header>
 
         <div className="content">
           <div className="page-heading">
             <div>
-              <span className="eyebrow">LESS ADMIN, MORE TEACHING</span>
-              <h1>{active ? active.title : "Attendance"}</h1>
-              <p>
-                {active
-                  ? `${total} students on roster · ${dateLabel}`
-                  : "Everyone accounted for. All in one place."}
-              </p>
+              <h1>{active ? active.title : "Classes"}</h1>
+              {active && <p>{total} students</p>}
             </div>
             <button
               type="button"
@@ -1002,11 +952,8 @@ export default function Home() {
                     <Users size={20} />
                   </span>
                   <div>
-                    <span>Students on roster</span>
-                    <strong>
-                      {total}
-                      <small>in this session</small>
-                    </strong>
+                    <span>Roster</span>
+                    <strong>{total}</strong>
                   </div>
                 </button>
                 <button
@@ -1023,11 +970,9 @@ export default function Home() {
                     <span>Present</span>
                     <strong>
                       {present}
-                      <small>
-                        {total
-                          ? `${Math.round((present / total) * 100)}% attendance`
-                          : "Ready"}
-                      </small>
+                      {total > 0 && (
+                        <small>{Math.round((present / total) * 100)}%</small>
+                      )}
                     </strong>
                   </div>
                 </button>
@@ -1042,15 +987,8 @@ export default function Home() {
                     {active.closed ? <UserX size={20} /> : <Clock size={20} />}
                   </span>
                   <div>
-                    <span>
-                      {active.closed ? "Absent" : "Not yet checked in"}
-                    </span>
-                    <strong>
-                      {waiting}
-                      <small>
-                        {active.closed ? "session ended" : "awaiting arrival"}
-                      </small>
-                    </strong>
+                    <span>{active.closed ? "Absent" : "Waiting"}</span>
+                    <strong>{waiting}</strong>
                   </div>
                 </button>
                 <button
@@ -1065,10 +1003,7 @@ export default function Home() {
                   </span>
                   <div>
                     <span>Excused</span>
-                    <strong>
-                      {excused}
-                      <small>marked by teacher</small>
-                    </strong>
+                    <strong>{excused}</strong>
                   </div>
                 </button>
               </div>
@@ -1290,12 +1225,9 @@ export default function Home() {
                 <aside className="right-column">
                   <section className="panel qr-panel">
                     <div className="panel-heading">
-                      <div>
-                        <h2>
-                          <QrCode size={18} /> Let students check in
-                        </h2>
-                        <p>One scan. And they’re on the list.</p>
-                      </div>
+                      <h2>
+                        <QrCode size={17} /> Check-in QR
+                      </h2>
                     </div>
                     <div className="qr-stage-box">
                       <button
@@ -1314,16 +1246,15 @@ export default function Home() {
                         ) : (
                           <div className="qr-placeholder">
                             <QrCode size={96} strokeWidth={1.2} />
-                            <span>Generating QR…</span>
                           </div>
                         )}
                       </button>
                     </div>
-                    <p className="qr-description">
-                      {active.closed
-                        ? "This session is closed. Start a new session for your next class."
-                        : "Project this QR code for the room or share the direct check-in link."}
-                    </p>
+                    {active.closed && (
+                      <p className="qr-description">
+                        Check-in closed for this session.
+                      </p>
+                    )}
                     <div className="qr-actions">
                       <ProjectQrButton
                         onClick={() => setProjectorOpen(true)}
@@ -1360,18 +1291,6 @@ export default function Home() {
                       )}
                     </div>
                   </section>
-
-                  <div className="shortcut-card">
-                    <span className="eyebrow">QUICK SHORTCUTS</span>
-                    <div className="shortcut-row">
-                      <span>Project QR full-screen</span>
-                      <kbd>P</kbd>
-                    </div>
-                    <div className="shortcut-row">
-                      <span>Jump to student search</span>
-                      <kbd>/</kbd>
-                    </div>
-                  </div>
                 </aside>
               </div>
 
@@ -1397,8 +1316,8 @@ export default function Home() {
 
               <ConfirmModal
                 open={confirmCloseOpen}
-                title="Close check-in for this session?"
-                description="Students will no longer be able to sign into this session. You can still mark students as excused or export CSV afterward."
+                title="Close check-in?"
+                description="Students won’t be able to check in anymore. You can still mark excuses or export CSV."
                 confirmLabel="Close check-in"
                 tone="danger"
                 busy={busy}
@@ -1414,11 +1333,6 @@ export default function Home() {
               }}
             />
           )}
-
-          <footer className="app-footer">
-            <CheckCheck size={15} /> More time for what matters.
-            <span>Made for calm classrooms.</span>
-          </footer>
         </div>
       </main>
 
@@ -1444,14 +1358,7 @@ export default function Home() {
             >
               <X size={19} />
             </button>
-            <span className="stat-icon blue">
-              <ClipboardList size={21} />
-            </span>
-            <h2 id="modal-title">Let’s set up your class.</h2>
-            <p>
-              Name your class and import your roster once. It’s saved for next
-              time.
-            </p>
+            <h2 id="modal-title">New class</h2>
             <form onSubmit={create}>
               <label htmlFor="session-name">Class name</label>
               <input
@@ -1470,7 +1377,7 @@ export default function Home() {
                   className="inline-link-btn"
                   onClick={() => void useSampleRoster()}
                 >
-                  <Sparkles size={13} /> Load 20 sample students
+                  Load sample CSV
                 </button>
               </div>
               <button
@@ -1488,14 +1395,12 @@ export default function Home() {
                   void readFile(e.dataTransfer.files[0]);
                 }}
               >
-                <Upload size={25} />
-                <strong>
-                  {fileName || "Click to choose or drop your CSV"}
-                </strong>
+                <Upload size={22} />
+                <strong>{fileName || "Choose or drop CSV"}</strong>
                 <span>
                   {count
-                    ? `${count} students ready to import`
-                    : "CSV files up to 500 KB · Up to 1,000 students"}
+                    ? `${count} students ready`
+                    : "Up to 500 KB · 1,000 students"}
                 </span>
               </button>
               <input
@@ -1508,12 +1413,11 @@ export default function Home() {
               />
               <RosterPreview students={previewStudents} total={count} />
               <p className="csv-help">
-                Use a <code>name</code> column, or <code>first_name</code> and{" "}
-                <code>last_name</code>. Add <code>student_id</code> to
-                distinguish students with the same name.
+                Columns: <code>name</code> (or <code>first_name</code>,{" "}
+                <code>last_name</code>) and optional <code>student_id</code>.
               </p>
               <a href="/sample-roster.csv" download className="sample-link">
-                Download fake student CSV <ArrowUpRight size={14} />
+                Download sample CSV <ArrowUpRight size={14} />
               </a>
               {error && (
                 <div className="error" role="alert">

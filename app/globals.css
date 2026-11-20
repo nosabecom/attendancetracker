@@ -199,27 +199,27 @@ p {
 }
 
 h1 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(28px, 3vw, 38px);
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: clamp(26px, 2.8vw, 35px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
   line-height: 1.12;
   color: var(--ink);
 }
 
 h2 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.22;
 }
 
 h3 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
 }
 
 kbd {
@@ -256,9 +256,9 @@ kbd {
 }
 
 .brand-word {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.045em;
   color: var(--ink);
   line-height: 1;
 }
@@ -508,14 +508,15 @@ html[data-theme="dark"] .auth-showcase::before {
 }
 
 .auth-showcase-copy h2 {
-  font-size: clamp(32px, 3.2vw, 44px);
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 700;
   line-height: 1.08;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.038em;
   margin-bottom: 14px;
 }
 
 .auth-showcase-copy h2 em {
-  font-style: italic;
+  font-style: normal;
   color: var(--accent-ink);
 }
 
@@ -1284,9 +1285,10 @@ html[data-theme="dark"] .auth-showcase::before {
 }
 
 .stat strong {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 30px;
-  font-weight: 600;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: baseline;
@@ -1770,7 +1772,7 @@ tbody tr:last-child td {
 }
 
 .qr-stage-box {
-  padding: 6px 22px 0;
+  padding: 6px 22px 18px;
   display: flex;
   justify-content: center;
 }
@@ -2081,8 +2083,10 @@ tbody tr:last-child td {
 }
 
 .projector-counter-nums strong {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 40px;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--present-ink);
@@ -2115,6 +2119,12 @@ tbody tr:last-child td {
   font-size: 12.5px;
   color: var(--muted);
   flex-wrap: wrap;
+}
+
+.projector-instruction {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 22px;
 }
 
 .projector-steps {
@@ -2278,8 +2288,8 @@ tbody tr:last-child td {
 }
 
 .modal h2 {
-  font-size: 25px;
-  margin: 16px 0 6px;
+  font-size: 22px;
+  margin: 0 0 6px;
 }
 
 .modal > p {

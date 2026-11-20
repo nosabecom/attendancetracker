@@ -1,13 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  Check,
-  Clock,
-  Loader2,
-  Lock,
-  ShieldAlert,
-  Sparkles,
-} from "lucide-react";
+import { Check, Clock, Loader2, ShieldAlert } from "lucide-react";
 import { Brand } from "./ui-components";
 
 export default function ConvexStudent({ id }: { id: string }) {
@@ -68,8 +61,8 @@ export default function ConvexStudent({ id }: { id: string }) {
       );
       setSuccess(
         data.already
-          ? `You’re already checked in, ${data.name}.`
-          : `You’re checked in, ${data.name}!`,
+          ? `Already checked in as ${data.name}.`
+          : `Checked in as ${data.name}.`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to check in.");
@@ -85,17 +78,16 @@ export default function ConvexStudent({ id }: { id: string }) {
           <Brand size="md" />
           {info && (
             <span className={`badge ${info.closed ? "neutral" : ""}`}>
-              <span /> {info.closed ? "Check-in closed" : "Check-in open"}
+              <span /> {info.closed ? "Closed" : "Open"}
             </span>
           )}
         </div>
 
         <section className="student-card">
-          <span className="eyebrow">STUDENT CHECK-IN</span>
           {success ? (
             <div className="checkin-receipt">
               <div className="success-icon">
-                <Check size={34} strokeWidth={2.5} />
+                <Check size={32} strokeWidth={2.5} />
               </div>
               <h1>You’re all set.</h1>
               <p className="receipt-greeting">{success}</p>
@@ -105,20 +97,17 @@ export default function ConvexStudent({ id }: { id: string }) {
                   <strong>{info?.title || "Class attendance"}</strong>
                 </div>
                 <div>
-                  <span>Recorded</span>
+                  <span>Time</span>
                   <strong>
-                    <Clock size={13} /> {checkedAt || "Just now"}
+                    <Clock size={13} /> {checkedAt || "Now"}
                   </strong>
                 </div>
               </div>
-              <p className="muted receipt-note">
-                <Sparkles size={14} /> Your teacher has your attendance. You can
-                safely close this page.
-              </p>
+              <p className="muted receipt-note">You can close this page.</p>
             </div>
           ) : (
             <>
-              <h1>{info?.title || "Class attendance"}</h1>
+              <h1>{info?.title || "Attendance"}</h1>
               {error && (
                 <div role="alert" className="error">
                   <ShieldAlert size={16} />
@@ -127,17 +116,10 @@ export default function ConvexStudent({ id }: { id: string }) {
               )}
               {info?.closed ? (
                 <div className="closed-notice">
-                  <p>
-                    Check-in has closed for this session. Please speak to your
-                    teacher if you need to be marked present or excused.
-                  </p>
+                  <p>Check-in is closed. Speak to your teacher if needed.</p>
                 </div>
               ) : info ? (
                 <form onSubmit={checkin} className="student-form">
-                  <p>
-                    Enter your name as it appears on the class roster, or use
-                    your student ID.
-                  </p>
                   <label htmlFor="identity">Full name or student ID</label>
                   <input
                     id="identity"
@@ -147,7 +129,7 @@ export default function ConvexStudent({ id }: { id: string }) {
                     onChange={(e) => setIdentity(e.target.value)}
                     required
                     maxLength={160}
-                    placeholder="e.g. Avery Brooks or DEMO001"
+                    placeholder="Alex Morgan or ID"
                   />
                   <button className="primary full btn-lg" disabled={busy}>
                     {busy ? (
@@ -160,26 +142,18 @@ export default function ConvexStudent({ id }: { id: string }) {
                       </>
                     )}
                   </button>
-                  <p className="privacy-note">
-                    <Lock size={13} /> Your details are only visible to your
-                    teacher.
-                  </p>
                 </form>
               ) : (
                 !error && (
                   <div className="student-loading">
                     <Loader2 size={18} className="spin" />
-                    <span>Loading your session…</span>
+                    <span>Loading…</span>
                   </div>
                 )
               )}
             </>
           )}
         </section>
-
-        <span className="student-footer">
-          A little less admin. A little more teaching.
-        </span>
       </div>
     </main>
   );

@@ -256,8 +256,7 @@ export default function ClassManager({
                 >
                   <div className="manager-roster-bar">
                     <p className="manager-help">
-                      Edit the saved class roster. Changes apply to new
-                      attendance sessions; existing sessions stay unchanged.
+                      Applies to new sessions. Past sessions stay unchanged.
                     </p>
                     {students.length > 6 && (
                       <div className="search compact-search">
@@ -360,20 +359,16 @@ export default function ClassManager({
               ) : (
                 <div className="teachers-panel">
                   <p className="manager-help">
-                    Teachers can view attendance history, take attendance, close
-                    check-in, and edit the saved roster. Only the owner can add
-                    or remove teachers.
+                    Shared teachers can run sessions and edit the roster.
                   </p>
                   <div className="teacher-list">
                     <div className="teacher-owner">
                       <div className="teacher-identity">
                         <StudentAvatar name="Owner" />
                         <div>
-                          <strong>Class owner</strong>
+                          <strong>Owner</strong>
                           <span>
-                            {details.isOwner
-                              ? "You manage access to this class"
-                              : "Access managed by the class owner"}
+                            {details.isOwner ? "You" : "Managed by owner"}
                           </span>
                         </div>
                       </div>
