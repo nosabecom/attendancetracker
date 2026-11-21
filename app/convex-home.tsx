@@ -51,6 +51,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import ConvexClassManager from "./convex-class-manager";
 import { verifiedLogout } from "../lib/convex-logout.mjs";
+import { safeAuthErrorMessage } from "../lib/convex-auth-errors.mjs";
 import {
   AttendanceProgressBar,
   AuthShowcase,
@@ -75,9 +76,10 @@ export function accessError(e: unknown) {
 export const newId = () => crypto.randomUUID().replaceAll("-", "");
 export function errorMessage(e: unknown) {
   const data = e instanceof ConvexError ? e.data : null;
-  return data && typeof data === "object" && typeof data.message === "string"
-    ? data.message
-    : "Something went wrong. Please try again.";
+  if (data && typeof data === "object" && typeof data.message === "string") {
+    return data.message;
+  }
+  return safeAuthErrorMessage(e) ?? "Something went wrong. Please try again.";
 }
 
 const SessionDeadline = createContext(0);
@@ -241,7 +243,7 @@ export default function ConvexHome() {
               />
               {mode === "signup" && (
                 <p className="auth-help">
-                  Password recovery isn’t available yet — save your login.
+                  Save your login — ask an admin if you ever need a password reset link.
                 </p>
               )}
               {error && (

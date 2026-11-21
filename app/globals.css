@@ -316,6 +316,7 @@ kbd {
   font-weight: 600;
   font-size: 13.5px;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .primary {
@@ -2930,6 +2931,28 @@ form > input {
   animation: checkRipple 720ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
 }
 
+.error-icon {
+  width: 64px;
+  height: 64px;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+  border: 1px solid rgba(197, 48, 48, 0.25);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  margin: 8px 0 16px;
+}
+
+.loading-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .receipt-greeting {
   font-size: 16px !important;
   font-weight: 600;
@@ -3413,11 +3436,14 @@ form > input {
     grid-template-columns: 1fr;
   }
   .student-page {
-    padding-top: 68px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 68px);
+  }
+  .auth-panel {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 56px);
   }
   .theme-toggle {
     right: 12px;
-    top: 11px;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
     padding: 7px 8px;
   }
   .theme-toggle-label {
