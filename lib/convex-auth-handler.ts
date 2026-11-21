@@ -2,6 +2,7 @@ import { fetchAction } from "convex/nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { readJson, HttpError } from "./http.mjs";
 import { checkOrigin, failure, proofFor } from "./convex-auth-gateway";
+import { AUTH_GATEWAY_MESSAGES } from "./convex-auth-errors.mjs";
 
 type Call = (
   action: "auth:signIn" | "auth:signOut",
@@ -10,14 +11,7 @@ type Call = (
 ) => Promise<any>;
 const call: Call = (action, args, token) =>
   fetchAction(action as any, args as any, token ? { token } : {});
-const messages: Record<number, string> = {
-  400: "Invalid sign-in request.",
-  401: "Incorrect username or password.",
-  403: "Request not allowed.",
-  409: "That username is unavailable. Sign in or choose another.",
-  429: "Too many attempts. Please try again later.",
-  503: "Sign-in is temporarily unavailable.",
-};
+const messages: Record<number, string> = AUTH_GATEWAY_MESSAGES;
 
 // Matches the pinned Convex Auth Next provider's cookies. This adapter owns
 // admission and safe transport; the maintained backend owns tokens and sessions.

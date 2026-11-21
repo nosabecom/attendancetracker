@@ -27,7 +27,7 @@ export const reserve = internalMutation({
     await requireReady(ctx, true);
     const now = Date.now();
     if (
-      !["login", "signup", "checkin"].includes(a.operation) ||
+      !["login", "signup", "checkin", "password-reset"].includes(a.operation) ||
       !/^[a-f0-9]{32}$/.test(a.nonce) ||
       !/^[a-f0-9]{64}$/.test(a.ipHash) ||
       !Number.isSafeInteger(a.issuedAt) ||
@@ -36,7 +36,9 @@ export const reserve = internalMutation({
       (a.operation === "checkin"
         ? !/^[a-f0-9]{32}$/.test(a.sessionLegacyId ?? "") ||
           !/^[a-f0-9]{64}$/.test(a.username ?? "")
-        : !/^[a-z0-9._-]{3,40}$/.test(a.username ?? ""))
+        : a.operation === "password-reset"
+          ? !/^[a-f0-9]{64}$/.test(a.username ?? "")
+          : !/^[a-z0-9._-]{3,40}$/.test(a.username ?? ""))
     )
       return false;
     if (
@@ -69,6 +71,15 @@ export const reserve = internalMutation({
       if (!identity) return false;
       allowances.push(ip, session, identity);
       quotaPartitions = ip.partition * 64 + session.partition;
+    } else if (a.operation === "password-reset") {
+      for (const [key, capacity] of [
+        [`reset-ip:${a.ipHash}`, 20],
+        [`reset-token:${a.username}`, 10],
+      ] as const) {
+        const allowance = await counterAllowance(ctx, key, bucket, capacity, primary);
+        if (!allowance) return false;
+        allowances.push(allowance);
+      }
     } else {
       for (const [key, capacity] of [
         [`auth-ip:${a.ipHash}`, 40],
@@ -242,5 +253,114 @@ export const revokeFromRefresh = internalMutation({
       await ctx.scheduler.runAfter(0, cleanup, { sessionId });
     }
     return true;
+  },
+});
+
+export const storePasswordReset = internalMutation({
+  args: {
+    username: v.string(),
+    tokenHash: v.string(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, a) => {
+    await requireReady(ctx, true);
+    const now = Date.now();
+    if (
+      !/^[a-z0-9._-]{3,40}$/.test(a.username) ||
+      !/^[a-f0-9]{64}$/.test(a.tokenHash) ||
+      !Number.isSafeInteger(a.expiresAt) ||
+      a.expiresAt <= now
+    )
+      throw new ConvexError({ status: 400, message: "Invalid reset request." });
+    const cred = await ctx.db
+      .query("credentials")
+      .withIndex("by_username", (q) => q.eq("username", a.username))
+      .unique();
+    if (!cred)
+      throw new ConvexError({ status: 404, message: "Account not found." });
+    for (const existing of await ctx.db
+      .query("passwordResets")
+      .withIndex("by_user", (q) => q.eq("userId", cred.userId))
+      .take(50)) {
+      await ctx.db.delete(existing._id);
+    }
+    await ctx.db.insert("passwordResets", {
+      userId: cred.userId,
+      username: cred.username,
+      tokenHash: a.tokenHash,
+      expiresAt: a.expiresAt,
+    });
+    return { username: cred.username, expiresAt: a.expiresAt };
+  },
+});
+
+export const passwordResetInfo = internalQuery({
+  args: { tokenHash: v.string() },
+  handler: async (ctx, { tokenHash }) => {
+    await requireReady(ctx);
+    if (!/^[a-f0-9]{64}$/.test(tokenHash))
+      throw new ConvexError({
+        status: 404,
+        message: "This reset link is invalid or has expired.",
+      });
+    const row = await ctx.db
+      .query("passwordResets")
+      .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
+      .unique();
+    if (!row || row.usedAt !== undefined || row.expiresAt <= Date.now())
+      throw new ConvexError({
+        status: 404,
+        message: "This reset link is invalid or has expired.",
+      });
+    return { username: row.username, expiresAt: row.expiresAt };
+  },
+});
+
+export const consumePasswordReset = internalMutation({
+  args: {
+    tokenHash: v.string(),
+    salt: v.string(),
+    passwordHash: v.string(),
+  },
+  handler: async (ctx, a) => {
+    await requireReady(ctx, true);
+    const now = Date.now();
+    if (
+      !/^[a-f0-9]{64}$/.test(a.tokenHash) ||
+      !/^[a-f0-9]{32}$/.test(a.salt) ||
+      !/^[a-f0-9]{128}$/.test(a.passwordHash)
+    )
+      throw new ConvexError({ status: 400, message: "Invalid reset request." });
+    const row = await ctx.db
+      .query("passwordResets")
+      .withIndex("by_token_hash", (q) => q.eq("tokenHash", a.tokenHash))
+      .unique();
+    if (!row || row.usedAt !== undefined || row.expiresAt <= now)
+      throw new ConvexError({
+        status: 404,
+        message: "This reset link is invalid or has expired.",
+      });
+    const cred = await ctx.db
+      .query("credentials")
+      .withIndex("by_username", (q) => q.eq("username", row.username))
+      .unique();
+    if (!cred || cred.userId !== row.userId)
+      throw new ConvexError({
+        status: 404,
+        message: "This reset link is invalid or has expired.",
+      });
+    await ctx.db.patch(row._id, { usedAt: now });
+    await ctx.db.patch(cred._id, {
+      salt: a.salt,
+      passwordHash: a.passwordHash,
+    });
+    for (const session of await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", cred.userId))
+      .take(100)) {
+      await ctx.db.delete(session._id);
+      await ctx.scheduler.runAfter(0, cleanup, { sessionId: session._id });
+    }
+    return { ok: true, username: cred.username };
   },
 });

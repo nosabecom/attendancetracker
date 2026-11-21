@@ -26,6 +26,16 @@ export default defineSchema({
     passwordHash: v.string(),
   }).index("by_username", ["username"]),
 
+  passwordResets: defineTable({
+    userId: v.id("users"),
+    username: v.string(),
+    tokenHash: v.string(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_user", ["userId"]),
+
   // An owner key survives migration and legacy workspace claims. Ownership is
   // separate from mutable rosters, so a roster edit cannot invalidate attendance.
   ownerLinks: defineTable({
